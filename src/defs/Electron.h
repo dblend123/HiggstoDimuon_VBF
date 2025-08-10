@@ -10,7 +10,8 @@ namespace analysis
         class Electron : public Track
         {
             public:
-                Electron() : Track() {this->reset();}
+                Electron() : Track() 
+                {this->reset();}
                 virtual ~Electron() {}
                 virtual void reset()
                 {
@@ -33,6 +34,8 @@ namespace analysis
                     _mvahzz_value = 0;
                     _mvahzz_category = 0;
                     _mvahzzid_loose = false;
+                    
+                    _cutBased = 0;
                 }
 
                 std::vector<bool> _ids;
@@ -53,6 +56,8 @@ namespace analysis
                 float _mvahzz_value;
                 int _mvahzz_category;
                 bool _mvahzzid_loose;
+
+                char _cutBased;
 
         };
 

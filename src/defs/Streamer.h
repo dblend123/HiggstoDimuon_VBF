@@ -7,6 +7,8 @@
 #include <string>
 #include <iostream>
 
+#include "TError.h"
+
 namespace analysis
 {
 	namespace processing
@@ -50,15 +52,18 @@ namespace analysis
 
 		inline void Streamer::chainup()
 		{
-			std::cout << "### Chaining all the data files" << std::endl;
-			std::ifstream input(_inputname);
+			gErrorIgnoreLevel = kFatal;
+            std::cout << "Chaining All The Data Files" << std::endl;
+			std::cout << "\n";
+            std::ifstream input(_inputname);
 			for (std::string line; std::getline(input, line); )
 			{
 				_chain->Add(TString(line.c_str()));
 			}
-
-			std::cout << "### Total Entries=" << _chain->GetEntries() 
+            int TotalEntries = _chain->GetEntries();
+			std::cout << "Total Entries = " << TotalEntries 
 				<< std::endl;
+			std::cout << "\n";
 		}
 	}
 }

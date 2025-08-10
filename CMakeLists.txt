@@ -13,6 +13,23 @@ if (APPLE)
     add_compile_options(-fvisibility=hidden)
 endif()
 
+# Path to correctionlib
+set(CORRECTIONLIB_DIR "${CMAKE_SOURCE_DIR}/ext/correctionlib")
+
+# Add built headers path (e.g., correctionlib/src or correctionlib/build/src)
+include_directories(${CORRECTIONLIB_DIR}/build/src)
+
+# Include headers
+include_directories(${CORRECTIONLIB_DIR}/include)
+include_directories(${CORRECTIONLIB_DIR}/build/include)  # <-- ADD THIS LINE
+include_directories(/afs/cern.ch/user/d/dblend/test-analysis/ext/correctionlib/build/include)  # <-- ADD THIS LINE
+link_directories(${CORRECTIONLIB_DIR}/build ${CORRECTIONLIB_DIR}/build/src)
+
+# Add built library path
+link_directories(${CORRECTIONLIB_DIR}/build/src)
+
+# Optional: log for debugging
+message(STATUS "Using correctionlib from ${CORRECTIONLIB_DIR}")
 
 # NOTE: cmake must have a CTestTEstfile.cmkae generated
 # at the root of the build folder... otherwise it does not find tests

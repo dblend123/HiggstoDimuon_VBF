@@ -10,8 +10,9 @@ namespace analysis
 		class Jet : public Object
 		{
 			public:
-				Jet() : Object() {this->reset();}
-
+				Jet() : Object() 
+                {this->reset();}
+				virtual ~Jet() {}
 				virtual void reset()
 				{
 					_px = 0;
@@ -40,8 +41,10 @@ namespace analysis
 					_hfem = 0;
 					_jecf = 0;
 					_jecu = 0;
-					_btag.clear();
-					_puid = 0;
+					
+                    _btag.clear();
+					
+                    _puid = 0;
 
                     _uncAK5 = 0;
                     _uncAK4 = 0;
@@ -51,13 +54,23 @@ namespace analysis
                     _pt_downAK4 = 0;
 
 					_genjet.reset();
-					_genMatched = 0;
+					
+                    _genMatched = 0;
 					_genemf = 0;
 					_genhadf = 0;
 					_geninvf = 0;
 					_genauxf = 0;
-				}
-				virtual ~Jet() {}
+				    
+                    _jetId = 0;
+                    _btagDeepFlavB = 0;
+                    _area = 0;
+                    
+                    _chHEF = 0;
+                    _neHEF = 0;
+                    _chEmEF = 0;
+                    _neEmEF = 0;
+                    _muEF = 0;
+                }
 
 				float _px;
 				float _py;
@@ -103,7 +116,16 @@ namespace analysis
 				float _genhadf;
 				float _geninvf;
 				float _genauxf;
+                
+                unsigned char  _jetId;
+                float _btagDeepFlavB;
+                float _area;
 
+                float _chHEF;
+                float _neHEF;
+                float _chEmEF;
+                float _neEmEF;
+                float _muEF;
 		};
 
 		typedef std::vector<analysis::core::Jet> Jets;

@@ -11,11 +11,14 @@ namespace analysis
 		class Muon : public Track
 		{
 			public:
-				Muon() : Track() {this->reset();}
-
+				Muon() : Track() 
+                {this->reset();}
 				virtual void reset()
 				{
-					_isTracker = 0;
+					_dxy = 0;
+                    _dz = 0;
+
+                    _isTracker = 0;
 					_isStandAlone = 0;
 					_isGlobal = 0;
 					_isTight = 0;
@@ -66,8 +69,14 @@ namespace analysis
 					_sumNeutralHadronEtR04 = 0;
 					_sumPhotonEtR04 = 0;
 					_sumPUPtR04 = 0;
-				}
+				    
+                    _pfRelIso04_all = 0;
+                    _nTrackerLayers = 0;
+                }
 				virtual ~Muon() {}
+
+                float _dxy;
+                float _dz;
 
 				bool _isTracker;
 				Track _track;
@@ -120,7 +129,8 @@ namespace analysis
 				float _sumPhotonEtR04;
 				float _sumPUPtR04;
 
-
+                float _pfRelIso04_all;
+                char _nTrackerLayers;
 		};
 
 		typedef std::vector<analysis::core::Muon> Muons;
