@@ -60,6 +60,7 @@ namespace analysis
 					_genhadf = 0;
 					_geninvf = 0;
 					_genauxf = 0;
+                    _genJetIdx = -1;
 				    
                     _jetId = 0;
                     _btagDeepFlavB = 0;
@@ -70,6 +71,7 @@ namespace analysis
                     _chEmEF = 0;
                     _neEmEF = 0;
                     _muEF = 0;
+                
                 }
 
 				float _px;
@@ -116,7 +118,8 @@ namespace analysis
 				float _genhadf;
 				float _geninvf;
 				float _genauxf;
-                
+                int _genJetIdx;
+
                 unsigned char  _jetId;
                 float _btagDeepFlavB;
                 float _area;

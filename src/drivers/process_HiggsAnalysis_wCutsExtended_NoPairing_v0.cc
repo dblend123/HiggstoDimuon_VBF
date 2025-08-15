@@ -1,8 +1,13 @@
+//*******************************************************************
+//                   HEADER FILES
+//*******************************************************************
+
 // Def Header Files
 #include "Muon.h"
 #include "Photon.h"
 #include "FsrPhoton.h"
 #include "Jet.h"
+#include "GenJet.h"
 #include "Vertex.h"
 #include "Event.h"
 #include "MET.h"
@@ -30,7 +35,11 @@
 #include "signal.h"
 #include "memory"
 
-// Histogram Macros
+//*******************************************************************
+//                   HISTOGRAM MACROS
+//*******************************************************************
+
+// DiMuon set (No Weights) 
 #define FILL_DIMUON_HIST(set, weight) \
     set.hDiMuonpt->Fill(corr_p4dimuon.Pt(), weight); \
     set.hDiMuonMass->Fill(corr_p4dimuon.M(), weight); \
@@ -65,25 +74,32 @@
         set.hDiMuoneta_Higgs->Fill(corr_p4dimuon.Eta(), weight); \
     }
 
+// DiMuon set (Weights) 
 #define FILL_CORR_DIMUON_HIST(set, weight) FILL_DIMUON_HIST(set, weight)
 
+// DiJet set (Weights) 
 #define FILL_DIJET_HIST(set, weight) \
     set.hDiJetpt->Fill(dijetpt, weight); \
     set.hDiJetMass->Fill(dijetmass, weight); \
     set.hDiJetdeta->Fill(dijetdeta, weight);
 
-// Declare/Define All The Service Globals
+//*******************************************************************
+//                     CONSTANTS
+//*******************************************************************
+
+// Service Globals
 std::string __inputfilename;
 std::string __outputfilename;
-bool __isMC;
-bool __genPUMC;
 std::string __puMCfilename;
 std::string __puDATAfilename;
+std::string const NTUPLEMAKER_NAME =  "";
+
+bool __isMC;
+bool __genPUMC;
 std::atomic<bool> __continueRunning = true;
 
-// Constant Values 
-// Muon Id: (lead = 0; sublead =1)
-enum MuonType {kLead=0, kSubLead=1};
+// Kinematic Cuts  
+enum MuonType {kLead=0, kSubLead=1};  // Muon Id --> lead = 0, sublead =1
 double _leadmuonPt = 29.;
 double _subleadmuonPt = 20.;
 double _leadmuonEta = 2.4;
@@ -97,14 +113,20 @@ double _subleadJetEta = 4.7;
 double _dijetMass_VBF = 400;
 double _dijetdEta_VBF = 2.5;
 
-std::string const NTUPLEMAKER_NAME =  "";
-
+// Namespace 
 namespace po = boost::program_options;
 using namespace analysis::core;
 using namespace analysis::dimuon;
 using namespace analysis::processing;
 using namespace correction;
 
+//*******************************************************************
+//                   CORRECTIONLIB LIBRARY FILES
+//*******************************************************************
+
+// -------------------------------------
+//             MUONS 
+// -------------------------------------
 
 // Muon SF && Momentum Corrections 
 std::shared_ptr<correction::CorrectionSet> corrections = nullptr;
@@ -118,19 +140,26 @@ void loadMuonCorrections() {
         ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/RoccoR2022.json");
 }
 
-// Jet SF && Momentum Corrections 
+// -------------------------------------
+//             JETS 
+// -------------------------------------
+
+// Jet Energy Corrections/Resolutions (JEC/JER) 
 std::shared_ptr<correction::CorrectionSet> jetCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetidCorrections = nullptr;
 void loadJetCorrections() {
     if (!jetCorrections)
         jetCorrections = correction::CorrectionSet::from_file
         ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jet_jerc.json");
-    if (!jetidCorrections)
-        jetidCorrections = correction::CorrectionSet::from_file
-        ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jetid.json");
+    //if (!jetidCorrections)
+        //jetidCorrections = correction::CorrectionSet::from_file
+        //("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jetid.json");
 }
 
-// Pilup Weights
+// -------------------------------------
+//             PU WEIGHTS 
+// -------------------------------------
+
 std::shared_ptr<correction::CorrectionSet> pileupCorrections = nullptr;
 std::shared_ptr<const correction::Correction> pu_corrections = nullptr;
 void loadPileupCorrections() {
@@ -143,10 +172,13 @@ void loadPileupCorrections() {
 TH1D *hEventWeights = NULL;
 
 //*******************************************************************
-//MOMENTUM CORRECTIONS//
+//                      MOMENTUM CORRECTIONS
 //*******************************************************************
 
-// Muons 
+// -------------------------------------
+//             MUONS 
+// -------------------------------------
+
 float getMuonRochester(const Muon& mu, bool isMC)
 {
     if (!muoncorrections) {
@@ -173,8 +205,11 @@ float getMuonRochester(const Muon& mu, bool isMC)
     }
 }
 
-// Jets 
-float getJetJEC(const Jet& jet, float rho) {
+// -------------------------------------
+//             JETS 
+// -------------------------------------
+
+/*float getJetJEC(const Jet& jet, float rho) {
     if (!jetCorrections) {
         std::cerr << "[ERROR] Jet corrections not loaded!\n";
         return 1.0;
@@ -203,6 +238,52 @@ float getJetJEC(const Jet& jet, float rho) {
         std::cerr << "[ERROR] Failed to evaluate jet correction: " << e.what() << std::endl;
         return 1.0;
     }
+}*/
+
+float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet) {
+    if (!jetCorrections) {
+        std::cerr << "[ERROR] Jet corrections not loaded!\n";
+        return jet._pt;
+    }
+
+    float eta  = std::clamp(jet._eta, -5.191f, 5.191f);
+    float pt   = std::max(jet._pt, 0.1f);
+    float area = jet._area;
+
+    // Choose prefix
+    std::string prefix = isMC
+        ? "Summer22_22Sep2023_RunCD_V2_MC_"
+        : "Summer22_22Sep2023_RunCD_V2_DATA_";
+
+    // ---- JEC ----
+    float l1   = jetCorrections->at(prefix + "L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
+    float l2   = jetCorrections->at(prefix + "L2Relative_AK4PFPuppi")->evaluate({eta, pt});
+    float l3   = jetCorrections->at(prefix + "L3Absolute_AK4PFPuppi")->evaluate({eta, pt});
+    float res  = isMC ? 1.0f : jetCorrections->at(prefix + "L2L3Residual_AK4PFPuppi")->evaluate({eta, pt});
+
+    float jecFactor = l1 * l2 * l3 * res;
+    float corr_pt   = pt * jecFactor;
+
+    // ---- JER (MC only) ----
+    if (isMC) {
+        float sf = jetCorrections
+            ->at("Summer22_22Sep2023_RunCD_V2_MC_ScaleFactor_AK4PFPuppi")
+            ->evaluate({eta, "nom"}); // "up"/"down" for systs
+        
+        if (hasGenJet && genJetPt > 0.f) {
+        float smearFactor = 1.0f + (sf - 1.0f) * (corr_pt - jet._genjet._pt) / corr_pt;
+        corr_pt *= smearFactor;
+        } else {
+            float resolution = jetCorrections
+                ->at("Summer22_22Sep2023_RunCD_V2_MC_PtResolution_AK4PFPuppi")
+                ->evaluate({eta, corr_pt, rho});
+            float sigma = resolution * std::sqrt(std::max(sf * sf - 1.0f, 0.0f));
+            static TRandom3 rand(42);
+            corr_pt *= (1.0f + rand.Gaus(0, sigma));
+        }
+    }
+
+    return corr_pt;
 }
 
 float jetMuondR(float jeta,float jphi, float meta, float mphi)
@@ -214,10 +295,13 @@ float jetMuondR(float jeta,float jphi, float meta, float mphi)
 }
 
 //*******************************************************************
-//BOOLEAN CONDITIONS//
+//                      BOOLEAN CONDITIONS
 //*******************************************************************
 
-//MUON LOCATIONS
+// -------------------------------------
+//              MUON LOCATIONS
+// -------------------------------------
+
 bool isBarrel(Muon const& m)
 {
 	return TMath::Abs(m._eta)<0.9;
@@ -233,7 +317,10 @@ bool isEndcap(Muon const& m)
 	return TMath::Abs(m._eta)>=1.6 && TMath::Abs(m._eta)<2.4;
 }
 
+// -------------------------------------
 //TRIGGER CRITERIA
+// -------------------------------------
+
 /*bool passL1(L1s* l1trigger) {
     if (l1trigger->empty() || !(*l1trigger)[0]._SingleMu12er1p5) {
         return false;  // Fail, go to next event
@@ -248,7 +335,10 @@ bool passHLT(HLTs* hlttrigger) {
     return true;  // Pass
 }*/
 
+// -------------------------------------
 //LEPTON CRITERIA 
+// -------------------------------------
+
 bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons)
 {
     int numPassingMuons = 0;
@@ -276,7 +366,10 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons)
     return true; // Passed: ≤2 good muons AND no good electrons
 }
 
+// -------------------------------------
 //VERTEX CRITERIA 
+// -------------------------------------
+
 bool passVertex(Vertices* v)
 {
 	if (v->size()==0)
@@ -303,7 +396,10 @@ bool passVertex(Vertices* v)
 	return false;
 }
 
+// -------------------------------------
 //MUON CRITERIA 
+// -------------------------------------
+
 bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
 {
 	if (trig->size()==0)
@@ -385,7 +481,10 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
 	return false;
 }
 
+// -------------------------------------
 //JET CRITERIA 
+// -------------------------------------
+
 /*bool passJetIDfromJSON(const Jet& jet) {
     if (!jetidCorrections) {
         std::cerr << "[ERROR] Jet ID corrections not loaded!\n";
@@ -416,26 +515,20 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
 
 bool passJet(Jets* j, float rho)
 {
-    if (j->size() < 2)
-        return false;
-    
+    if (j->size() < 2) return false;
+
     std::vector<TLorentzVector> Alljets;
-    for (Jets::const_iterator it = j->begin(); it != j->end(); ++it)
+    for (const auto& jet : *j)
     {
-        float jec = getJetJEC(*it, rho);
+        float corr_pt   = getCorrectedJetPt(jet, rho, __isMC, genJetPt, hasGenJet);
+        float corr_mass = jet._mass * (corr_pt / jet._pt);
 
-        // Compute corrected kinematics
-        float corrected_pt = it->_pt * jec;
-        float corrected_mass = it->_mass * jec;
+        if (corr_pt <= 25 || std::abs(jet._eta) >= 4.7) continue;
+        if ((jet._jetId & 4) != 4) continue; // Tight ID
 
-        // Basic kinematics (All Jets must pass)
-        if (corrected_pt <= 25 || TMath::Abs(it->_eta) >= 4.7) continue;
-        //if (!passJetIDfromJSON(*it)) continue;
-        if ((it->_jetId & 4) != 4) continue;
-        
-        TLorentzVector alljets;
-        alljets.SetPtEtaPhiM(corrected_pt, it->_eta, it->_phi, corrected_mass);
-        Alljets.push_back(alljets);
+        TLorentzVector p4;
+        p4.SetPtEtaPhiM(corr_pt, jet._eta, jet._phi, corr_mass);
+        Alljets.push_back(p4);
     }
 
     if (Alljets.size() < 2) return false;
@@ -444,8 +537,13 @@ bool passJet(Jets* j, float rho)
 }
 
 //*******************************************************************
-//SCALE FACTORS//
+//                          SCALE FACTORS
 //*******************************************************************
+
+// -------------------------------------
+//             MUONS 
+// -------------------------------------
+
 float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
     /*if (!isMC) {
         std::cerr << "This is Data!\n";
@@ -484,12 +582,10 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
 }
 
 
-
-void categorize(analysis::core::Jets* jets, const analysis::core::Muon& mu1, const analysis::core::Muon& mu2,
-analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons, analysis::core::Vertices* vertices, 
-const analysis::core::MET& met, const analysis::core::Event& event, const analysis::core::Rhos* rhos, 
-HistSetCollection& hists, float MCweight)
-{
+void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, const analysis::core::Muon& mu1, 
+const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons, 
+analysis::core::Vertices* vertices, const analysis::core::MET& met, const analysis::core::Event& event, 
+const analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     // TLorentz Vectors for Muons 1 & 2
     float roch_sf1 = getMuonRochester(mu1, __isMC);
     float roch_sf2 = getMuonRochester(mu2, __isMC);
@@ -561,10 +657,18 @@ HistSetCollection& hists, float MCweight)
     std::vector<TLorentzVector> p4jets;
     for (Jets::const_iterator it=jets->begin(); it!=jets->end(); ++it)
 	{
-        float jec = getJetJEC(*it, rho);
-        //float jec = getJetJEC(*it);
-        float corr_pt = it->_pt * jec;      
-        float corr_mass = it->_mass * jec;
+        float genJetPt = -1.0f;
+        bool hasGenJet = false;
+
+        // JER matching using NanoAOD index
+        if (__isMC && it->_genJetIdx >= 0 && it->_genJetIdx < (int)genjets->size()) {
+            const auto& gj = genjets->at(it->_genJetIdx);
+            genJetPt = gj._pt;
+            hasGenJet = true;
+        }
+        
+        float corr_pt   = getCorrectedJetPt(*it, rho, __isMC, genJetPt, hasGenJet);
+        float corr_mass = it->_mass * (corr_pt / it->_pt);
 
         // Muon cleaning ΔR > 0.4 
         if (jetMuondR(it->_eta, it->_phi, mu1._eta, mu1._phi) < 0.4) continue; 
@@ -577,7 +681,6 @@ HistSetCollection& hists, float MCweight)
         // Jet passed all cuts → store for dijet selection
 		TLorentzVector p4;
 		p4.SetPtEtaPhiM(corr_pt, it->_eta, it->_phi, corr_mass);
-		//p4.SetPtEtaPhiM(it->_pt, it->_eta, it->_phi, it->_mass);
 		p4jets.push_back(p4);
 			
             // Print out the jet's properties
@@ -889,6 +992,7 @@ void process()
 	Muons muons1;
 	Muons muons2;
 	Jets *jets=NULL;
+    GenJets *genjets=NULL;
     Photons *photons=NULL;
     FsrPhotons *fsrphotons=NULL;
 	Vertices *vertices=NULL;
@@ -946,7 +1050,15 @@ void process()
     SET_BRANCH_FLOAT_ARRAY(Jet_chEmEF);
     SET_BRANCH_FLOAT_ARRAY(Jet_neEmEF);
     SET_BRANCH_FLOAT_ARRAY(Jet_muEF);
+    SET_BRANCH_USHORT_ARRAY(Jet_genJetIdx);
 
+    //Setting Branch Array for GenJet Properties
+    SET_BRANCH_UINT(nGenJet);
+    SET_BRANCH_FLOAT_ARRAY(GenJet_eta);
+    SET_BRANCH_FLOAT_ARRAY(GenJet_mass);
+    SET_BRANCH_FLOAT_ARRAY(GenJet_pt);
+    SET_BRANCH_FLOAT_ARRAY(GenJet_phi);
+    
     //Setting Branch Array for FsrPhoton Properties
     SET_BRANCH_UINT(nFsrPhoton);
     SET_BRANCH_FLOAT_ARRAY(FsrPhoton_pt);
@@ -995,6 +1107,7 @@ void process()
 
     muons = new std::vector<Muon>();
     jets = new std::vector<Jet>();
+    genjets = new std::vector<GenJet>();
     fsrphotons = new std::vector<FsrPhoton>();
     photons = new std::vector<Photon>();
     vertices = new std::vector<Vertex>();
@@ -1015,6 +1128,7 @@ void process()
 	{   
         muons->clear();
         jets->clear();
+        genjets->clear();
         photons->clear();
         fsrphotons->clear();
         vertices->clear();
@@ -1059,8 +1173,19 @@ void process()
             jet._chEmEF = Jet_chEmEF[i];
             jet._neEmEF = Jet_neEmEF[i];
             jet._muEF = Jet_muEF[i];
-            
+            jet._genJetIdx = Jet_genJetIdx[i];
+
             jets->push_back(std::move(jet));
+        }
+
+        for (size_t i=0; i<nGenJet; i++) {
+            GenJet genjet;
+            genjet._pt = GenJet_pt[i];
+            genjet._eta = GenJet_eta[i];
+            genjet._phi = GenJet_phi[i];
+            genjet._mass = GenJet_mass[i];
+            
+            genjets->push_back(std::move(genjet));
         }
 
         for (size_t i=0; i<nFsrPhoton; i++){
@@ -1222,7 +1347,7 @@ void process()
             
             if (!passMuons(*it, *jt, trigobjs)) continue;
             
-            categorize(jets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, MCweight);
+            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, MCweight);
             break;
         }
         break;
