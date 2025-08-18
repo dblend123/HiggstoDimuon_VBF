@@ -1,0 +1,505 @@
+
+Processing Voigtian_ZMassRegion.C+("eta_0")...
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_pass) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- using generic CPU library compiled with no vectorizations
+[#1] INFO:Fitting -- Creation of NLL object took 15.9721 ms
+[#1] INFO:Fitting -- RooAddition::defaultErrorLevel(nll_model_pass_data_pass) Summation contains a RooNLLVar, using its error level
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#1] INFO:NumericIntegration -- RooRealIntegral::init(Vmodel_Int[x]) using numeric integrator RooIntegrator1D to calculate Int(x)
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-1.5028e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=91.2	Vsigma=1.5	nBkgP=1000	nSigP=5000	slopeP=-0.2
+RooAddPdf::model_pass[ nSigP * Vmodel_over_Vmodel_Int[x] + nBkgP * bkg_pass_over_bkg_pass_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_pass_over_bkg_pass_Int[x][ numerator=bkg_pass denominator=bkg_pass_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-17.5, denominator=bkg_pass_Int[x]=-787.5
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-1.5028e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=91.2	Vsigma=1.5	nBkgP=1000	nSigP=5000	slopeP=-0.0201344
+RooAddPdf::model_pass[ nSigP * Vmodel_over_Vmodel_Int[x] + nBkgP * bkg_pass_over_bkg_pass_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 5000,nBkgP = 1000)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_pass_over_bkg_pass_Int[x][ numerator=bkg_pass denominator=bkg_pass_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.862435, denominator=bkg_pass_Int[x]=-38.8096
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-1.5028e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=91.2	Vsigma=1.5	nBkgP=564895	nSigP=418764	slopeP=-0.0155281
+RooAddPdf::model_pass[ nSigP * Vmodel_over_Vmodel_Int[x] + nBkgP * bkg_pass_over_bkg_pass_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = nan), !coefficients=(nSigP = 418764,nBkgP = 564895)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_pass_over_bkg_pass_Int[x][ numerator=bkg_pass denominator=bkg_pass_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+     p.d.f normalization integral is zero or negative @ numerator=bkg_pass=-0.436351, denominator=bkg_pass_Int[x]=-19.6358
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-1.5028e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=91.2	Vsigma=1.5	nBkgP=564895	nSigP=418764	slopeP=-0.0103523
+RooAddPdf::model_pass[ nSigP * Vmodel_over_Vmodel_Int[x] + nBkgP * bkg_pass_over_bkg_pass_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+    ... (remaining 8 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_pass_over_bkg_pass_Int[x][ numerator=bkg_pass denominator=bkg_pass_Int[x] ]
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0424113, denominator=bkg_pass_Int[x]=1.90851
+    ... (remaining 8 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-1.5028e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=91.2	Vsigma=1.5	nBkgP=564895	nSigP=418764	slopeP=-0.0103466
+RooAddPdf::model_pass[ nSigP * Vmodel_over_Vmodel_Int[x] + nBkgP * bkg_pass_over_bkg_pass_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+    ... (remaining 8 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_pass_over_bkg_pass_Int[x][ numerator=bkg_pass denominator=bkg_pass_Int[x] ]
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.0429433, denominator=bkg_pass_Int[x]=1.93245
+    ... (remaining 8 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-1.5028e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=91.2	Vsigma=1.5	nBkgP=564895	nSigP=418764	slopeP=-0.00905543
+RooAddPdf::model_pass[ nSigP * Vmodel_over_Vmodel_Int[x] + nBkgP * bkg_pass_over_bkg_pass_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+RooFit::Detail::RooNormalizedPdf::bkg_pass_over_bkg_pass_Int[x][ numerator=bkg_pass denominator=bkg_pass_Int[x] ]
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162372, denominator=bkg_pass_Int[x]=7.30676
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162372, denominator=bkg_pass_Int[x]=7.30676
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162372, denominator=bkg_pass_Int[x]=7.30676
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162372, denominator=bkg_pass_Int[x]=7.30676
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162372, denominator=bkg_pass_Int[x]=7.30676
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-1.5028e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=91.2	Vsigma=1.5	nBkgP=564895	nSigP=418764	slopeP=-0.00904968
+RooAddPdf::model_pass[ nSigP * Vmodel_over_Vmodel_Int[x] + nBkgP * bkg_pass_over_bkg_pass_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.129907,bkg_pass_over_bkg_pass_Int[x] = 0.0222222), !coefficients=(nSigP = 418764,nBkgP = 564895)
+RooFit::Detail::RooNormalizedPdf::bkg_pass_over_bkg_pass_Int[x][ numerator=bkg_pass denominator=bkg_pass_Int[x] ]
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162904, denominator=bkg_pass_Int[x]=7.3307
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162904, denominator=bkg_pass_Int[x]=7.3307
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162904, denominator=bkg_pass_Int[x]=7.3307
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_pass=0.162904, denominator=bkg_pass_Int[x]=7.3307
+
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_fail) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- Creation of NLL object took 203.702 μs
+[#1] INFO:Fitting -- RooAddition::defaultErrorLevel(nll_model_fail_data_fail) Summation contains a RooNLLVar, using its error level
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#1] INFO:NumericIntegration -- RooRealIntegral::init(Vmodel_Int[x]) using numeric integrator RooIntegrator1D to calculate Int(x)
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-906530) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=90.7713	Vsigma=1.25633	nBkgF=1000	nSigF=3000	slopeF=-0.135844
+RooAddPdf::model_fail[ nSigF * Vmodel_over_Vmodel_Int[x] + nBkgF * bkg_fail_over_bkg_fail_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_fail_over_bkg_fail_Int[x][ numerator=bkg_fail denominator=bkg_fail_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-11.5656, denominator=bkg_fail_Int[x]=-520.452
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-906530) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=90.7713	Vsigma=1.25633	nBkgF=1000	nSigF=3000	slopeF=-0.0136261
+RooAddPdf::model_fail[ nSigF * Vmodel_over_Vmodel_Int[x] + nBkgF * bkg_fail_over_bkg_fail_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 3000,nBkgF = 1000)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_fail_over_bkg_fail_Int[x][ numerator=bkg_fail denominator=bkg_fail_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.260418, denominator=bkg_fail_Int[x]=-11.7188
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-906530) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=90.7713	Vsigma=1.25633	nBkgF=162802	nSigF=108896	slopeF=-0.0216817
+RooAddPdf::model_fail[ nSigF * Vmodel_over_Vmodel_Int[x] + nBkgF * bkg_fail_over_bkg_fail_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_fail_over_bkg_fail_Int[x][ numerator=bkg_fail denominator=bkg_fail_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-1.00555, denominator=bkg_fail_Int[x]=-45.2499
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-906530) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=90.7713	Vsigma=1.25633	nBkgF=162802	nSigF=108896	slopeF=-0.0144551
+RooAddPdf::model_fail[ nSigF * Vmodel_over_Vmodel_Int[x] + nBkgF * bkg_fail_over_bkg_fail_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_fail_over_bkg_fail_Int[x][ numerator=bkg_fail denominator=bkg_fail_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.337094, denominator=bkg_fail_Int[x]=-15.1692
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-906530) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=90.7713	Vsigma=1.25633	nBkgF=162802	nSigF=108896	slopeF=-0.0108415
+RooAddPdf::model_fail[ nSigF * Vmodel_over_Vmodel_Int[x] + nBkgF * bkg_fail_over_bkg_fail_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = nan), !coefficients=(nSigF = 108896,nBkgF = 162802)
+    ... (remaining 35 messages suppressed)
+RooFit::Detail::RooNormalizedPdf::bkg_fail_over_bkg_fail_Int[x][ numerator=bkg_fail denominator=bkg_fail_Int[x] ]
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+     p.d.f normalization integral is zero or negative @ numerator=bkg_fail=-0.00283563, denominator=bkg_fail_Int[x]=-0.127603
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-906530) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=90.7713	Vsigma=1.25633	nBkgF=162802	nSigF=108896	slopeF=-0.00903461
+RooAddPdf::model_fail[ nSigF * Vmodel_over_Vmodel_Int[x] + nBkgF * bkg_fail_over_bkg_fail_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+RooFit::Detail::RooNormalizedPdf::bkg_fail_over_bkg_fail_Int[x][ numerator=bkg_fail denominator=bkg_fail_Int[x] ]
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.164299, denominator=bkg_fail_Int[x]=7.39344
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.164299, denominator=bkg_fail_Int[x]=7.39344
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.164299, denominator=bkg_fail_Int[x]=7.39344
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.164299, denominator=bkg_fail_Int[x]=7.39344
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-906530) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	Vmean=90.7713	Vsigma=1.25633	nBkgF=162802	nSigF=108896	slopeF=-0.00902658
+RooAddPdf::model_fail[ nSigF * Vmodel_over_Vmodel_Int[x] + nBkgF * bkg_fail_over_bkg_fail_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(Vmodel_over_Vmodel_Int[x] = 0.112972,bkg_fail_over_bkg_fail_Int[x] = 0.0222222), !coefficients=(nSigF = 108896,nBkgF = 162802)
+RooFit::Detail::RooNormalizedPdf::bkg_fail_over_bkg_fail_Int[x][ numerator=bkg_fail denominator=bkg_fail_Int[x] ]
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.165041, denominator=bkg_fail_Int[x]=7.42687
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.165041, denominator=bkg_fail_Int[x]=7.42687
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.165041, denominator=bkg_fail_Int[x]=7.42687
+     p.d.f value is less than zero, trying to recover @ numerator=bkg_fail=0.165041, denominator=bkg_fail_Int[x]=7.42687
+
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+--------------------------------------------------
+nSigP = 1e+06 ± 0.526448
+nSigF = 165276 ± 461.854
+Tag-and-Probe Efficiency = 0.858166 ± 0.000340133
+--------------------------------------------------
+[#1] INFO:NumericIntegration -- RooRealIntegral::init(Vmodel_Int[x]) using numeric integrator RooIntegrator1D to calculate Int(x)
+[#1] INFO:NumericIntegration -- RooRealIntegral::init(Vmodel_Int[x]) using numeric integrator RooIntegrator1D to calculate Int(x)
+Bin 0: data = 7945, model = 57724.4, error = 89.1375
+Bin 1: data = 8722, model = 56729.7, error = 93.3943
+Bin 2: data = 9648, model = 55765.7, error = 98.2268
+Bin 3: data = 10152, model = 54840.2, error = 100.76
+Bin 4: data = 11208, model = 53963.6, error = 105.87
+Bin 5: data = 12334, model = 53154, error = 111.061
+Bin 6: data = 13544, model = 52429.8, error = 116.381
+Bin 7: data = 15129, model = 51821.5, error = 123.002
+Bin 8: data = 17347, model = 51374.9, error = 131.71
+Bin 9: data = 19687, model = 51170.2, error = 140.312
+Bin 10: data = 23325, model = 51341.2, error = 152.727
+Bin 11: data = 27433, model = 52118.3, error = 165.631
+Bin 12: data = 33468, model = 53955.4, error = 182.944
+Bin 13: data = 42156, model = 57734.8, error = 205.32
+Bin 14: data = 55480, model = 65332.7, error = 235.543
+Bin 15: data = 75783, model = 79027.9, error = 275.288
+Bin 16: data = 108038, model = 102030, error = 328.692
+Bin 17: data = 160457, model = 135055, error = 400.571
+Bin 18: data = 238009, model = 173653, error = 487.862
+Bin 19: data = 328804, model = 207413, error = 573.415
+Bin 20: data = 387985, model = 223382, error = 622.885
+Bin 21: data = 369307, model = 214070, error = 607.707
+Bin 22: data = 283486, model = 183323, error = 532.435
+Bin 23: data = 189262, model = 142638, error = 435.043
+Bin 24: data = 119545, model = 104261, error = 345.754
+Bin 25: data = 75528, model = 75150.5, error = 274.824
+Bin 26: data = 50216, model = 55934.8, error = 224.09
+Bin 27: data = 34640, model = 44087, error = 186.12
+Bin 28: data = 25005, model = 36835.6, error = 158.131
+Bin 29: data = 19080, model = 32053.6, error = 138.132
+Bin 30: data = 14900, model = 28608.8, error = 122.068
+Bin 31: data = 12140, model = 25910.1, error = 110.184
+Bin 32: data = 10076, model = 23667.5, error = 100.382
+Bin 33: data = 8438, model = 21698.7, error = 91.8613
+Bin 34: data = 7271, model = 19915.8, error = 85.2731
+Bin 35: data = 6298, model = 18264.2, error = 79.3631
+Bin 36: data = 5565, model = 16710, error = 74.6023
+Bin 37: data = 4920, model = 15228.1, error = 70.1463
+Bin 38: data = 4486, model = 13800.2, error = 66.9813
+Bin 39: data = 4034, model = 12414.5, error = 63.5177
+Bin 40: data = 3643, model = 11062.2, error = 60.3614
+Bin 41: data = 3423, model = 9737.81, error = 58.5107
+Bin 42: data = 3063, model = 8434.99, error = 55.3489
+Bin 43: data = 2821, model = 7149.94, error = 53.1178
+Bin 44: data = 2674, model = 5879.66, error = 51.7156
+Bin 0: data = 630, model = 821.748, error = 25.1098
+Bin 1: data = 681, model = 830.852, error = 26.1056
+Bin 2: data = 674, model = 843.352, error = 25.9711
+Bin 3: data = 725, model = 860.105, error = 26.9351
+Bin 4: data = 786, model = 882.264, error = 28.0446
+Bin 5: data = 873, model = 911.818, error = 29.555
+Bin 6: data = 968, model = 950.823, error = 31.1207
+Bin 7: data = 1064, model = 1002.63, error = 32.6267
+Bin 8: data = 1114, model = 1072.31, error = 33.3841
+Bin 9: data = 1320, model = 1168.72, error = 36.3387
+Bin 10: data = 1587, model = 1306.66, error = 39.8434
+Bin 11: data = 1893, model = 1511.58, error = 43.5144
+Bin 12: data = 2201, model = 1833.65, error = 46.9201
+Bin 13: data = 2875, model = 2370.38, error = 53.6237
+Bin 14: data = 3737, model = 3329.12, error = 61.1351
+Bin 15: data = 5182, model = 4961.73, error = 71.9896
+Bin 16: data = 7164, model = 7622.88, error = 84.6434
+Bin 17: data = 10485, model = 11391.8, error = 102.399
+Bin 18: data = 14843, model = 15776.7, error = 121.834
+Bin 19: data = 19494, model = 19626.7, error = 139.623
+Bin 20: data = 22129, model = 21510.6, error = 148.76
+Bin 21: data = 21504, model = 20600.5, error = 146.644
+Bin 22: data = 17453, model = 17321.4, error = 132.112
+Bin 23: data = 12458, model = 12944.1, error = 111.618
+Bin 24: data = 8187, model = 8821.73, error = 90.4848
+Bin 25: data = 5618, model = 5723.57, error = 74.9567
+Bin 26: data = 3792, model = 3713.96, error = 61.5833
+Bin 27: data = 2627, model = 2528.56, error = 51.2591
+Bin 28: data = 1995, model = 1846.19, error = 44.671
+Bin 29: data = 1536, model = 1436.74, error = 39.1982
+Bin 30: data = 1229, model = 1175.06, error = 35.0642
+Bin 31: data = 1103, model = 995.837, error = 33.219
+Bin 32: data = 898, model = 867.025, error = 29.975
+Bin 33: data = 710, model = 768.479, error = 26.6552
+Bin 34: data = 681, model = 690.468, error = 26.1056
+Bin 35: data = 583, model = 626.971, error = 24.1557
+Bin 36: data = 515, model = 574.243, error = 22.7046
+Bin 37: data = 494, model = 529.508, error = 22.2374
+Bin 38: data = 456, model = 490.735, error = 21.3659
+Bin 39: data = 422, model = 456.622, error = 20.5548
+Bin 40: data = 409, model = 426.207, error = 20.2361
+Bin 41: data = 413, model = 398.876, error = 20.3347
+Bin 42: data = 368, model = 373.928, error = 19.1964
+Bin 43: data = 353, model = 350.944, error = 18.8016
+Bin 44: data = 312, model = 329.592, error = 17.6777
+Manual Chi²/NDOF = 54819.3
+Manual Chi²/NDOF = 22.0282
+[#1] INFO:Minimization -- p.d.f. provides expected number of events, including extended term in likelihood.
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_pass) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- Creation of NLL object took 208.582 μs
+[#1] INFO:Minimization -- p.d.f. provides expected number of events, including extended term in likelihood.
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_fail) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- Creation of NLL object took 243.092 μs
+Chi²/NDOF for Passing Voigtian + Background Fit:  54439.7
+Chi²/NDOF for Failing Voigtian + Background Fit:  22.1861
+--------------------------------------------
+NLL for Voigtian + Background Fit:  [#1] INFO:NumericIntegration -- RooRealIntegral::init(Vmodel_Int[x]) using numeric integrator RooIntegrator1D to calculate Int(x)
+-3.0706e+07
+NLL for Voigtian + Background Fit:  [#1] INFO:NumericIntegration -- RooRealIntegral::init(Vmodel_Int[x]) using numeric integrator RooIntegrator1D to calculate Int(x)
+-1.49437e+06

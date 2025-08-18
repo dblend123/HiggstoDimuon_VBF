@@ -1,0 +1,380 @@
+#define MyAnalysis_cxx
+
+#include "MyAnalysis.h"
+#include <fstream>
+#include <iomanip>
+#include <TError.h>
+#include <TNtupleD.h>
+#include <stdio.h>
+#include <termios.h>
+#include <unistd.h>
+//#include <curses.h>
+#include <bits/stdc++.h>
+#include <algorithm>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+string FileLocation(string);
+int dirExists(const char*  path);
+
+time_t startOfProgram = 0, eventLoop = 0;
+
+string eff_fname = "";
+
+string slash = "/";
+string NewPath = "/disk1/eos/NewTree/";
+
+TTree *tree;
+TTree *newtree; //defining new tree for selected events only
+
+///////////////////////////////////////////////////
+bool IsRunning = true;
+bool   arglist = true;
+unsigned int fcount = 0;
+unsigned int ievnt=0;
+int argv2 = 0;
+int MaxEvent = 0;
+
+unsigned int CutEf[50];
+
+string fileName;
+string list_file;
+
+MyAnalysis Hmm;
+
+
+
+TFile* NewTreeFile;
+
+
+void MyAnalysis::BookHistograms()
+{
+
+  for(int i=0;i<50;i++) CutEf[i]=0;
+
+}
+
+void MyAnalysis::analyze_event(Long64_t entry)
+{
+   unsigned int inegative, ipositive;
+
+   
+   inegative = 0;
+   ipositive = 0;
+
+
+   CutEf[0]++;
+
+   /////////////Primary vertices //////////////////////////
+   double pvRho = sqrt(PV_x*PV_x+PV_y*PV_y);
+     
+   //if(PV_score < 4500.) return;
+
+   if(!L1_SingleMu18) return;	
+   CutEf[1]++;
+   if(PV_npvsGood<1) return;
+   CutEf[2]++;
+   //if(pvRho<0.01 || pvRho>0.24 ) return;
+   CutEf[3]++;
+   if(PV_ndof<=4) return;
+   CutEf[4]++;
+   if(PV_chi2>4) return;
+   CutEf[5]++;
+   if(abs(PV_z)>5.) return;
+   CutEf[6]++;
+   
+   int iMuonTrig = 0;
+   if(nMuon     <2 ) return;
+   CutEf[9]++;
+
+   float dist = 9999.;
+
+
+   for (int imuon = 0;imuon<nMuon;imuon++){
+     if(Muon_pt[imuon]<=20.)          continue;  // Muon Pt cut 
+     if(abs(Muon_eta[imuon])>2.4)     continue;  // Muon Eta cut
+     if(abs(Muon_dxy[imuon])>0.3)     continue;  // Muon dxy wrt PV cut
+     if(abs(Muon_dxybs[imuon])>0.5)   continue;  // Muon dxy wrt BS cut
+     if(abs(Muon_dz[imuon]) >5.)      continue;  // Muon dz  wrt PV cut
+     if(Muon_tkRelIso[imuon]>0.3)     continue;  // Muon relative isolation
+     if(Muon_sip3d[imuon]>5.)         continue;  // Muon 3d impact par vrt PV     
+
+     if(Muon_charge[imuon] ==  1) ipositive++; //count positive muons
+     if(Muon_charge[imuon] == -1) inegative++; //count negative muons
+   }
+
+   /********* Cut on number of muons ****************/
+   if(inegative < 1) return;
+   if(ipositive < 1) return;
+
+   CutEf[11]++;
+
+   newtree->Fill();  
+}
+
+//*****************   Main routine ****************
+
+int main(int argc, char *argv[])
+{
+  time(&startOfProgram);
+
+
+  int retval = 0;
+
+  
+  if(argc == 3 ) {
+    argv2 = stoi(argv[2]);
+    MaxEvent = argv2;
+  } 
+  if(MaxEvent ==0 ) MaxEvent = 500000;
+ 
+
+  
+  if(argc == 1) arglist = false;
+  if(arglist){
+    list_file = argv[1];
+  
+    if(MaxEvent!=-1) {cout<<"Requested "<<MaxEvent<<" events"<< endl;} else {cout<<"Requested ALL events "<<endl;}
+    Hmm.BookHistograms();
+    system("date");
+
+    vector<string> input_file_names;
+    input_file_names.clear();
+
+    ifstream input (list_file,ios::in);
+
+    while (input >> fileName ){
+      if(fileName.c_str()[0]=='#') continue;
+      if(fileName.c_str()[0]=='*') break;
+      input_file_names.push_back(fileName.c_str());
+    }
+    cout<<endl;
+    cout<<endl;
+    cout<<" ***** "<< input_file_names.size()<< " data files in "<<argv[1]<< " file *****"<<endl;
+    cout<<endl; 
+
+
+    TTree *tree1;
+    TTree *tree2;
+    TTree *newtree1; //defining new tree for selected events only
+    TTree *newtree2; //defining new tree for selected events only
+
+
+    
+    for(int i=0;i<input_file_names.size();i++){
+      fcount++;
+      TFile *f = (TFile*)gROOT->GetListOfFiles()->FindObject(input_file_names[i].c_str());
+      if (!f || !f->IsOpen()) {
+	f = TFile::Open(input_file_names[i].c_str(),"READ");
+      }
+      string fn = input_file_names[i].c_str();
+      f->GetObject("LuminosityBlocks",tree1); 
+      f->GetObject("Runs",tree2); 
+      
+      cout<<"File__ N "<<fcount<<" "<<input_file_names[i].c_str()<<" __oppened"<<endl;
+      cout<<endl; 
+
+      //********* Cloning the old tree ******************
+      ///////////////////////////////////////////////////
+      //+++++++++++ Oppening file new tree ++++++++++++++
+
+      string FromSingle = FileLocation(input_file_names[i]);
+      string newTreeFile = FromSingle;
+
+      cout<<"Selected events will be written to"<<endl;
+
+      cout<<newTreeFile<<endl<<endl;;
+
+      NewTreeFile =  new TFile(newTreeFile.c_str(), "recreate");
+      NewTreeFile->cd();
+
+      //+++++++++++++++++++++++++++++++++++++++++++++++++
+
+      newtree1 = tree1->CloneTree();
+      newtree1->SetDirectory(NewTreeFile);
+      newtree1->SetDirectory(0);
+      newtree1->Write();
+	
+      newtree2 = tree2->CloneTree();
+      newtree2->SetDirectory(NewTreeFile);
+      newtree2->SetDirectory(0);
+      newtree2->Write();
+      NewTreeFile->Close();
+
+      delete tree1;
+      delete tree2;
+      delete newtree1;
+      delete newtree2;
+
+      cout<<"Oppening again for update"<<endl;
+
+      NewTreeFile =  new TFile(newTreeFile.c_str(), "update");
+      NewTreeFile->cd();
+
+      f->GetObject("Events",tree);
+      Hmm.Init(tree);
+
+
+      newtree  = tree->CloneTree(0);
+      newtree->SetDirectory(NewTreeFile);
+      newtree->SetDirectory(0);
+      newtree->SetAutoSave(1000);
+      retval = Hmm.Loop();
+
+
+      cout<<IsRunning<<" "<<tree<<endl;
+      if(MaxEvent == -1) retval = 0;
+      if(retval==1) break;
+
+      newtree->Write();
+
+      
+      delete newtree;
+
+      NewTreeFile->Close();
+      delete NewTreeFile;
+    }
+
+    ////////////////////////////////////////////
+    
+    cout<<endl<<"Events analyzed "<<ievnt<<endl;
+    time(&eventLoop);
+
+  }
+
+  Hmm.EffPrint(eff_fname);
+    
+  cout<<endl;
+  cout<<fixed<<"Program running time "<<difftime(eventLoop, startOfProgram)/3600<<" Hours"<<endl;
+  system("date");
+}
+
+
+void sighandler(int signum) {
+
+  cout<<endl<<"_____********_____"<<endl;
+  cout << endl <<"Ctrl-C , saving histograms" << signum << endl;
+  IsRunning = false;
+}
+
+unsigned int  MyAnalysis::Loop()
+{
+  if (fChain == 0) return(1);   
+   /////////////////////////////////////////////////////////////////////
+   Long64_t nentries = fChain->GetEntriesFast();
+   
+   cout<<endl;
+   cout<<"Number of entries in a given file = "<<nentries<<endl;
+   cout<<endl;
+   cout<<endl;
+
+   Long64_t nbytes = 0, nb = 0;
+   for (Long64_t jentry=0; jentry<nentries;jentry++) {
+     //////////////////////////////////////////////////////////////////////
+     ievnt++;
+
+     if(ievnt%100000==0) cout << '\r'
+          << std::setw(28) << std::setfill(' ') << "Looping over events, event: " 
+          << std::setw(10) <<ievnt << flush;
+     //////////////////////////////////////////////////////////////////////
+     ///// Signal handling /////
+
+     signal(SIGABRT, &sighandler);
+     signal(SIGTERM, &sighandler);
+     signal(SIGINT, &sighandler);
+     if(!IsRunning){
+
+       newtree->Write();
+       delete newtree;
+       NewTreeFile->Close();
+       delete NewTreeFile;
+
+       Hmm.EffPrint(eff_fname);
+
+       time(&eventLoop);
+       cout<<"Program running time "<<difftime(eventLoop, startOfProgram)/3600<<" Hours"<<endl;
+       cout<<endl<<"Events analyzed "<<ievnt<<endl;
+       system("date");
+       exit(1);
+     }
+
+     Long64_t ientry = LoadTree(jentry);
+      nb = fChain->GetEntry(jentry);
+      nbytes += nb;
+	
+      if (ientry < 0) break;
+      Hmm.analyze_event(ientry);
+      if(MaxEvent==-1) continue;
+      if(ievnt>=MaxEvent) {
+	cout<<endl<<"_____********_____"<<endl;
+	cout<<"Requested number of events reached  "<<ievnt<<" ... saving histograms"<<endl;
+	return(1);
+      }
+
+   } //Loop over events
+   cout<<endl;
+   return(0);
+}
+void MyAnalysis::EffPrint(string Eff_file_name)
+{
+  ofstream eff_file;
+  //aliko
+  string filename = "eff_"+Eff_file_name+".txt";
+    //eff_file.open("CutEfficiencies.txt");
+    eff_file.open(filename.c_str());
+  
+  cout<<endl;
+  eff_file<<fcount<<" __files skimmed"<<endl;
+  cout<<endl;
+  eff_file<<"Evetnts after cut 1 a.k.a Total number of analyzed events"<<endl;
+
+  cout<<"Evetnts after cut 1 a.k.a Total number of analyzed events"<<endl;
+  for(int i = 0; i<50;i++){
+    if(CutEf[i]!=0) {
+      cout<<fixed<<"Events after cut "<<i+1<<" "<<" N = "<<CutEf[i]<<endl;
+      eff_file<<fixed<<"Events after "<<i+1<<"-th cut "<<" N = "<<CutEf[i]<<endl;
+    }
+  }
+  cout<<scientific;
+  eff_file.close();
+}
+string FileLocation( string initfile )
+{
+      const char* folder;
+      struct stat sb;
+      string SK="Skimmed_";
+
+      size_t SinglePos = initfile.find("Single");
+      string FromSingle1 = initfile.substr(SinglePos);
+      size_t LastSlashPos = FromSingle1.find("/");
+      string DirectoryName =FromSingle1.substr(0,LastSlashPos);
+
+      string FileName = FromSingle1.substr(LastSlashPos+1);
+      string ToMakeDir = NewPath+DirectoryName;
+      string cmd = "mkdir "+ToMakeDir;
+      eff_fname = DirectoryName;
+      folder = ToMakeDir.c_str();
+      if (dirExists(folder)==0) {
+	system(cmd.c_str());
+      }else
+	{
+	  cout<<"Directory Exists, creating only file   ";
+	}
+      string newTreeFile = NewPath + DirectoryName + slash + SK + FileName;
+      cout<<FileName<<endl;
+      return newTreeFile;
+}
+int dirExists(const char*  path)
+{
+    struct stat info;
+
+    int statRC = stat( path, &info );
+    if( statRC != 0 )
+    {
+        if (errno == ENOENT)  { return 0; } 
+        if (errno == ENOTDIR) { return 0; } 
+        return -1;
+    }
+
+    return ( info.st_mode & S_IFDIR ) ? 1 : 0;
+}

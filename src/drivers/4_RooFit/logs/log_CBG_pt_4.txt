@@ -1,0 +1,735 @@
+
+Processing CBG_ZMassRegion.C+("pt_4")...
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_pass) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- using generic CPU library compiled with no vectorizations
+[#1] INFO:Fitting -- Creation of NLL object took 11.5657 ms
+[#1] INFO:Fitting -- RooAddition::defaultErrorLevel(nll_model_pass_data_pass) Summation contains a RooNLLVar, using its error level
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#0] WARNING:Eval -- RooAddPdf::updateCoefCache(sig WARNING: sum of PDF coefficients not in range [0-1], value=1.19517
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.695167	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.564895	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.563552	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.530528	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.513956	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.507184	frac2=0.497369	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.507184	frac2=0.497369	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.524186	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.500052	gaus_sigma=3.93209	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-1.2	cb_alpha=1.2	cb_mean=91.2	cb_n=3	cb_sigma=1.8	eff=0.8	exp_slope=-0.00123161	frac1=0.5	frac2=0.500052	gaus_sigma=0.513415	n2=1.33116	nBkgP=253714	nSigTotal=100000	sigma2=2.5
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222194), !coefficients=(nSigP = 80000,nBkgP = 253714)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-4.96158	cb_alpha=2.67925	cb_mean=91.1936	cb_n=5.81806	cb_sigma=2.86734	eff=0.943009	exp_slope=-0.000204776	frac1=0.55183	frac2=0.549748	gaus_sigma=0.574707	n2=3.69108	nBkgP=694314	nSigTotal=5.03887e+06	sigma2=3.20884
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222221), !coefficients=(nSigP = 4.7517e+06,nBkgP = 694314)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-2.04402	cb_alpha=3.78242	cb_mean=89.5096	cb_n=7.65113	cb_sigma=3.55067	eff=0.706976	exp_slope=-0.0667323	frac1=0.967182	frac2=0.349901	gaus_sigma=0.557653	n2=5.59015	nBkgP=9.43809	nSigTotal=9.48775e+06	sigma2=3.57344
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0156446), !coefficients=(nSigP = 6.70761e+06,nBkgP = 9.43809)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.15546	cb_alpha=3.4709	cb_mean=90.178	cb_n=7.14216	cb_sigma=4.98547	eff=0.979452	exp_slope=-0.0186115	frac1=0.901316	frac2=0.28806	gaus_sigma=2.12254	n2=5.02846	nBkgP=61797.8	nSigTotal=8.4635e+06	sigma2=3.80353
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0215858), !coefficients=(nSigP = 8.2896e+06,nBkgP = 61797.8)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-6.10254e+07) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-4.24945	cb_alpha=3.1068	cb_mean=91.2913	cb_n=6.55096	cb_sigma=4.6223	eff=0.940273	exp_slope=-0.00054224	frac1=0.557842	frac2=0.575125	gaus_sigma=0.501538	n2=4.41364	nBkgP=316863	nSigTotal=6.92084e+06	sigma2=4.02547
+RooAddPdf::model_pass[ nSigP * sig + nBkgP * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222217), !coefficients=(nSigP = 6.50748e+06,nBkgP = 316863)
+    ... (remaining 35 messages suppressed)
+
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_fail) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- Creation of NLL object took 326.356 μs
+[#1] INFO:Fitting -- RooAddition::defaultErrorLevel(nll_model_fail_data_fail) Summation contains a RooNLLVar, using its error level
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#0] WARNING:Eval -- RooAddPdf::updateCoefCache(sig WARNING: sum of PDF coefficients not in range [0-1], value=1.14436
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.30855	cb_alpha=4.99031	cb_mean=91.0364	cb_n=6.44358	cb_sigma=1.3258	eff=0.998684	exp_slope=-0.00181108	frac1=0.523243	frac2=0.621114	gaus_sigma=1.38977	n2=2.68979	nBkgF=27655.6	nSigTotal=9.49741e+06	sigma2=1.13655
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222161), !coefficients=(nSigF = 12502.6,nBkgF = 27655.6)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.23529	cb_alpha=4.99277	cb_mean=91.0367	cb_n=6.35856	cb_sigma=1.32246	eff=0.99876	exp_slope=-0.00183208	frac1=0.519403	frac2=0.567788	gaus_sigma=1.40395	n2=2.63014	nBkgF=26116.8	nSigTotal=9.60564e+06	sigma2=1.14404
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222159), !coefficients=(nSigF = 11914.7,nBkgF = 26116.8)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.513189	frac2=0.488486	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.513189	frac2=0.488486	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.513189	frac2=0.488486	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.05554	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.65673	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.042	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=8.38278	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.32516	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998883	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10891,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00170336	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222168), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.32189	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.69695	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23853.8	nSigTotal=9.75389e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23853.8)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.7482e+06	sigma2=1.15625
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10938.8,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+RooAbsMinimizerFcn: Minimized function has error status.
+Returning maximum FCN so far (-475689) to force MIGRAD to back out of this region. Error log follows.
+Parameter values: 	alpha2=-3.11566	cb_alpha=4.996	cb_mean=91.0373	cb_n=6.22013	cb_sigma=1.31707	eff=0.998878	exp_slope=-0.00186633	frac1=0.521973	frac2=0.480091	gaus_sigma=1.42708	n2=2.53459	nBkgF=23717.9	nSigTotal=9.75389e+06	sigma2=1.16353
+RooAddPdf::model_fail[ nSigF * sig + nBkgF * background_over_background_Int[x] ]
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+     getLogVal() top-level p.d.f evaluates to NaN @ !refCoefNorm=(x = 92.5), !pdfs=(sig = nan/1,background_over_background_Int[x] = 0.0222157), !coefficients=(nSigF = 10945.2,nBkgF = 23717.9)
+    ... (remaining 35 messages suppressed)
+
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+--------------------------------------------------
+nSigP = 592933 ± 9548.01
+nSigF = 7.63153e+06 ± 9548.01
+Tag-and-Probe Efficiency = 0.0720938 ± 0.00116093
+--------------------------------------------------
+Bin 0: data = 1792, model = 217943, error = 42.3379
+Bin 1: data = 2001, model = 176639, error = 44.7381
+Bin 2: data = 2518, model = 143290, error = 50.1847
+Bin 3: data = 2947, model = 116438, error = 54.2909
+Bin 4: data = 3453, model = 94911.3, error = 58.7665
+Bin 5: data = 4267, model = 77947.1, error = 65.3261
+Bin 6: data = 5127, model = 64607.6, error = 71.6066
+Bin 7: data = 6427, model = 54368.6, error = 80.1717
+Bin 8: data = 7912, model = 46872.6, error = 88.9522
+Bin 9: data = 9679, model = 41988.7, error = 98.3844
+Bin 10: data = 13433, model = 39730.1, error = 115.903
+Bin 11: data = 19810, model = 40304.9, error = 140.75
+Bin 12: data = 30444, model = 44321.9, error = 174.484
+Bin 13: data = 46182, model = 52973.1, error = 214.901
+Bin 14: data = 71349, model = 69267.2, error = 267.113
+Bin 15: data = 112911, model = 99282.7, error = 336.023
+Bin 16: data = 182369, model = 156153, error = 427.047
+Bin 17: data = 305532, model = 266490, error = 552.75
+Bin 18: data = 526618, model = 459479, error = 725.685
+Bin 19: data = 871912, model = 752740, error = 933.763
+Bin 20: data = 1.22276e+06, model = 1.04353e+06, error = 1105.79
+Bin 21: data = 1.26139e+06, model = 1.08005e+06, error = 1123.12
+Bin 22: data = 950182, model = 803212, error = 974.773
+Bin 23: data = 603563, model = 524649, error = 776.893
+Bin 24: data = 370601, model = 321761, error = 608.77
+Bin 25: data = 238655, model = 196998, error = 488.524
+Bin 26: data = 161670, model = 130939, error = 402.083
+Bin 27: data = 117167, model = 96367, error = 342.297
+Bin 28: data = 88370, model = 75902.7, error = 297.272
+Bin 29: data = 69646, model = 61472.3, error = 263.906
+Bin 30: data = 55871, model = 50365.5, error = 236.372
+Bin 31: data = 45075, model = 41534.9, error = 212.31
+Bin 32: data = 37128, model = 34493.7, error = 192.688
+Bin 33: data = 31242, model = 28780.8, error = 176.755
+Bin 34: data = 26154, model = 24121.4, error = 161.724
+Bin 35: data = 22615, model = 20302.3, error = 150.385
+Bin 36: data = 19073, model = 17169.6, error = 138.107
+Bin 37: data = 16587, model = 14586.2, error = 128.792
+Bin 38: data = 14439, model = 12436.5, error = 120.164
+Bin 39: data = 12760, model = 10640.6, error = 112.962
+Bin 40: data = 11366, model = 9134.35, error = 106.614
+Bin 41: data = 9921, model = 7875.47, error = 99.6067
+Bin 42: data = 8945, model = 6810.59, error = 94.5807
+Bin 43: data = 8157, model = 5906.79, error = 90.3189
+Bin 44: data = 7104, model = 5137.24, error = 84.2882
+Bin 0: data = 1792, model = 2002.92, error = 42.3379
+Bin 1: data = 2001, model = 2070.45, error = 44.7381
+Bin 2: data = 2518, model = 2262.79, error = 50.1847
+Bin 3: data = 2947, model = 2603.35, error = 54.2909
+Bin 4: data = 3453, model = 3128.93, error = 58.7665
+Bin 5: data = 4267, model = 3908.95, error = 65.3261
+Bin 6: data = 5127, model = 5019.5, error = 71.6066
+Bin 7: data = 6427, model = 6584.38, error = 80.1717
+Bin 8: data = 7912, model = 8784.84, error = 88.9522
+Bin 9: data = 9679, model = 11916.8, error = 98.3844
+Bin 10: data = 13433, model = 16412.2, error = 115.903
+Bin 11: data = 19810, model = 22876.5, error = 140.75
+Bin 12: data = 30444, model = 32279.9, error = 174.484
+Bin 13: data = 46182, model = 46228.9, error = 214.901
+Bin 14: data = 71349, model = 68396.2, error = 267.113
+Bin 15: data = 112911, model = 106088, error = 336.023
+Bin 16: data = 182369, model = 174833, error = 427.047
+Bin 17: data = 305532, model = 305932, error = 552.75
+Bin 18: data = 526618, model = 533716, error = 725.685
+Bin 19: data = 871912, model = 878917, error = 933.763
+Bin 20: data = 1.22276e+06, model = 1.22103e+06, error = 1105.79
+Bin 21: data = 1.26139e+06, model = 1.26457e+06, error = 1123.12
+Bin 22: data = 950182, model = 940250, error = 974.773
+Bin 23: data = 603563, model = 613796, error = 776.893
+Bin 24: data = 370601, model = 376064, error = 608.77
+Bin 25: data = 238655, model = 229944, error = 488.524
+Bin 26: data = 161670, model = 152660, error = 402.083
+Bin 27: data = 117167, model = 112280, error = 342.297
+Bin 28: data = 88370, model = 88419.5, error = 297.272
+Bin 29: data = 69646, model = 71610.5, error = 263.906
+Bin 30: data = 55871, model = 58677.9, error = 236.372
+Bin 31: data = 45075, model = 48397.2, error = 212.31
+Bin 32: data = 37128, model = 40200, error = 192.688
+Bin 33: data = 31242, model = 33549.4, error = 176.755
+Bin 34: data = 26154, model = 28124.7, error = 161.724
+Bin 35: data = 22615, model = 23678, error = 150.385
+Bin 36: data = 19073, model = 20029.9, error = 138.107
+Bin 37: data = 16587, model = 17020.9, error = 128.792
+Bin 38: data = 14439, model = 14516.7, error = 120.164
+Bin 39: data = 12760, model = 12424.1, error = 112.962
+Bin 40: data = 11366, model = 10668.6, error = 106.614
+Bin 41: data = 9921, model = 9200.99, error = 99.6067
+Bin 42: data = 8945, model = 7959.19, error = 94.5807
+Bin 43: data = 8157, model = 6904.93, error = 90.3189
+Bin 44: data = 7104, model = 6007, error = 84.2882
+Manual Chi²/NDOF = 1.47036e+06
+Manual Chi²/NDOF = 152.707
+[#1] INFO:Minimization -- p.d.f. provides expected number of events, including extended term in likelihood.
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_pass) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- Creation of NLL object took 242.355 μs
+[#1] INFO:Minimization -- p.d.f. provides expected number of events, including extended term in likelihood.
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(model_fail) fixing normalization set for coefficient determination to observables in data
+[#1] INFO:Fitting -- Creation of NLL object took 187.324 μs
+Chi²/NDOF for Passing Voigtian + Background Fit:  1.44501e+06
+Chi²/NDOF for Failing Voigtian + Background Fit:  160.094
+--------------------------------------------
+NLL for Voigtian + Background Fit:  -8.07002e+07
+NLL for Voigtian + Background Fit:  -9.30256e+07

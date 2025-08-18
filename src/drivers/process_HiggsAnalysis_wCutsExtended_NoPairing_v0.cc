@@ -147,10 +147,18 @@ void loadMuonCorrections() {
 // Jet Energy Corrections/Resolutions (JEC/JER) 
 std::shared_ptr<correction::CorrectionSet> jetCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetidCorrections = nullptr;
+std::shared_ptr<correction::CorrectionSet> jetVetoMaps = nullptr;
+std::shared_ptr<const correction::Correction> jetVetoCorr = nullptr;
 void loadJetCorrections() {
     if (!jetCorrections)
         jetCorrections = correction::CorrectionSet::from_file
         ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jet_jerc.json");
+    if (!jetVetoMaps)
+        jetVetoMaps = correction::CorrectionSet::from_file
+        ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jetvetomaps.json");
+    if (!jetVetoCorr) {
+        jetVetoCorr = jetVetoMaps->at("Summer22_23Sep2023_RunCD_V1");
+    }
     //if (!jetidCorrections)
         //jetidCorrections = correction::CorrectionSet::from_file
         //("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jetid.json");
@@ -209,37 +217,6 @@ float getMuonRochester(const Muon& mu, bool isMC)
 //             JETS 
 // -------------------------------------
 
-/*float getJetJEC(const Jet& jet, float rho) {
-    if (!jetCorrections) {
-        std::cerr << "[ERROR] Jet corrections not loaded!\n";
-        return 1.0;
-    }
-
-    float eta = jet._eta;
-    float pt = jet._pt;
-    float area = jet._area;
-
-    // Clamp as needed
-    eta = std::clamp(eta, -5.191f, 5.191f);
-    pt = std::max(pt, 0.1f);  
-
-    try {
-        float l1 = jetCorrections->at("Summer22_22Sep2023_RunCD_V2_DATA_L1FastJet_AK4PFPuppi")
-                        ->evaluate({area, eta, pt, rho});
-        float l2 = jetCorrections->at("Summer22_22Sep2023_RunCD_V2_DATA_L2Relative_AK4PFPuppi")
-                        ->evaluate({eta, pt});
-        float l3 = jetCorrections->at("Summer22_22Sep2023_RunCD_V2_DATA_L3Absolute_AK4PFPuppi")
-                        ->evaluate({eta, pt});
-        float res = jetCorrections->at("Summer22_22Sep2023_RunCD_V2_DATA_L2L3Residual_AK4PFPuppi")
-                        ->evaluate({eta, pt});
-
-        return l1 * l2 * l3 * res;
-    } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Failed to evaluate jet correction: " << e.what() << std::endl;
-        return 1.0;
-    }
-}*/
-
 float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet) {
     if (!jetCorrections) {
         std::cerr << "[ERROR] Jet corrections not loaded!\n";
@@ -250,40 +227,53 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
     float pt   = std::max(jet._pt, 0.1f);
     float area = jet._area;
 
-    // Choose prefix
-    std::string prefix = isMC
-        ? "Summer22_22Sep2023_RunCD_V2_MC_"
-        : "Summer22_22Sep2023_RunCD_V2_DATA_";
+    // JEC prefixes (MC vs DATA)
+    std::string era = isMC
+    ? "Summer22_22Sep2023_V2_MC"
+    : "Summer22_22Sep2023_RunCD_V2_DATA";
 
-    // ---- JEC ----
-    float l1   = jetCorrections->at(prefix + "L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
-    float l2   = jetCorrections->at(prefix + "L2Relative_AK4PFPuppi")->evaluate({eta, pt});
-    float l3   = jetCorrections->at(prefix + "L3Absolute_AK4PFPuppi")->evaluate({eta, pt});
-    float res  = isMC ? 1.0f : jetCorrections->at(prefix + "L2L3Residual_AK4PFPuppi")->evaluate({eta, pt});
+    float l1  = jetCorrections->at(era + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
+    float l2  = jetCorrections->at(era + "_L2Relative_AK4PFPuppi")->evaluate({eta, pt});
+    float l3  = jetCorrections->at(era + "_L3Absolute_AK4PFPuppi")->evaluate({eta, pt});
+    float res = isMC ? 1.0f : jetCorrections->at(era + "_L2L3Residual_AK4PFPuppi")->evaluate({eta, pt});
 
     float jecFactor = l1 * l2 * l3 * res;
     float corr_pt   = pt * jecFactor;
 
     // ---- JER (MC only) ----
     if (isMC) {
+        // Use JRV1 keys from your JSON
         float sf = jetCorrections
-            ->at("Summer22_22Sep2023_RunCD_V2_MC_ScaleFactor_AK4PFPuppi")
-            ->evaluate({eta, "nom"}); // "up"/"down" for systs
-        
+            ->at("Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi")
+            ->evaluate({eta, "nom"}); // "up"/"down" for systematics
+
         if (hasGenJet && genJetPt > 0.f) {
-        float smearFactor = 1.0f + (sf - 1.0f) * (corr_pt - jet._genjet._pt) / corr_pt;
-        corr_pt *= smearFactor;
+            // Truth-anchored smearing
+            float smearFactor = 1.0f + (sf - 1.0f) * (corr_pt - genJetPt) / corr_pt;
+            // Optional safety: avoid negative scaling
+            smearFactor = std::max(smearFactor, 0.0f);
+            corr_pt *= smearFactor;
         } else {
+            // Stochastic smearing
             float resolution = jetCorrections
-                ->at("Summer22_22Sep2023_RunCD_V2_MC_PtResolution_AK4PFPuppi")
+                ->at("Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi")
                 ->evaluate({eta, corr_pt, rho});
-            float sigma = resolution * std::sqrt(std::max(sf * sf - 1.0f, 0.0f));
+            float sigma = resolution * std::sqrt(std::max(sf*sf - 1.0f, 0.0f));
+            // Consider a deterministic seed (event, jet index) if you run multithreaded
             static TRandom3 rand(42);
             corr_pt *= (1.0f + rand.Gaus(0, sigma));
+            corr_pt  = std::max(corr_pt, 0.0f); // keep physical
         }
     }
 
     return corr_pt;
+}
+
+
+inline bool isVetoedJet(float eta, float phi) {
+    if (!jetVetoCorr) { std::cerr << "[ERROR] Jet veto corr not loaded!\n"; return false; }
+    const double val = jetVetoCorr->evaluate({std::string("jetvetomap"), (double)eta, (double)phi});
+    return (val != 0.0);
 }
 
 float jetMuondR(float jeta,float jphi, float meta, float mphi)
@@ -513,13 +503,26 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
     }
 }*/
 
-bool passJet(Jets* j, float rho)
+bool passJet(Jets* jets, GenJets* genjets, float rho)
 {
-    if (j->size() < 2) return false;
+    if (jets->size() < 2) return false;
 
     std::vector<TLorentzVector> Alljets;
-    for (const auto& jet : *j)
-    {
+    for (const auto& jet : *jets) {
+        
+        // VETO MAP (drop the jet if it sits in a bad region)
+        if (isVetoedJet(jet._eta, jet._phi)) continue;
+
+        // gen-match locals, JEC+JER
+        float genJetPt = 0.0f;
+        bool hasGenJet = false;
+
+        if (__isMC && jet._genJetIdx >= 0 && jet._genJetIdx < (int)genjets->size()) {
+            const auto& gj = genjets->at(jet._genJetIdx);
+            genJetPt = gj._pt;
+            hasGenJet = true;
+        }
+
         float corr_pt   = getCorrectedJetPt(jet, rho, __isMC, genJetPt, hasGenJet);
         float corr_mass = jet._mass * (corr_pt / jet._pt);
 
@@ -581,11 +584,19 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
     return id_sf * iso_sf * trig_sf;
 }
 
+//*******************************************************************
+//                         CATEGORIZE FUNCTION 
+//*******************************************************************
 
 void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, const analysis::core::Muon& mu1, 
 const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons, 
 analysis::core::Vertices* vertices, const analysis::core::MET& met, const analysis::core::Event& event, 
-const analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
+analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
+
+    // -------------------------------------
+    //             MUONS 
+    // -------------------------------------
+
     // TLorentz Vectors for Muons 1 & 2
     float roch_sf1 = getMuonRochester(mu1, __isMC);
     float roch_sf2 = getMuonRochester(mu2, __isMC);
@@ -597,11 +608,12 @@ const analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     TLorentzVector corr_p4m1 = p4m1 * roch_sf1;
     TLorentzVector corr_p4m2 = p4m2 * roch_sf2;
    
-    //LOOPING THROUGH FSRPHOTONS
-    // Add FSR photons to both muons if any pass criteria
-    auto applyFSR = [](const analysis::core::Muon& mu, TLorentzVector& p4, TLorentzVector& corr_p4, 
-    const analysis::core::FsrPhotons* fsrphotons, int muonIdx) {
+    // -------------------------------------
+    //             FSR PHOTONS 
+    // -------------------------------------
     
+    // Add FSR photons to both muons if any pass criteria
+    auto applyFSR = [](const analysis::core::Muon& mu, TLorentzVector& p4, TLorentzVector& corr_p4, const analysis::core::FsrPhotons* fsrphotons, int muonIdx) {
     const FsrPhoton* bestFsrPhoton = nullptr;
     float min_dROverEt2 = std::numeric_limits<float>::max();
 
@@ -648,7 +660,10 @@ const analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
    
    //MIGHT BE GOOD TO PLACE A MACRO HERE TO SEE FSR CORRECTIONS
     
-    //LOOPING THROUGH JETS 
+    // -------------------------------------
+    //              JETS  
+    // -------------------------------------
+    
     bool pass_bjet_veto = true;
     int n_loose_bjets = 0;
     int n_medium_bjets = 0;
@@ -706,8 +721,11 @@ const analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     float mu2_SF = getMuonSF(mu2, __isMC);
     float totalWeight = MCweight * mu1_SF * mu2_SF;
     float noWeight = 1.0;
-
-    //PRE-SELECTION CRITERIA 	
+    
+    // -------------------------------------
+    //        PRE-SELECTION HISTOGRAMS  
+    // -------------------------------------
+    
     FILL_DIMUON_HIST(hists.setDM_PreSelection, noWeight);   
     FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection, totalWeight); 
     FILL_DIJET_HIST(hists.setJet_PreSelection, MCweight); 
@@ -758,7 +776,10 @@ const analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
         FILL_DIJET_HIST(hists.setJet_PreSelection_EE, MCweight); 
     }
 
-    // Apply VBF Selection Criteria 
+    // -------------------------------------
+    //          VBF HISTOGRAMS  
+    // -------------------------------------
+
     if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
         pass_bjet_veto = false;
 	
@@ -819,6 +840,10 @@ const analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     }
 }
 
+//*******************************************************************
+//                        EVENT COUNTER??? 
+//*******************************************************************
+
 float sampleinfo(std::string const& inputname)
 {
 	Streamer s(inputname, NTUPLEMAKER_NAME+"/Meta");
@@ -842,6 +867,10 @@ float sampleinfo(std::string const& inputname)
 
 	return numEventsWeighted;
 }
+
+//*******************************************************************
+//                        GENERATING PU WEGIHT (NO LONGER NEED) 
+//*******************************************************************
 
 /*void generatePUMC()
 {
@@ -877,6 +906,10 @@ float sampleinfo(std::string const& inputname)
 	pufile->Close();
 }*/
 
+//*******************************************************************
+//                       PROGRESS BAR 
+//*******************************************************************
+
 void showProgressBar(uint32_t current, uint32_t total) {
     int barWidth = 70; // Width of the progress bar
     float progress = static_cast<float>(current) / total;
@@ -892,6 +925,10 @@ void showProgressBar(uint32_t current, uint32_t total) {
     std::cout << "] " << std::fixed << std::setprecision(2) << progress * 100 << "%\r";
     std::cout.flush();  // Ensure output is immediately shown
 }
+
+//*******************************************************************
+//                        MAIN PROGRESS FUCNTION 
+//*******************************************************************
 
 void process()
 {
@@ -1004,7 +1041,7 @@ void process()
     TrigObjs *trigobjs=NULL;
     Electrons *electrons=NULL;
     Rhos *rhos=NULL;
-    
+
 #define ROOT_CHAIN streamer._chain
     
     //Setting Branch Array for Muon Properties
@@ -1101,8 +1138,7 @@ void process()
     SET_BRANCH_UCHAR_ARRAY(Electron_cutBased);
 
     //Setting Branch Array for Rho Properties
-    SET_BRANCH_UINT(nRho);
-    SET_BRANCH_FLOAT_ARRAY(Rho_fixedGridRhoFastjetAll);
+    SET_BRANCH_FLOAT(fixedGridRhoFastjetAll);
     
 
     muons = new std::vector<Muon>();
@@ -1219,15 +1255,13 @@ void process()
 
             electrons->push_back(std::move(electron));
         }
-        
-        for (size_t i=0; i<nRho; i++) {
-            Rho rho;
-            rho._fixedGridRhoFastjetAll = Rho_fixedGridRhoFastjetAll[i];
 
-            rhos->push_back(std::move(rho));
-        }
+        Rho rhoObj;
+        rhoObj._fixedGridRhoFastjetAll = fixedGridRhoFastjetAll; 
+        rhos->push_back(rhoObj);
+
         float rho = rhos->at(0)._fixedGridRhoFastjetAll;
-        
+
         //for (size_t i=0; i<PV_npvs; i++){
             Vertex vertex;
             vertex._chi2 = PV_chi2;
@@ -1335,10 +1369,9 @@ void process()
         //	Selections
         //if (!passL1(l1s)) continue;  
         //if (!passHLT(hlts)) continue;
-        //if (rhos->empty() || !passJet(jets, rhos->at(0)._fixedGridRhoFastjetAll)) continue;
         //if (!FsrPhoton(fsrphotons)) continue; HAVEN'T SET THIS UP YET
 		if (!passVertex(vertices))continue;
-        if (!passJet(jets, rho)) continue;
+        if (!passJet(jets, genjets, rho)) continue;
         if (!vetoAdditionalLeptons(muons, electrons)) continue;
 
         // Prepare The Pairs Of Muons

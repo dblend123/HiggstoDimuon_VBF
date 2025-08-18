@@ -1,0 +1,53 @@
+000 (9347135.002.000) 08/06 23:42:01 Job submitted from host: <137.138.55.115:9618?addrs=137.138.55.115-9618+[2001-1458-d00-17--12a]-9618&alias=bigbird23.cern.ch&noUDP&sock=schedd_5894_5f4a>
+...
+040 (9347135.002.000) 08/06 23:59:06 Started transferring input files
+	Transferring to host: <128.142.196.45:9618?addrs=128.142.196.45-9618+[2001-1458-301-3c--100-2b]-9618&alias=b9g32p2185.cern.ch&noUDP&sock=slot1_2_2831401_e51b_50387>
+...
+001 (9347135.002.000) 08/06 23:59:06 Job executing on host: <128.142.196.45:9618?addrs=128.142.196.45-9618+[2001-1458-301-3c--100-2b]-9618&alias=b9g32p2185.cern.ch&noUDP&sock=startd_2831346_6ee7>
+	SlotName: slot1_2@b9g32p2185.cern.ch
+	CondorScratchDir = "/pool/condor/dir_377238"
+	Cpus = 1
+	Disk = 5772
+	GPUs = 0
+	Memory = 3000
+...
+040 (9347135.002.000) 08/06 23:59:06 Finished transferring input files
+...
+006 (9347135.002.000) 08/06 23:59:20 Image size of job updated: 82248
+	81  -  MemoryUsage of job (MB)
+	82248  -  ResidentSetSize of job (KB)
+...
+006 (9347135.002.000) 08/07 00:04:21 Image size of job updated: 220388
+	216  -  MemoryUsage of job (MB)
+	220388  -  ResidentSetSize of job (KB)
+...
+006 (9347135.002.000) 08/07 00:09:21 Image size of job updated: 221800
+	217  -  MemoryUsage of job (MB)
+	221800  -  ResidentSetSize of job (KB)
+...
+006 (9347135.002.000) 08/07 00:14:21 Image size of job updated: 222056
+	217  -  MemoryUsage of job (MB)
+	222056  -  ResidentSetSize of job (KB)
+...
+040 (9347135.002.000) 08/07 00:16:27 Started transferring output files
+...
+040 (9347135.002.000) 08/07 00:16:27 Finished transferring output files
+...
+005 (9347135.002.000) 08/07 00:16:27 Job terminated.
+	(1) Normal termination (return value 0)
+		Usr 0 00:09:36, Sys 0 00:00:07  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+		Usr 0 00:09:36, Sys 0 00:00:07  -  Total Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Total Local Usage
+	909257  -  Run Bytes Sent By Job
+	2684692  -  Run Bytes Received By Job
+	909257  -  Total Bytes Sent By Job
+	2684692  -  Total Bytes Received By Job
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :     0.67        1         1 
+	   Disk (KB)            :  3536        2750      5772 
+	   GPUs                 :                           0 
+	   Memory (MB)          :   217        3000      3000 
+
+	Job terminated of its own accord at 2025-08-06T22:16:27Z with exit-code 0.
+...
