@@ -1,41 +1,76 @@
+# -------------------------------
 # Prerequisites
+# -------------------------------
 *.d
 
+# -------------------------------
 # Compiled Object files
+# -------------------------------
 *.slo
 *.lo
 *.o
 *.obj
 
+# -------------------------------
 # Precompiled Headers
+# -------------------------------
 *.gch
 *.pch
 
+# -------------------------------
 # Compiled Dynamic libraries
+# -------------------------------
 *.so
 *.dylib
 *.dll
 
+# -------------------------------
 # Fortran module files
+# -------------------------------
 *.mod
 *.smod
 
+# -------------------------------
 # Compiled Static libraries
+# -------------------------------
 *.lai
 *.la
 *.a
 *.lib
 
+# -------------------------------
 # Executables
+# -------------------------------
 *.exe
 *.out
 *.app
 
+# -------------------------------
+# CMake build artifacts
+# -------------------------------
 build*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+compile_commands.json
 
+# -------------------------------
 # clangd
+# -------------------------------
 .cache
 
+# -------------------------------
+# Custom source exclusions
+# -------------------------------
 src/uio
-
 src/private/
+
+# -------------------------------
+# ROOT / analysis outputs
+# -------------------------------
+*.root
+*.log
+process_*
+*.jdl
+run_job.sh
