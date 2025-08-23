@@ -145,6 +145,7 @@ void loadMuonCorrections() {
 // Jet Energy Corrections/Resolutions (JEC/JER) 
 std::shared_ptr<correction::CorrectionSet> jetCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetVetoMaps = nullptr;
+std::shared_ptr<correction::CorrectionSet> jetIdCorrections = nullptr;
 void loadJetCorrections() {
     try {
         if (!jetCorrections)
@@ -161,6 +162,14 @@ void loadJetCorrections() {
     } catch (const std::exception& e) {
         std::cerr << "[Jet veto map load ERROR] " << e.what() << std::endl;
         jetVetoMaps = nullptr;
+    }
+    try {
+        if (!jetIdCorrections)
+            jetIdCorrections = correction::CorrectionSet::from_file(
+                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/jetid.json");
+    } catch (const std::exception& e) {
+        std::cerr << "[JetID load ERROR] " << e.what() << std::endl;
+        jetIdCorrections = nullptr;
     }
 }
 
@@ -457,33 +466,63 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
 //JET CRITERIA 
 // -------------------------------------
 
-/*bool passJetIDfromJSON(const Jet& jet) {
-    if (!jetidCorrections) {
-        std::cerr << "[ERROR] Jet ID corrections not loaded!\n";
-        return false;
+enum class JetAlgo { AK4PUPPI, AK4CHS, AK8PUPPI };
+enum class JetIDWP { Tight, TightLeptonVeto };
+
+inline const char* jetIdCorrectionName(JetAlgo algo, JetIDWP wp) {
+    switch (algo) {
+        case JetAlgo::AK4PUPPI:
+            return (wp == JetIDWP::TightLeptonVeto) ? "AK4PUPPI_TightLeptonVeto" : "AK4PUPPI_Tight";
+        case JetAlgo::AK4CHS:
+            return (wp == JetIDWP::TightLeptonVeto) ? "AK4CHS_TightLeptonVeto" : "AK4CHS_Tight";
+        case JetAlgo::AK8PUPPI:
+            return (wp == JetIDWP::TightLeptonVeto) ? "AK8PUPPI_TightLeptonVeto" : "AK8PUPPI_Tight";
+    }
+    return "AK4PUPPI_Tight";
+}
+
+bool passJetIDfromJSON(const Jet& jet,
+                       JetAlgo algo = JetAlgo::AK4PUPPI,
+                       JetIDWP wp   = JetIDWP::Tight)
+{
+    if (!jetIdCorrections) {
+        std::cerr << "[WARN] JetID corrections not loaded, falling back to NanoAOD jetId bits.\n";
+        // NanoAOD: 1=loose, 2=tight, 4=tightLepVeto. Keep your previous behavior:
+        if (wp == JetIDWP::TightLeptonVeto) return ( (jet._jetId & 4) == 4 );
+        return ( (jet._jetId & 2) == 2 ); // Tight
     }
 
     try {
-        const auto& corr = jetidCorrections->at("AK4PUPPI_Tight");
+        const auto& corr = jetIdCorrections->at(jetIdCorrectionName(algo, wp));
 
-        double result = corr->evaluate({
-            jet._eta,
-            jet._chHEF,
-            jet._neHEF,
-            jet._chEmEF,
-            jet._neEmEF,
-            jet._muEF,
-            static_cast<int>(jet._chMult),
-            static_cast<int>(jet._neMult),
-            static_cast<int>(jet._chMult + jet._neMult)
+        // Inputs expected by the JSON:
+        //   eta, chHEF, neHEF, chEmEF, neEmEF, muEF,
+        //   chMultiplicity, neMultiplicity, multiplicity (= ch + ne)
+        const int chMult = static_cast<int>(jet._chMult);
+        const int neMult = static_cast<int>(jet._neMult);
+        const int mult   = chMult + neMult;
+
+        // Evaluate → 1.0 if passes, 0.0 otherwise
+        const double result = corr->evaluate({
+            (double)jet._eta,
+            (double)jet._chHEF,
+            (double)jet._neHEF,
+            (double)jet._chEmEF,
+            (double)jet._neEmEF,
+            (double)jet._muEF,
+            chMult,
+            neMult,
+            mult
         });
 
-        return (result >= 0.5);  // convention: 1 = pass, 0 = fail
+        return (result >= 0.5);
     } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Failed to evaluate jet ID: " << e.what() << std::endl;
+        std::cerr << "[ERROR] JetID evaluate failed: " << e.what()
+                  << "  (eta=" << jet._eta << ")\n";
+        // Be conservative on error:
         return false;
     }
-}*/
+}
 
 //*******************************************************************
 //                          SCALE FACTORS
@@ -641,7 +680,9 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
         // basic quality and acceptance (same everywhere!)
         if (corr_pt <= 25.f) continue;
         if (std::abs(j._eta) >= 4.7f) continue;
-        if ( (j._jetId & 4) != 4 ) continue; // Tight ID
+        //if ( (j._jetId & 4) != 4 ) continue; // Tight ID
+        const bool passJetID = passJetIDfromJSON(j, JetAlgo::AK4PUPPI, JetIDWP::Tight);
+        if (!passJetID) continue;
 
         // muon cleaning
         if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) < 0.4) continue;
@@ -674,17 +715,16 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     float jet1pt = p4lead.Pt();
     float jet2pt = p4sub.Pt();
     
+    //std::cout << std::endl;
+    //std::cout << "MCweight Before getMuonSF " << std::setprecision(15) << MCweight << std::endl;
+    
     float mu1_SF = getMuonSF(mu1, __isMC);
     float mu2_SF = getMuonSF(mu2, __isMC);
     float totalWeight = MCweight * mu1_SF * mu2_SF;
     float noWeight = 1.0;
     
-    /*std::cout << "noWeight " << noWeight << std::endl;
-    std::cout << std::endl;
-    std::cout << "MCweight " << MCweight << std::endl;
-    std::cout << std::endl;
-    std::cout << "totalWeight " << totalWeight << std::endl;
-    std::cout << std::endl;*/
+    //std::cout << "totalWeight " << std::setprecision(15) << totalWeight << std::endl;
+    //std::cout << std::endl;
 
     // -------------------------------------
     //        PRE-SELECTION HISTOGRAMS  
@@ -961,6 +1001,7 @@ void process()
     // Loading Muon SF Corrections
     loadMuonCorrections();
     loadJetCorrections();
+    loadJetIdCorrections();
     loadPileupCorrections();
 
     Muons *muons=NULL;
@@ -1312,9 +1353,9 @@ void process()
         //float MCweight  = ((luminosity_BCD * VBFcrosssection_BCD)/(VBFgenEventSumw_BCD)) * pileupWeight * genWeight;
         float MCweight  = 1.0;
  		
+        //std::cout << "Before Categorize Function --> MCweight " << std::setprecision(15)  << MCweight << std::endl;
+
         //	Selections
-        //if (!passL1(l1s)) continue;  
-        //if (!passHLT(hlts)) continue;
         //if (!FsrPhoton(fsrphotons)) continue; HAVEN'T SET THIS UP YET
 		//if (!passVertex(vertices))continue;
         if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
@@ -1496,12 +1537,12 @@ int main(int argc, char** argv)
     
     // Start Main Loop Process 
 	loadMuonCorrections();
+    loadJetIdCorrections();
     if (__isMC) {
         loadJetCorrections();               // JEC/JER for MC
         loadPileupCorrections();            // PU weights for MC
     } else {
         // Optional: loadJetCorrections() if you want DATA residuals via JSON.
-        // Protect with try/catch inside the loader (already done above).
         loadJetCorrections();
     }
     process();
