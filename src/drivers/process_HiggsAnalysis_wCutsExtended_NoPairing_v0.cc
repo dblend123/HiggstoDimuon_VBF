@@ -39,49 +39,37 @@
 //                   HISTOGRAM MACROS
 //*******************************************************************
 
-// DiMuon set (No Weights) 
+// DiMuon set  
 #define FILL_DIMUON_HIST(set, weight) \
     set.hDiMuonpt->Fill(corr_p4dimuon.Pt(), weight); \
     set.hDiMuonMass->Fill(corr_p4dimuon.M(), weight); \
-    set.hDiMuonMass_Z->Fill(corr_p4dimuon.M(), weight); \
     set.hDiMuoneta->Fill(corr_p4dimuon.Eta(), weight); \
     set.hDiMuondphi->Fill(dphi, weight); \
-    set.hDiMuonMass_SB_SR1->Fill(corr_p4dimuon.M(), weight); \
-    set.hMuonpt->Fill(mu1._pt, weight); \
-    set.hMuonpt->Fill(mu2._pt, weight); \
-    set.hMuonDXY->Fill(mu1._dxy, weight); \
-    set.hMuonDXY->Fill(mu2._dxy, weight); \
-    set.hMuonDZ->Fill(mu1._dz, weight); \
-    set.hMuonDZ->Fill(mu2._dz, weight); \
-    set.hMuonDXY_vs_MuonDZ->Fill(mu1._dxy, mu1._dz, weight); \
-    set.hMuonDXY_vs_MuonDZ->Fill(mu2._dxy, mu2._dz, weight); \
-    set.hDimuoneta_vs_DimuonMass->Fill(corr_p4dimuon.M(), corr_p4dimuon.Eta(), weight); \
-    set.hDimuonpt_vs_DimuonMass->Fill(corr_p4dimuon.M(), corr_p4dimuon.Pt(), weight); \
-    set.hDimuonpt_vs_DimuonMass_JPsi->Fill(corr_p4dimuon.M(), corr_p4dimuon.Pt(), weight); \
-    set.hDimuonpt_vs_DimuonMass_Upsilon->Fill(corr_p4dimuon.M(), corr_p4dimuon.Pt(), weight); \
-    set.hDimuonpt_vs_DimuonMass_Z->Fill(corr_p4dimuon.M(), corr_p4dimuon.Pt(), weight); \
-    set.hDimuonpt_vs_DimuonMass_Higgs->Fill(corr_p4dimuon.M(), corr_p4dimuon.Pt(), weight); \
-    if (corr_p4dimuon.M() > 2.9 && corr_p4dimuon.M() < 3.3) { \
-        set.hDiMuoneta_JPsi->Fill(corr_p4dimuon.Eta(), weight); \
-    } \
-    if (corr_p4dimuon.M() > 9.2 && corr_p4dimuon.M() < 10.5) { \
-        set.hDiMuoneta_Upsilon->Fill(corr_p4dimuon.Eta(), weight); \
-    } \
-    if (corr_p4dimuon.M() > 88 && corr_p4dimuon.M() < 95) { \
-        set.hDiMuoneta_Z->Fill(corr_p4dimuon.Eta(), weight); \
-    } \
-    if (corr_p4dimuon.M() > 122 && corr_p4dimuon.M() < 128) { \
-        set.hDiMuoneta_Higgs->Fill(corr_p4dimuon.Eta(), weight); \
-    }
+    set.hMuon1pt->Fill(corr_p4m1.Pt(), weight); \
+    set.hMuon2pt->Fill(corr_p4m2.Pt(), weight); \
+    set.hDimuonpt_vs_DimuonMass->Fill(corr_p4dimuon.M(), corr_p4dimuon.Pt(), weight); 
 
-// DiMuon set (Weights) 
 #define FILL_CORR_DIMUON_HIST(set, weight) FILL_DIMUON_HIST(set, weight)
 
-// DiJet set (Weights) 
+#define FILL_PREFSR_DIMUON_HIST(set, weight) \
+    set.hDiMuonpt->Fill(corr_prefsr_p4.Pt(), weight); \
+    set.hDiMuonMass->Fill(corr_prefsr_p4.M(), weight); \
+    set.hDiMuoneta->Fill(corr_prefsr_p4.Eta(), weight); \
+    set.hDiMuondphi->Fill(dphi, weight); \
+    set.hMuon1pt->Fill(corr_p4m1.Pt(), weight); \
+    set.hMuon1pt->Fill(corr_p4m2.Pt(), weight); \
+    set.hDimuonpt_vs_DimuonMass->Fill(corr_prefsr_p4.M(), corr_prefsr_p4.Pt(), weight); 
+
+
+// DiJet set  
 #define FILL_DIJET_HIST(set, weight) \
     set.hDiJetpt->Fill(dijetpt, weight); \
-    set.hDiJetMass->Fill(dijetmass, weight); \
-    set.hDiJetdeta->Fill(dijetdeta, weight);
+    set.hJet1pt->Fill(jet1pt, weight); \
+    set.hJet2pt->Fill(jet2pt, weight); \
+    set.hDiJetdeta->Fill(dijetdeta, weight); \
+    set.hJet1eta->Fill(jet1eta, weight); \
+    set.hJet2eta->Fill(jet2eta, weight); \
+    set.hDiJetMass->Fill(dijetmass, weight);
 
 //*******************************************************************
 //                     CONSTANTS
@@ -106,7 +94,7 @@ double _leadmuonEta = 2.4;
 double _subleadmuonEta = 2.4;
 double _leadmuonIso = 0.15;
 double _subleadmuonIso = 0.25;
-double _leadJetPt = 35.;
+double _leadJetPt = 35.; //Kind of unsure --> Purdue has 50 GeV w/out Loose PU ID
 double _subleadJetPt = 25.;
 double _leadJetEta = 4.7;
 double _subleadJetEta = 4.7;
@@ -132,12 +120,22 @@ using namespace correction;
 std::shared_ptr<correction::CorrectionSet> corrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> muoncorrections = nullptr;
 void loadMuonCorrections() {
-    if (!corrections)
-        corrections = correction::CorrectionSet::from_file
-        ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/muon_Z.json");
-    if (!muoncorrections)
-        muoncorrections = correction::CorrectionSet::from_file
-        ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/RoccoR2022.json");
+    try {
+        if (!corrections)
+            corrections = correction::CorrectionSet::from_file(
+                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/muon_Z.json");
+    } catch (const std::exception& e) {
+        std::cerr << "[Muon SF load ERROR] " << e.what() << std::endl;
+        corrections = nullptr;
+    }
+    try {
+        if (!muoncorrections)
+            muoncorrections = correction::CorrectionSet::from_file(
+                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/RoccoR2022.json");
+    } catch (const std::exception& e) {
+        std::cerr << "[Rochester load ERROR] " << e.what() << std::endl;
+        muoncorrections = nullptr;
+    }
 }
 
 // -------------------------------------
@@ -146,22 +144,24 @@ void loadMuonCorrections() {
 
 // Jet Energy Corrections/Resolutions (JEC/JER) 
 std::shared_ptr<correction::CorrectionSet> jetCorrections = nullptr;
-std::shared_ptr<correction::CorrectionSet> jetidCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetVetoMaps = nullptr;
-std::shared_ptr<const correction::Correction> jetVetoCorr = nullptr;
 void loadJetCorrections() {
-    if (!jetCorrections)
-        jetCorrections = correction::CorrectionSet::from_file
-        ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jet_jerc.json");
-    if (!jetVetoMaps)
-        jetVetoMaps = correction::CorrectionSet::from_file
-        ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jetvetomaps.json");
-    if (!jetVetoCorr) {
-        jetVetoCorr = jetVetoMaps->at("Summer22_23Sep2023_RunCD_V1");
+    try {
+        if (!jetCorrections)
+            jetCorrections = correction::CorrectionSet::from_file(
+                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/jet_jerc.json");
+    } catch (const std::exception& e) {
+        std::cerr << "[Jet JERC load ERROR] " << e.what() << std::endl;
+        jetCorrections = nullptr;
     }
-    //if (!jetidCorrections)
-        //jetidCorrections = correction::CorrectionSet::from_file
-        //("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/jetid.json");
+    try {
+        if (!jetVetoMaps)
+            jetVetoMaps = correction::CorrectionSet::from_file(
+                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/jetvetomaps.json");
+    } catch (const std::exception& e) {
+        std::cerr << "[Jet veto map load ERROR] " << e.what() << std::endl;
+        jetVetoMaps = nullptr;
+    }
 }
 
 // -------------------------------------
@@ -171,10 +171,16 @@ void loadJetCorrections() {
 std::shared_ptr<correction::CorrectionSet> pileupCorrections = nullptr;
 std::shared_ptr<const correction::Correction> pu_corrections = nullptr;
 void loadPileupCorrections() {
+  try {
     if (!pileupCorrections)
-        pileupCorrections = correction::CorrectionSet::from_file
-        ("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/7_Corrections/puWeightsBCD.json");
-        pu_corrections = pileupCorrections->at("Collisions2022_355100_357900_eraBCD_GoldenJson");
+      pileupCorrections = correction::CorrectionSet::from_file
+      ("/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/puWeightsBCD.json");
+      pu_corrections = pileupCorrections->at("Collisions2022_355100_357900_eraBCD_GoldenJson");
+  } catch (const std::exception& e) {
+    std::cerr << "[PU load ERROR] " << e.what() << std::endl;
+    pileupCorrections = nullptr;
+    pu_corrections = nullptr;
+  }
 }
 
 TH1D *hEventWeights = NULL;
@@ -194,7 +200,7 @@ float getMuonRochester(const Muon& mu, bool isMC)
         return 1.0;
     }
 
-    float pt     = mu._pt;
+    float pt     = mu._bsConstrainedPt;
     float eta    = mu._eta;
     float phi    = mu._phi;
     int   charge = mu._charge;
@@ -243,9 +249,7 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
     // ---- JER (MC only) ----
     if (isMC) {
         // Use JRV1 keys from your JSON
-        float sf = jetCorrections
-            ->at("Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi")
-            ->evaluate({eta, "nom"}); // "up"/"down" for systematics
+        double sf = jetCorrections->at("Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi")->evaluate({(double)eta, (double)corr_pt, std::string("nom")});
 
         if (hasGenJet && genJetPt > 0.f) {
             // Truth-anchored smearing
@@ -255,10 +259,8 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
             corr_pt *= smearFactor;
         } else {
             // Stochastic smearing
-            float resolution = jetCorrections
-                ->at("Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi")
-                ->evaluate({eta, corr_pt, rho});
-            float sigma = resolution * std::sqrt(std::max(sf*sf - 1.0f, 0.0f));
+            double resolution = jetCorrections->at("Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi")->evaluate({(double)eta, (double)corr_pt, (double)rho});
+            float sigma = resolution * std::sqrt(std::max(sf*sf - 1.0, 0.0));
             // Consider a deterministic seed (event, jet index) if you run multithreaded
             static TRandom3 rand(42);
             corr_pt *= (1.0f + rand.Gaus(0, sigma));
@@ -271,8 +273,8 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
 
 
 inline bool isVetoedJet(float eta, float phi) {
-    if (!jetVetoCorr) { std::cerr << "[ERROR] Jet veto corr not loaded!\n"; return false; }
-    const double val = jetVetoCorr->evaluate({std::string("jetvetomap"), (double)eta, (double)phi});
+    if (!jetVetoMaps) { std::cerr << "[ERROR] Jet veto corr not loaded!\n"; return false; }
+    const double val = jetVetoMaps->at("Summer22_23Sep2023_RunCD_V1")->evaluate({std::string("jetvetomap"), eta, phi});
     return (val != 0.0);
 }
 
@@ -308,34 +310,16 @@ bool isEndcap(Muon const& m)
 }
 
 // -------------------------------------
-//TRIGGER CRITERIA
-// -------------------------------------
-
-/*bool passL1(L1s* l1trigger) {
-    if (l1trigger->empty() || !(*l1trigger)[0]._SingleMu12er1p5) {
-        return false;  // Fail, go to next event
-    }
-    return true;  // Pass
-}
-
-bool passHLT(HLTs* hlttrigger) {
-    if (hlttrigger->empty() || !(*hlttrigger)[0]._IsoMu24) {
-        return false;  // Fail, go to next event
-    }
-    return true;  // Pass
-}*/
-
-// -------------------------------------
 //LEPTON CRITERIA 
 // -------------------------------------
 
-bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons)
+bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
 {
     int numPassingMuons = 0;
 
     // Check muons
     for (const auto& mu : *muons) {
-        float rochSF = getMuonRochester(mu, __isMC);
+        float rochSF = getMuonRochester(mu, isMC);
         float corrected_pt = mu._pt * rochSF;
 
         if (corrected_pt > 20.0 && std::abs(mu._eta) < 2.4) {
@@ -370,13 +354,6 @@ bool passVertex(Vertices* v)
 	{
         double rho = std::sqrt((it->_x * it->_x) + (it->_y * it->_y));
 
-        // Print vertex information
-/*        if (rho <= .2 && it->_ndof > 4 && TMath::Abs(it->_z) < 24) {
-        std::cout << "Vertex " << n 
-                  << ": z = " << it->_z
-                  << ", ndof = " << it->_ndof
-                  << ", rho = " << rho << " mm" << std::endl;}*/
-        
         if (TMath::Abs(it->_z) < 24 
             && it->_ndof > 4 
             && rho <= 0.3)
@@ -386,31 +363,36 @@ bool passVertex(Vertices* v)
 	return false;
 }
 
+//WILL PROB IMPLEMENT THIS ONE
+inline bool passVertex(Vertices* /*v*/, int PV_npvsGood) {
+    return PV_npvsGood >= 1;
+}
+
 // -------------------------------------
 //MUON CRITERIA 
 // -------------------------------------
 
 bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
 {
-	if (trig->size()==0)
-		return false;
-
+    // If we don't have trigger objects on DATA, fall back to a simple pT check.
+    if (trig->size()==0) {
+        if (!isMC) {
+            float rochSF = getMuonRochester(m, /*isMC=*/false);
+            float corrected_pt = m._bsConstrainedPt * rochSF;
+            return (corrected_pt >= 26.0f);
+        }
+         return false;
+    }
+    
     // Apply Rochester correction
-    float rochSF = getMuonRochester(m, __isMC);
-    float corrected_pt = m._pt * rochSF;
+    float rochSF = getMuonRochester(m, isMC);
+    float corrected_pt = m._bsConstrainedPt * rochSF;
 
     if (corrected_pt < 26)
         return false;
 	
 	for (TrigObjs::const_iterator it=trig->begin(); it!=trig->end(); ++it)
 	{
-        // Print trigger object information
-/*        std::cout << "Trigger Object: "
-                  << ", id = " << it->_id
-                  << ", eta = " << it->_eta
-                  << ", pt = " << it->_pt 
-                  << ", phi = " << it->_phi << std::endl;*/
-        
         if (it->_id == 13 && it->_filterBits & (1 << 0)) // Bit 0 = TrkIsoVVL (HLT_IsoMu24) 
         { 
             float deta = m._eta - it->_eta;
@@ -456,8 +438,8 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
     float rochSF1 = getMuonRochester(m1, __isMC);
     float rochSF2 = getMuonRochester(m2, __isMC);
 
-    float pt1_corr = m1._pt * rochSF1;
-    float pt2_corr = m2._pt * rochSF2;
+    float pt1_corr = m1._bsConstrainedPt * rochSF1;
+    float pt2_corr = m2._bsConstrainedPt * rochSF2;
     
     const Muon& leadmuon     = (pt1_corr > pt2_corr) ? m1 : m2;
     const Muon& subleadmuon  = (pt1_corr > pt2_corr) ? m2 : m1;
@@ -465,7 +447,7 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
     float sublead_pt_corr    = std::min(pt1_corr, pt2_corr);
 	
     if (m1._charge!=m2._charge && passMuon(leadmuon, lead_pt_corr, kLead) && passMuon(subleadmuon, sublead_pt_corr, kSubLead))
-        if (passMuonHLT(trigObjs, m1, !__isMC) || passMuonHLT(trigObjs, m2, !__isMC))
+        if (passMuonHLT(trigObjs, m1, __isMC) || passMuonHLT(trigObjs, m2, __isMC))
             return true;
 
 	return false;
@@ -502,42 +484,6 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
         return false;
     }
 }*/
-
-bool passJet(Jets* jets, GenJets* genjets, float rho)
-{
-    if (jets->size() < 2) return false;
-
-    std::vector<TLorentzVector> Alljets;
-    for (const auto& jet : *jets) {
-        
-        // VETO MAP (drop the jet if it sits in a bad region)
-        if (isVetoedJet(jet._eta, jet._phi)) continue;
-
-        // gen-match locals, JEC+JER
-        float genJetPt = 0.0f;
-        bool hasGenJet = false;
-
-        if (__isMC && jet._genJetIdx >= 0 && jet._genJetIdx < (int)genjets->size()) {
-            const auto& gj = genjets->at(jet._genJetIdx);
-            genJetPt = gj._pt;
-            hasGenJet = true;
-        }
-
-        float corr_pt   = getCorrectedJetPt(jet, rho, __isMC, genJetPt, hasGenJet);
-        float corr_mass = jet._mass * (corr_pt / jet._pt);
-
-        if (corr_pt <= 25 || std::abs(jet._eta) >= 4.7) continue;
-        if ((jet._jetId & 4) != 4) continue; // Tight ID
-
-        TLorentzVector p4;
-        p4.SetPtEtaPhiM(corr_pt, jet._eta, jet._phi, corr_mass);
-        Alljets.push_back(p4);
-    }
-
-    if (Alljets.size() < 2) return false;
-    if (Alljets[0].Pt() < 50) return false;
-    return true;
-}
 
 //*******************************************************************
 //                          SCALE FACTORS
@@ -607,13 +553,18 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     
     TLorentzVector corr_p4m1 = p4m1 * roch_sf1;
     TLorentzVector corr_p4m2 = p4m2 * roch_sf2;
-   
+    TLorentzVector corr_prefsr_p4 = corr_p4m1 + corr_p4m2;
+    
+    //PRE-FSR
+    //FILL_DIMUON_HIST(hists.setDM_PreFsr, 1.0);   
+
     // -------------------------------------
     //             FSR PHOTONS 
     // -------------------------------------
     
     // Add FSR photons to both muons if any pass criteria
-    auto applyFSR = [](const analysis::core::Muon& mu, TLorentzVector& p4, TLorentzVector& corr_p4, const analysis::core::FsrPhotons* fsrphotons, int muonIdx) {
+    auto applyFSR = []
+    (const analysis::core::Muon& mu, TLorentzVector& p4, TLorentzVector& corr_p4, const analysis::core::FsrPhotons* fsrphotons, int muonIdx) {
     const FsrPhoton* bestFsrPhoton = nullptr;
     float min_dROverEt2 = std::numeric_limits<float>::max();
 
@@ -658,8 +609,6 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     TLorentzVector corr_p4dimuon = corr_p4m1 + corr_p4m2;    
 	double dphi = p4m1.DeltaPhi(p4m2);
    
-   //MIGHT BE GOOD TO PLACE A MACRO HERE TO SEE FSR CORRECTIONS
-    
     // -------------------------------------
     //              JETS  
     // -------------------------------------
@@ -670,72 +619,88 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     float rho = rhos->at(0)._fixedGridRhoFastjetAll;
     
     std::vector<TLorentzVector> p4jets;
-    for (Jets::const_iterator it=jets->begin(); it!=jets->end(); ++it)
-	{
-        float genJetPt = -1.0f;
-        bool hasGenJet = false;
+    p4jets.reserve(jets->size());
 
-        // JER matching using NanoAOD index
-        if (__isMC && it->_genJetIdx >= 0 && it->_genJetIdx < (int)genjets->size()) {
-            const auto& gj = genjets->at(it->_genJetIdx);
-            genJetPt = gj._pt;
+    for (const auto& j : *jets) {
+        // veto map
+        if (isVetoedJet(j._eta, j._phi)) continue;
+
+        // gen matching for JER
+        float genJetPt = 0.f; 
+        bool hasGenJet = false;
+        
+        if (__isMC && j._genJetIdx >= 0 && j._genJetIdx < (int)genjets->size()) {
+            const auto& gj = genjets->at(j._genJetIdx);
+            genJetPt = gj._pt; 
             hasGenJet = true;
         }
-        
-        float corr_pt   = getCorrectedJetPt(*it, rho, __isMC, genJetPt, hasGenJet);
-        float corr_mass = it->_mass * (corr_pt / it->_pt);
 
-        // Muon cleaning ΔR > 0.4 
-        if (jetMuondR(it->_eta, it->_phi, mu1._eta, mu1._phi) < 0.4) continue; 
-		if (jetMuondR(it->_eta, it->_phi, mu2._eta, mu2._phi) < 0.4) continue; 
-        
-        // Count b-tagged jets
-        if (it->_btagDeepFlavB > 0.0583) n_loose_bjets++;
-        if (it->_btagDeepFlavB > 0.3086) n_medium_bjets++;
-        
-        // Jet passed all cuts → store for dijet selection
-		TLorentzVector p4;
-		p4.SetPtEtaPhiM(corr_pt, it->_eta, it->_phi, corr_mass);
-		p4jets.push_back(p4);
-			
-            // Print out the jet's properties
-            /*std::cout << "Jet passing selection: " << std::endl;
-            std::cout << "  pT:  " << it->_pt << " GeV" << std::endl;
-            std::cout << "  eta: " << it->_eta << std::endl;
-            std::cout << "  phi: " << it->_phi << std::endl;
-            std::cout << "  mass: " << it->_mass << " GeV" << std::endl;*/
+        float corr_pt   = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet);
+        float corr_mass = j._mass * (corr_pt / std::max(1e-6f, j._pt));
+
+        // basic quality and acceptance (same everywhere!)
+        if (corr_pt <= 25.f) continue;
+        if (std::abs(j._eta) >= 4.7f) continue;
+        if ( (j._jetId & 4) != 4 ) continue; // Tight ID
+
+        // muon cleaning
+        if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) < 0.4) continue;
+        if (jetMuondR(j._eta, j._phi, mu2._eta, mu2._phi) < 0.4) continue;
+
+        TLorentzVector p4; p4.SetPtEtaPhiM(corr_pt, j._eta, j._phi, corr_mass);
+        p4jets.push_back(p4);
+
+        // b-tag counting should use the same cleaned/accepted jets as above
+        if (j._btagDeepFlavB > 0.0583) n_loose_bjets++;
+        if (j._btagDeepFlavB > 0.3086) n_medium_bjets++;
     }
-   
-    // TLorentz Vectors For Leading/Sub-Leading Jets
-    if (p4jets.size() < 2) return;
+
+    // sort by corrected pT
+    std::sort(p4jets.begin(), p4jets.end(), [](const TLorentzVector& a, const TLorentzVector& b){ return a.Pt() > b.Pt(); });
+
+    if (p4jets.size() < 2) return; // no dijet
     
-    TLorentzVector p4lead = p4jets[0]; 
-    TLorentzVector p4sub = p4jets[1];
+    TLorentzVector p4lead = p4jets[0];
+    TLorentzVector p4sub  = p4jets[1];
     TLorentzVector dijet = p4lead + p4sub;
     
     float dijetdeta = TMath::Abs(p4lead.Eta() - p4sub.Eta());
+    float jet1eta = p4lead.Eta();
+    float jet2eta = p4sub.Eta();
+    
     float dijetmass = dijet.M();
+    
     float dijetpt = dijet.Pt();
-
+    float jet1pt = p4lead.Pt();
+    float jet2pt = p4sub.Pt();
+    
     float mu1_SF = getMuonSF(mu1, __isMC);
     float mu2_SF = getMuonSF(mu2, __isMC);
     float totalWeight = MCweight * mu1_SF * mu2_SF;
     float noWeight = 1.0;
     
+    /*std::cout << "noWeight " << noWeight << std::endl;
+    std::cout << std::endl;
+    std::cout << "MCweight " << MCweight << std::endl;
+    std::cout << std::endl;
+    std::cout << "totalWeight " << totalWeight << std::endl;
+    std::cout << std::endl;*/
+
     // -------------------------------------
     //        PRE-SELECTION HISTOGRAMS  
     // -------------------------------------
-    
+   
+    //RIGHT NOW THIS INCLUDES THE 1 VBF SELECTION: EXLUDING ADDITINOAL MUONS/ELECTRONS 
     FILL_DIMUON_HIST(hists.setDM_PreSelection, noWeight);   
     FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection, totalWeight); 
-    FILL_DIJET_HIST(hists.setJet_PreSelection, MCweight); 
+    FILL_DIJET_HIST(hists.setJet_PreSelection, totalWeight); 
 
-    if (isBarrel(mu1) && isBarrel(mu2))
+    /*if (isBarrel(mu1) && isBarrel(mu2))
     {
         //	BB
         FILL_DIMUON_HIST(hists.setDM_PreSelection_BB, noWeight);
         FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_BB, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_BB, MCweight); 
+        FILL_DIJET_HIST(hists.setJet_PreSelection_BB, totalWeight); 
     }
     else if ((isBarrel(mu1) && isOverlap(mu2)) ||
         (isBarrel(mu2) && isOverlap(mu1)))
@@ -743,7 +708,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
         //	BO
         FILL_DIMUON_HIST(hists.setDM_PreSelection_BO, noWeight);
         FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_BO, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_BO, MCweight); 
+        FILL_DIJET_HIST(hists.setJet_PreSelection_BO, totalWeight); 
     }
     else if ((isBarrel(mu1) & isEndcap(mu2)) || 
         (isBarrel(mu2) && isEndcap(mu1)))
@@ -751,14 +716,14 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
         //	BE
         FILL_DIMUON_HIST(hists.setDM_PreSelection_BE, noWeight);
         FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_BE, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_BE, MCweight); 
+        FILL_DIJET_HIST(hists.setJet_PreSelection_BE, totalWeight); 
     }
     else if (isOverlap(mu1) && isOverlap(mu2))
     {
         //	OO
         FILL_DIMUON_HIST(hists.setDM_PreSelection_OO, noWeight);
         FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_OO, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_OO, MCweight); 
+        FILL_DIJET_HIST(hists.setJet_PreSelection_OO, totalWeight); 
     }
     else if ((isOverlap(mu1) && isEndcap(mu2)) ||
         (isOverlap(mu2) && isEndcap(mu1)))
@@ -766,15 +731,18 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
         //	OE
         FILL_DIMUON_HIST(hists.setDM_PreSelection_OE, noWeight);
         FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_OE, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_OE, MCweight); 
+        FILL_DIJET_HIST(hists.setJet_PreSelection_OE, totalWeight); 
     }
     else if (isEndcap(mu1) && isEndcap(mu2))
     {
         //	EE
         FILL_DIMUON_HIST(hists.setDM_PreSelection_EE, noWeight);
         FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_EE, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_EE, MCweight); 
-    }
+        FILL_DIJET_HIST(hists.setJet_PreSelection_EE, totalWeight); 
+    }*/
+
+    if (p4lead.Pt() < _leadJetPt) return;      // leading threshold
+    if (p4sub.Pt() < _subleadJetPt) return;   // subleading threshold
 
     // -------------------------------------
     //          VBF HISTOGRAMS  
@@ -782,21 +750,25 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
 
     if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
         pass_bjet_veto = false;
-	
+    
     if (pass_bjet_veto) {
-        if (p4lead.Pt() > _leadJetPt && p4sub.Pt() > _subleadJetPt && dijetmass > _dijetMass_VBF && TMath::Abs(dijetdeta) > _dijetdEta_VBF) {
+
+        //PRE-DIJET CUTS 
+        FILL_DIJET_HIST(hists.setJet_PreDiJet_VBF, totalWeight); 
+
+        if (dijetmass > _dijetMass_VBF && TMath::Abs(dijetdeta) > _dijetdEta_VBF) {
             
             //	VBF SELECTION CRITERIA
             FILL_DIMUON_HIST(hists.setDM_VBF, noWeight)
             FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF, totalWeight)
-            FILL_DIJET_HIST(hists.setJet_VBF, MCweight); 
+            FILL_DIJET_HIST(hists.setJet_VBF, totalWeight); 
 
-            if (isBarrel(mu1) && isBarrel(mu2))
+            /*if (isBarrel(mu1) && isBarrel(mu2))
             {
                 //	BB
                 FILL_DIMUON_HIST(hists.setDM_VBF_BB, noWeight);
                 FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_BB, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_BB, MCweight); 
+                FILL_DIJET_HIST(hists.setJet_VBF_BB, totalWeight); 
             }
             else if ((isBarrel(mu1) && isOverlap(mu2)) ||
                 (isBarrel(mu2) && isOverlap(mu1)))
@@ -804,7 +776,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
                 //	BO
                 FILL_DIMUON_HIST(hists.setDM_VBF_BO, noWeight);
                 FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_BO, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_BO, MCweight); 
+                FILL_DIJET_HIST(hists.setJet_VBF_BO, totalWeight); 
             }
             else if ((isBarrel(mu1) & isEndcap(mu2)) || 
                 (isBarrel(mu2) && isEndcap(mu1)))
@@ -812,14 +784,14 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
                 //	BE
                 FILL_DIMUON_HIST(hists.setDM_VBF_BE, noWeight);
                 FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_BE, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_BE, MCweight); 
+                FILL_DIJET_HIST(hists.setJet_VBF_BE, totalWeight); 
             }
             else if (isOverlap(mu1) && isOverlap(mu2))
             {
                 //	OO
                 FILL_DIMUON_HIST(hists.setDM_VBF_OO, noWeight);
                 FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_OO, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_OO, MCweight); 
+                FILL_DIJET_HIST(hists.setJet_VBF_OO, totalWeight); 
             }
             else if ((isOverlap(mu1) && isEndcap(mu2)) ||
                 (isOverlap(mu2) && isEndcap(mu1)))
@@ -827,15 +799,15 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
                 //	OE
                 FILL_DIMUON_HIST(hists.setDM_VBF_OE, noWeight);
                 FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_OE, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_OE, MCweight); 
+                FILL_DIJET_HIST(hists.setJet_VBF_OE, totalWeight); 
             }
             else if (isEndcap(mu1) && isEndcap(mu2))
             {
                 //	EE
                 FILL_DIMUON_HIST(hists.setDM_VBF_EE, noWeight);
                 FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_EE, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_EE, MCweight); 
-            }
+                FILL_DIJET_HIST(hists.setJet_VBF_EE, totalWeight); 
+            }*/
 		}
     }
 }
@@ -868,43 +840,6 @@ float sampleinfo(std::string const& inputname)
 	return numEventsWeighted;
 }
 
-//*******************************************************************
-//                        GENERATING PU WEGIHT (NO LONGER NEED) 
-//*******************************************************************
-
-/*void generatePUMC()
-{
-    std::cout << "Generating Pileup Monte-Carlo File..." << std::endl;
-    std::cout << "[DEBUG] Writing PU histogram to: " << __puMCfilename << std::endl
-    << std::endl;
-	TFile *pufile = new TFile(__puMCfilename.c_str(), "recreate");
-	TH1D *h = new TH1D("pileup", "pileup", 99, 0, 99);
-
-	Streamer s(__inputfilename, "Events");
-	s.chainup();
-    
-    int pileup_nPU = 0;
-    float genWeight = 1.0;
-    
-    s._chain->SetBranchAddress("Pileup_nPU", &pileup_nPU);
-    s._chain->SetBranchAddress("genWeight", &genWeight);
-
-	int numEvents = s._chain->GetEntries();
-	std::cout << "Total entries to process for generating PUMC: " << numEvents << std::endl;
-    for (uint32_t i=0; i<numEvents; i++)
-	{
-		s._chain->GetEntry(i);
-        if (i < 10) {
-        std::cout << "[DEBUG] Event " << i
-                  << " Pileup_nPU = " << &pileup_nPU
-                  << " genWeight = " << genWeight << std::endl;
-    }
-		h->Fill(pileup_nPU, genWeight);
-	}
-
-	pufile->Write();
-	pufile->Close();
-}*/
 
 //*******************************************************************
 //                       PROGRESS BAR 
@@ -926,6 +861,7 @@ void showProgressBar(uint32_t current, uint32_t total) {
     std::cout.flush();  // Ensure output is immediately shown
 }
 
+
 //*******************************************************************
 //                        MAIN PROGRESS FUCNTION 
 //*******************************************************************
@@ -935,11 +871,16 @@ void process()
     //	Output Root File
     TFile *outroot = new TFile(__outputfilename.c_str(), "recreate");
     hEventWeights = new TH1D("eventWeights", "eventWeights", 1, 0, 1);
-	
+
+    // Fsr blocks
+    //DimuonSet setDM_PreFsr(outroot, "DM_PreFsr");
+    //DimuonSet setDM_PostFsr(outroot, "DM_PostFsr");
+    
+    // Pre-Selection blocks
     DimuonSet setDM_PreSelection(outroot, "DM_Pre-Selection");
     DimuonSet corr_setDM_PreSelection(outroot, "corr_DM_Pre-Selection");
     JetSet setJet_PreSelection(outroot, "Jet_Pre-Selection");
-    DimuonSet setDM_PreSelection_BB(outroot, "DM_Pre-Selection_BB");
+    /*DimuonSet setDM_PreSelection_BB(outroot, "DM_Pre-Selection_BB");
     DimuonSet corr_setDM_PreSelection_BB(outroot, "corr_DM_Pre-Selection_BB");
     JetSet setJet_PreSelection_BB(outroot, "Jet_Pre-Selection_BB");
     DimuonSet setDM_PreSelection_BO(outroot, "DM_Pre-Selection_BO");
@@ -956,11 +897,16 @@ void process()
     JetSet setJet_PreSelection_OE(outroot, "Jet_Pre-Selection_OE");
     DimuonSet setDM_PreSelection_EE(outroot, "DM_Pre-Selection_EE");
     DimuonSet corr_setDM_PreSelection_EE(outroot, "corr_DM_Pre-Selection_EE");
-    JetSet setJet_PreSelection_EE(outroot, "Jet_Pre-Selection_EE");
+    JetSet setJet_PreSelection_EE(outroot, "Jet_Pre-Selection_EE");*/
+    
+    // Pre dijet cuts 
+    JetSet setJet_PreDiJet_VBF(outroot, "Jet_PreDiJet_VBF");
+    
+    // VBF blocks
     DimuonSet setDM_VBF(outroot, "DM_VBF");
     DimuonSet corr_setDM_VBF(outroot, "corr_DM_VBF");
     JetSet setJet_VBF(outroot, "Jet_VBF");
-    DimuonSet setDM_VBF_BB(outroot, "DM_VBF_BB");
+    /*DimuonSet setDM_VBF_BB(outroot, "DM_VBF_BB");
     DimuonSet corr_setDM_VBF_BB(outroot, "corr_DM_VBF_BB");
     JetSet setJet_VBF_BB(outroot, "Jet_VBF_BB");
     DimuonSet setDM_VBF_BO(outroot, "DM_VBF_BO");
@@ -977,46 +923,38 @@ void process()
     JetSet setJet_VBF_OE(outroot, "Jet_VBF_OE");
     DimuonSet setDM_VBF_EE(outroot, "DM_VBF_EE");
     DimuonSet corr_setDM_VBF_EE(outroot, "corr_DM_VBF_EE");
-    JetSet setJet_VBF_EE(outroot, "Jet_VBF_EE");
+    JetSet setJet_VBF_EE(outroot, "Jet_VBF_EE");*/
     
     HistSetCollection hists = {
-    setDM_PreSelection, corr_setDM_PreSelection, setJet_PreSelection,
-    setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB,
+    
+    // Fsr blocks
+    //setDM_PreFsr, setDM_PostFsr,
+
+    // Pre-Selection blocks
+    setDM_PreSelection,    corr_setDM_PreSelection,    setJet_PreSelection,
+    /*setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB,
     setDM_PreSelection_BO, corr_setDM_PreSelection_BO, setJet_PreSelection_BO,
     setDM_PreSelection_BE, corr_setDM_PreSelection_BE, setJet_PreSelection_BE,
     setDM_PreSelection_OO, corr_setDM_PreSelection_OO, setJet_PreSelection_OO,
     setDM_PreSelection_OE, corr_setDM_PreSelection_OE, setJet_PreSelection_OE,
-    setDM_PreSelection_EE, corr_setDM_PreSelection_EE, setJet_PreSelection_EE,
-    setDM_VBF, corr_setDM_VBF, setJet_VBF,
-    setDM_VBF_BB, corr_setDM_VBF_BB, setJet_VBF_BB,
+    setDM_PreSelection_EE, corr_setDM_PreSelection_EE, setJet_PreSelection_EE,*/
+    
+    // Pre di-jet
+    setJet_PreDiJet_VBF,
+
+    // VBF blocks
+    setDM_VBF,    corr_setDM_VBF,    setJet_VBF
+    /*setDM_VBF_BB, corr_setDM_VBF_BB, setJet_VBF_BB,
     setDM_VBF_BO, corr_setDM_VBF_BO, setJet_VBF_BO,
     setDM_VBF_BE, corr_setDM_VBF_BE, setJet_VBF_BE,
     setDM_VBF_OO, corr_setDM_VBF_OO, setJet_VBF_OO,
     setDM_VBF_OE, corr_setDM_VBF_OE, setJet_VBF_OE,
-    setDM_VBF_EE, corr_setDM_VBF_EE, setJet_VBF_EE
+    setDM_VBF_EE, corr_setDM_VBF_EE, setJet_VBF_EE*/
     };
-
-    /*reweight::LumiReWeighting* weighter = nullptr;
-    if (__isMC && !__genPUMC) {  
-    std::cout << "mcPU = " << __puMCfilename << std::endl;
-    std::cout << "dataPU = " << __puDATAfilename << std::endl;
-
-    TString mc_pileupfile = __puMCfilename.c_str();
-    TString data_pileupfile = __puDATAfilename.c_str();
-
-    weighter = new reweight::LumiReWeighting(
-        mc_pileupfile.Data(), data_pileupfile.Data(), "pileup", "pileup");
-    } else if (__genPUMC) {
-        std::cout << "[INFO] Generating MC PU histogram only. No PU reweighting will be applied.\n";
-    }*/
 
 	Streamer streamer(__inputfilename, "Events");
 	streamer.chainup();
 	
-    //	generate the MC Pileup histogram
-	//if (__genPUMC && __isMC)
-		//generatePUMC();
-
     auto numEventsWeighted = 100;
     hEventWeights->Fill(0.5, numEventsWeighted);
     
@@ -1047,6 +985,7 @@ void process()
     //Setting Branch Array for Muon Properties
     SET_BRANCH_UINT(nMuon);
     SET_BRANCH_FLOAT_ARRAY(Muon_pt);
+    SET_BRANCH_FLOAT_ARRAY(Muon_bsConstrainedPt);
     SET_BRANCH_FLOAT_ARRAY(Muon_phi);
     SET_BRANCH_FLOAT_ARRAY(Muon_eta);
     SET_BRANCH_INT_ARRAY(Muon_charge);
@@ -1135,6 +1074,7 @@ void process()
     SET_BRANCH_UINT(nElectron);
     SET_BRANCH_FLOAT_ARRAY(Electron_pt);
     SET_BRANCH_FLOAT_ARRAY(Electron_eta);
+    SET_BRANCH_FLOAT_ARRAY(Electron_phi);
     SET_BRANCH_UCHAR_ARRAY(Electron_cutBased);
 
     //Setting Branch Array for Rho Properties
@@ -1180,6 +1120,7 @@ void process()
         for (size_t i=0; i<nMuon; i++) {
             Muon mu;
             mu._pt = Muon_pt[i];
+            mu._bsConstrainedPt = Muon_bsConstrainedPt[i];
             mu._eta = Muon_eta[i];
             mu._phi = Muon_phi[i];
             mu._charge = Muon_charge[i];
@@ -1213,15 +1154,17 @@ void process()
 
             jets->push_back(std::move(jet));
         }
-
-        for (size_t i=0; i<nGenJet; i++) {
-            GenJet genjet;
-            genjet._pt = GenJet_pt[i];
-            genjet._eta = GenJet_eta[i];
-            genjet._phi = GenJet_phi[i];
-            genjet._mass = GenJet_mass[i];
-            
-            genjets->push_back(std::move(genjet));
+        
+        if (__isMC) {
+            for (size_t i=0; i<nGenJet; i++) {
+                GenJet genjet;
+                genjet._pt = GenJet_pt[i];
+                genjet._eta = GenJet_eta[i];
+                genjet._phi = GenJet_phi[i];
+                genjet._mass = GenJet_mass[i];
+                
+                genjets->push_back(std::move(genjet));
+            }
         }
 
         for (size_t i=0; i<nFsrPhoton; i++){
@@ -1251,7 +1194,8 @@ void process()
             Electron electron;
             electron._pt = Electron_pt[i];
             electron._eta = Electron_eta[i];
-            electron._phi = Electron_cutBased[i];
+            electron._phi = Electron_phi[i]; 
+            electron._cutBased = Electron_cutBased[i];
 
             electrons->push_back(std::move(electron));
         }
@@ -1316,13 +1260,13 @@ void process()
         
         //Background:
         //-------------------------------------- 
-        //float DYcrosssection_BCD = 6.688e3;
+        float DYcrosssection_BCD = 6.688e3;
         //float EWKcrosssection_BCD = 1.0; //CHANGE LATER 
-        //float TTcrosssection_BCD = 762.1;
-        //float WZcrosssection_BCD = 7.568;
-        //float WZto3LNucrosssection_BCD = 4.924;
-        //float ZZto2L2Nucrosssection_BCD = 1.031;
-        //float ZZto2L2Qcrosssection_BCD = 6.788;
+        float TTcrosssection_BCD = 762.1;
+        float WZcrosssection_BCD = 7.568;
+        float WZto3LNucrosssection_BCD = 4.924;
+        float ZZto2L2Nucrosssection_BCD = 1.031;
+        float ZZto2L2Qcrosssection_BCD = 6.788;
         
         //Signal:
         //-------------------------------------- 
@@ -1335,20 +1279,20 @@ void process()
         
         //Background:
         //-------------------------------------- 
-        //float DYgenEventSumw_BCD = 1.17668e12;
+        float DYgenEventSumw_BCD = 1.17668e12;
         //float EWKgenEventSumw_BCD = 8.51310e5;
-        //float TTgenEventSumw_BCD = 1.9129e9;
-        //float WZgenEventSumw_BCD = 3.1537e7;
-        //float WZto3LNugenEventSumw_BCD = 1.3561e7;
-        //float ZZto2L2NugenEventSumw_BCD = 1.50043e7;
-        //float ZZto2L2QgenEventSumw_BCD = 9.95594e7;
+        float TTgenEventSumw_BCD = 1.9129e9;
+        float WZgenEventSumw_BCD = 3.1537e7;
+        float WZto3LNugenEventSumw_BCD = 1.3561e7;
+        float ZZto2L2NugenEventSumw_BCD = 1.50043e7;
+        float ZZto2L2QgenEventSumw_BCD = 9.95594e7;
         
-        //float Ext_DYgenEventSumw_BCD = 1.73021e12;
-        //float Ext_TTgenEventSumw_BCD = 1.93459e9;
-        //float Ext_WZgenEventSumw_BCD = 3.07671e7;
-        //float Ext_WZto3LNugenEventSumw_BCD = 4.37112e7;
-        //float Ext_ZZto2L2NugenEventSumw_BCD = 1.73775e7;
-        //float Ext_ZZto2L2QgenEventSumw_BCD = 1.01821e8;
+        float Ext_DYgenEventSumw_BCD = 1.73021e12;
+        float Ext_TTgenEventSumw_BCD = 1.93459e9;
+        float Ext_WZgenEventSumw_BCD = 3.07671e7;
+        float Ext_WZto3LNugenEventSumw_BCD = 4.37112e7;
+        float Ext_ZZto2L2NugenEventSumw_BCD = 1.73775e7;
+        float Ext_ZZto2L2QgenEventSumw_BCD = 1.01821e8;
         
         //Signal:
         //-------------------------------------- 
@@ -1359,20 +1303,21 @@ void process()
         
         //----- FINAL MC-WEIGHT ------
        
-        //std::cout << "pileupWeight" << pileupWeight << std::endl;
-        //std::cout << "genWeight " << genWeight << std::endl;
-        
-        //float MCweight  = ((luminosity_BCD * VBFcrosssection_BCD)/(VBFgenEventSumw_BCD + Ext_VBFgenEventSumw_BCD)) * pileupWeight * genWeight;
-        float MCweight  = ((luminosity_BCD * VBFcrosssection_BCD)/(VBFgenEventSumw_BCD)) * pileupWeight * genWeight;
-        //float MCweight  = 1.0;
+        //float MCweight  = ((luminosity_BCD * DYcrosssection_BCD)/(DYgenEventSumw_BCD + Ext_DYgenEventSumw_BCD)) * pileupWeight * genWeight;
+        //float MCweight  = ((luminosity_BCD * TTcrosssection_BCD)/(TTgenEventSumw_BCD + Ext_TTgenEventSumw_BCD)) * pileupWeight * genWeight;
+        //float MCweight  = ((luminosity_BCD * WZcrosssection_BCD)/(WZgenEventSumw_BCD + Ext_WZgenEventSumw_BCD)) * pileupWeight * genWeight;
+        //float MCweight  = ((luminosity_BCD * WZto3LNucrosssection_BCD)/(WZto3LNugenEventSumw_BCD + Ext_WZto3LNugenEventSumw_BCD)) * pileupWeight * genWeight;
+        //float MCweight  = ((luminosity_BCD * ZZto2L2Nucrosssection_BCD)/(ZZto2L2NugenEventSumw_BCD + Ext_ZZto2L2NugenEventSumw_BCD)) * pileupWeight * genWeight;
+        //float MCweight  = ((luminosity_BCD * ZZto2L2Qcrosssection_BCD)/(ZZto2L2QgenEventSumw_BCD + Ext_ZZto2L2QgenEventSumw_BCD)) * pileupWeight * genWeight;
+        //float MCweight  = ((luminosity_BCD * VBFcrosssection_BCD)/(VBFgenEventSumw_BCD)) * pileupWeight * genWeight;
+        float MCweight  = 1.0;
  		
         //	Selections
         //if (!passL1(l1s)) continue;  
         //if (!passHLT(hlts)) continue;
         //if (!FsrPhoton(fsrphotons)) continue; HAVEN'T SET THIS UP YET
-		if (!passVertex(vertices))continue;
-        if (!passJet(jets, genjets, rho)) continue;
-        if (!vetoAdditionalLeptons(muons, electrons)) continue;
+		//if (!passVertex(vertices))continue;
+        if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
 
         // Prepare The Pairs Of Muons
         for (auto it = muons->begin(); it != muons->end(); ++it) {
@@ -1420,7 +1365,7 @@ void printCuts()
         << "    Jets:" << std::endl
         << "    -------------" << std::endl
         << "        Jet size >= 2" << std::endl
-        << "        Pt > 25" << std::endl
+        << "        pT > 25" << std::endl
         << "        Abs(Eta) < 4.7" << std::endl
         << "        tightId = true" << std::endl
         << "        Loose PU ID or pT > 50 GeV" << std::endl
@@ -1441,7 +1386,7 @@ void printCuts()
         << "    isGlobal && isTracker = true" << std::endl
         << "    tightId = true" << std::endl
         << "    pfRelIso04_all < 0.15" << std::endl
-        << "    Pt > " << _leadmuonPt << " GeV" << std::endl
+        << "    pT > " << _leadmuonPt << " GeV" << std::endl
         << "    Abs(Eta) < " << _leadmuonEta << std::endl
         << std::endl
         << "    Sub-Leading Muon:" << std::endl
@@ -1449,23 +1394,27 @@ void printCuts()
         << "    isGlobal && isTracker = true" << std::endl
         << "    tightId = true" << std::endl
         << "    pfRelIso04_all < 0.25" << std::endl
-        << "    Pt > " << _subleadmuonPt << " GeV" << std::endl
+        << "    pT > " << _subleadmuonPt << " GeV" << std::endl
         << "    Abs(Eta) < " << _subleadmuonEta << std::endl
         << std::endl
         << std::endl
         << "VBF-Selection Criteria:" << std::endl
         << "----------------------------------------------------------------------" << std::endl
+        << "    Events:" << std::endl
+        << "    -------------" << std::endl
+        << "        Excluding events w/ additional muon (electron) with pT > 20 GeV and |η| < 2.4 (2.5)" << std::endl
+        << std::endl
         << "    Jets:" << std::endl
         << "    -------------" << std::endl
         << "        At most one b-tagged loose jet and no b-tagged-medium jets" << std::endl
         << std::endl
         << "        Leading Jet:" << std::endl
         << "        ------------" << std::endl
-        << "        Pt > " << _leadJetPt << " GeV" << std::endl
+        << "        pT > " << _leadJetPt << " GeV" << std::endl
         << std::endl
         << "        Sub-Leading Jet:" << std::endl
         << "        ----------------" << std::endl
-        << "        Pt > " << _subleadJetPt << " GeV" << std::endl
+        << "        pT > " << _subleadJetPt << " GeV" << std::endl
         << std::endl
         << "        Di-Jet:" << std::endl
         << "        -------" << std::endl
@@ -1547,8 +1496,14 @@ int main(int argc, char** argv)
     
     // Start Main Loop Process 
 	loadMuonCorrections();
-    loadJetCorrections();
-    loadPileupCorrections();
+    if (__isMC) {
+        loadJetCorrections();               // JEC/JER for MC
+        loadPileupCorrections();            // PU weights for MC
+    } else {
+        // Optional: loadJetCorrections() if you want DATA residuals via JSON.
+        // Protect with try/catch inside the loader (already done above).
+        loadJetCorrections();
+    }
     process();
 	return 0;
 }
