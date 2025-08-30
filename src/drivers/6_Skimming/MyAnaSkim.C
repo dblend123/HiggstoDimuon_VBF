@@ -1,430 +1,308 @@
+//=============================
+// MyAnaSkim.C — minimal, standalone NanoAOD skimmer
+// Build:  c++ -O2 -std=gnu++17 MyAnaSkim.C -o my_skim $(root-config --cflags --libs)
+// Run:    ./my_skim filelist.txt 20000   # (max events per file; use -1 for all)
+//=============================
+
 #define MyAnalysis_cxx
 
+// Make sure 'string' is known before including the header
+#include <string>
+using std::string;
+
 #include "MyAnalysis.h"
+
+#include <iostream>
 #include <fstream>
-#include <iomanip>
-#include <TError.h>
-#include <TNtupleD.h>
-#include <stdio.h>
-#include <termios.h>
-#include <unistd.h>
-//#include <curses.h>
-#include <bits/stdc++.h>
-#include <algorithm>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <vector>
+#include <cmath>
+#include <ctime>
 
-string FileLocation(string);
-int dirExists(const char*  path);
+#include <TFile.h>
+#include <TTree.h>
+#include <TSystem.h>
 
-time_t startOfProgram = 0, eventLoop = 0;
+using namespace std;
 
-string eff_fname = "";
-string Statistics="StatFile.txt";
-ofstream Stat_file;
-int stat_per_file;
+//--------- forward decls ----------
+static string FileLocation(const string& initfile);
 
-string slash = "/";
-string NewPath = "/eos/user/d/dblend/HtoMuMu/AlexiCode/ForDylanOhannes/CMSSW_10_6_0/src/ForDylanOhannes/Skimming/";
+//--------- output root dir --------
+static string NewPath = "./skims";   // change if you like
 
-TTree *tree;
+//--------- run stats --------------
+static time_t startOfProgram = 0;
+static unsigned int fcount = 0;
+static unsigned int ievnt  = 0;
+static int MaxEvent = 500000;        // default cap (use -1 for all)
 
+//--------- cutflow / bookkeeping --
+static unsigned int CutEf[50] = {0};
+static string eff_fname = "skim";
 
+//--------- kept trees -------------
+static TTree* newtree = nullptr;
+static TFile* NewTreeFile = nullptr;
 
-TTree *newtree; //defining new tree for selected events only
-TTree *tree1;
-TTree *tree2;
-TTree *tree3;
-TTree *tree4;
-TTree *newtree1; 
-TTree *newtree2; 
-TTree *newtree3; 
-TTree *newtree4; 
+// ---- Skim knobs (loosened) ----
+static const bool  REQUIRE_OS   = true;   // set false to also keep same-sign
+// Vertex
+static const float PV_CHI2_MAX  = 10.0f;  // was 4
+static const float PV_Z_MAX     = 24.0f;  // was 5
+// Muon
+static const float MU_PT_MIN    = 10.0f;  // was 23
+static const float MU_ETA_MAX   = 3.5f;   // was 2.4
+static const float MU_DXY_MAX   = 1.0f;   // was 0.3
+static const float MU_DXYBS_MAX = 1.0f;   // was 0.5
+static const float MU_DZ_MAX    = 15.0f;  // was 5
+static const float MU_ISO_MAX   = 0.50f;  // was 0.30 (tkRelIso)
+static const float MU_SIP3D_MAX = 12.0f;   // was 5
 
-
-///////////////////////////////////////////////////
-bool IsRunning = true;
-bool   arglist = true;
-unsigned int fcount = 0;
-unsigned int ievnt=0;
-int argv2 = 0;
-int MaxEvent = 0;
-
-unsigned int CutEf[50];
-
-string fileName;
-string list_file;
-
-MyAnalysis Hmm;
-
-
-
-TFile* NewTreeFile;
-
-
-void MyAnalysis::BookHistograms()
-{
-
-  for(int i=0;i<50;i++) CutEf[i]=0;
-
+//=============================
+// MyAnalysis methods (match header signatures)
+//=============================
+void MyAnalysis::BookHistograms() {
+  for (int i=0;i<50;i++) CutEf[i]=0;
 }
 
-void MyAnalysis::analyze_event(Long64_t entry)
+void MyAnalysis::analyze_event(Long64_t /*entry*/)
 {
-   unsigned int inegative, ipositive;
+  // --- PV quality ---
+  if (PV_npvsGood < 1)  return;
+  if (PV_ndof    <= 4)  return;
+  if (PV_chi2    >  PV_CHI2_MAX) return;
+  if (std::fabs(PV_z) > PV_Z_MAX) return;
 
-   
-   inegative = 0;
-   ipositive = 0;
+  // --- muons ---
+  if (nMuon < 2) return;
 
-   
+  int ipositive = 0, inegative = 0;
+  for (int i=0; i<nMuon; ++i) {
+    if (Muon_pt[i]            <= MU_PT_MIN)    continue;
+    if (std::fabs(Muon_eta[i])>  MU_ETA_MAX)   continue;
+    if (std::fabs(Muon_dxy[i])>  MU_DXY_MAX)   continue;
+    if (std::fabs(Muon_dxybs[i])> MU_DXYBS_MAX) continue;
+    if (std::fabs(Muon_dz[i]) >  MU_DZ_MAX)    continue;
+    if (Muon_tkRelIso[i]      >  MU_ISO_MAX)   continue;
+    if (Muon_sip3d[i]         >  MU_SIP3D_MAX) continue;
 
-   CutEf[0]++;
+    if (Muon_charge[i] > 0) ++ipositive;
+    if (Muon_charge[i] < 0) ++inegative;
+  }
 
-   /////////////Primary vertices //////////////////////////
-   double pvRho = sqrt(PV_x*PV_x+PV_y*PV_y);
-     
-   //if(PV_score < 4500.) return;
+  if (REQUIRE_OS) {
+    if (ipositive < 1 || inegative < 1) return;
+  } else {
+    if (ipositive + inegative < 2) return;
+  }
 
-   //if(!L1_SingleMu18) return;	
-   CutEf[1]++;
-   if(PV_npvsGood<1) return;
-   CutEf[2]++;
-   //if(pvRho<0.01 || pvRho>0.24 ) return;
-   CutEf[3]++;
-   if(PV_ndof<=4) return;
-   CutEf[4]++;
-   if(PV_chi2>4) return;
-   CutEf[5]++;
-   if(abs(PV_z)>5.) return;
-   CutEf[6]++;
-   
-   int iMuonTrig = 0;
-   if(nMuon     <2 ) return;
-   CutEf[9]++;
-
-   float dist = 9999.;
-
-
-   for (int imuon = 0;imuon<nMuon;imuon++){
-     if(Muon_pt[imuon]<=23.)          continue;  // Muon Pt cut 
-     if(abs(Muon_eta[imuon])>2.4)     continue;  // Muon Eta cut
-     if(abs(Muon_dxy[imuon])>0.3)     continue;  // Muon dxy wrt PV cut
-     if(abs(Muon_dxybs[imuon])>0.5)   continue;  // Muon dxy wrt BS cut
-     if(abs(Muon_dz[imuon]) >5.)      continue;  // Muon dz  wrt PV cut
-     if(Muon_tkRelIso[imuon]>0.3)     continue;  // Muon relative isolation
-     if(Muon_sip3d[imuon]>5.)         continue;  // Muon 3d impact par vrt PV     
-
-     if(Muon_charge[imuon] ==  1) ipositive++; //count positive muons
-     if(Muon_charge[imuon] == -1) inegative++; //count negative muons
-   }
-
-   /********* Cut on number of muons ****************/
-   if(inegative < 1) return;
-   if(ipositive < 1) return;
-
-   CutEf[11]++;
-
-   stat_per_file++;
-   //cout<<"Stat_per_file "<<stat_per_file<<endl;
-   newtree->Fill();  //commented out just to process files quickly, trees have already for dummy ntuples
-   //if(stat_per_file%10000==0) {cout<<"Stats mod "<<stat_per_file<<endl; newtree->AutoSave();}
-
+  // keep the event
+  ++CutEf[0];
+  ++ievnt;
+  if (newtree) newtree->Fill();
 }
 
-//*****************   Main routine ****************
+void MyAnalysis::Loop()  // NOTE: header says 'virtual void Loop()'
+{
+  if (fChain == 0) return;
 
-int main(int argc, char *argv[])
+  const Long64_t nentries = fChain->GetEntriesFast();
+  for (Long64_t jentry=0; jentry<nentries; ++jentry) {
+    Long64_t ientry = LoadTree(jentry);
+    if (ientry < 0) break;
+
+    fChain->GetEntry(jentry);
+    analyze_event(ientry);
+
+    if (MaxEvent != -1 && (int)ievnt >= MaxEvent) {
+      std::cout << "\nReached requested event cap: " << ievnt << "\n";
+      break; // stop this file; main() will decide whether to continue to next file
+    }
+  }
+}
+
+void MyAnalysis::EffPrint(string tag)  // header uses 'string'
+{
+  std::string filename = "eff_" + tag + ".txt";
+  std::ofstream eff_file(filename.c_str());
+  if (!eff_file) return;
+
+  eff_file << fcount << " files skimmed\n";
+  for (int i=0;i<50;i++){
+    if (CutEf[i]!=0) eff_file << "Events after cut " << (i+1) << " : N=" << CutEf[i] << "\n";
+  }
+  eff_file.close();
+}
+
+//=============================
+// helpers
+//=============================
+static string FileLocation(const string& initfile)
+{
+  const string SK = "Skimmed_";
+
+  // split dir / file
+  size_t lastSlash = initfile.find_last_of('/');
+  string directory = (lastSlash==string::npos) ? "" : initfile.substr(0,lastSlash);
+  string fileName  = (lastSlash==string::npos) ? initfile : initfile.substr(lastSlash+1);
+
+  // extract year if present, else "misc"
+  string year = "misc";
+  size_t yearPos = directory.find("Run2_DYMC_RootFiles/20");
+  if (yearPos != string::npos && yearPos + 24 <= directory.size()) {
+    year = directory.substr(yearPos + 20, 4);
+  }
+
+  // ensure output dir exists
+  string outDir = NewPath + "/" + year + "/";
+  gSystem->mkdir(outDir.c_str(), /*recursive=*/true);
+
+  return outDir + SK + fileName;
+}
+
+//=============================
+// main
+//=============================
+int main(int argc, char* argv[])
 {
   time(&startOfProgram);
 
-
-  int retval = 0;
-
-  
-  if(argc == 3 ) {
-    argv2 = stoi(argv[2]);
-    MaxEvent = argv2;
-  } 
-  if(MaxEvent ==0 ) MaxEvent = 500000;
- 
-
-  
-  if(argc == 1) arglist = false;
-  if(arglist){
-    list_file = argv[1];
-  
-    if(MaxEvent!=-1) {cout<<"Requested "<<MaxEvent<<" events"<< endl;} else {cout<<"Requested ALL events "<<endl;}
-    Hmm.BookHistograms();
-    system("date");
-
-    vector<string> input_file_names;
-    input_file_names.clear();
-
-    ifstream input (list_file,ios::in);
-    
-    Stat_file.open(Statistics);
-
-    while (input >> fileName ){
-      if(fileName.c_str()[0]=='#') continue;
-      if(fileName.c_str()[0]=='*') break;
-      input_file_names.push_back(fileName.c_str());
-    }
-    cout<<endl;
-    cout<<endl;
-    cout<<" ***** "<< input_file_names.size()<< " data files in "<<argv[1]<< " file *****"<<endl;
-    cout<<endl; 
-    
-    for(int i=0;i<input_file_names.size();i++){
-      stat_per_file = 0;
-      fcount++;
-      TFile *f = (TFile*)gROOT->GetListOfFiles()->FindObject(input_file_names[i].c_str());
-      if (!f || !f->IsOpen()) {
-	f = TFile::Open(input_file_names[i].c_str(),"READ");
-      }
-      string fn = input_file_names[i].c_str();
-      f->GetObject("Events",tree);
-      //f->GetObject("LuminosityBlocks",tree1); 
-      //f->GetObject("Runs",tree2); 
-      //f->GetObject("MetaData",tree3); 
-      //f->GetObject("ParameterSets",tree4); 
-      
-      Hmm.Init(tree);
-      cout<<"File__ N "<<fcount<<" "<<input_file_names[i].c_str()<<" __oppened"<<endl;
-      cout<<endl; 
-
-      //********* Cloning the old tree ******************
-      ///////////////////////////////////////////////////
-      //+++++++++++ Oppening file new tree ++++++++++++++
-
-      string FromSingle = FileLocation(input_file_names[i]);
-      string newTreeFile = FromSingle;
-
-      cout<<"Selected events will be written to"<<endl;
-
-      cout<<newTreeFile<<endl<<endl;;
-
-      NewTreeFile =  new TFile(newTreeFile.c_str(), "recreate");
-      NewTreeFile->cd();
-
-      //+++++++++++++++++++++++++++++++++++++++++++++++++
-      newtree  = tree->CloneTree(0);
-      newtree->SetDirectory(NewTreeFile);
-      //newtree->SetDirectory(0);
-      //newtree->SetAutoSave(-3000000);
-      
-      retval = Hmm.Loop();
-
-      
-      newtree->Write();
-
-      newtree1 = tree1->CloneTree();
-      newtree1->SetDirectory(NewTreeFile);
-      newtree1->Write();
-	
-      newtree2 = tree2->CloneTree();
-      newtree2->SetDirectory(NewTreeFile);
-      newtree2->Write();
-
-      newtree3 = tree3->CloneTree();
-      newtree3->SetDirectory(NewTreeFile);
-      newtree3->Write();
-
-      newtree4 = tree4->CloneTree();
-      newtree4->SetDirectory(NewTreeFile);
-      newtree4->SetDirectory(0);
-      newtree4->Write();
-
-      
-      if(MaxEvent == -1) retval = 0;
-      if(retval==1) break;
-
-      delete tree;
-      delete tree1;
-      delete tree2;
-      delete tree3;
-      delete tree4;
-
-      delete newtree;
-      delete newtree1;
-      delete newtree2;
-      delete newtree3;
-      delete newtree4;
-
-      NewTreeFile->Close();
-      //tree->Reset();
-      //newtree1->Reset();
-      //newtree2->Reset();
-      //newtree3->Reset();
-      //newtree4->Reset();
-      delete NewTreeFile;
-      Stat_file<<stat_per_file<<" Entries written for file "<<input_file_names[i]<<endl;
-    }
-
-    ////////////////////////////////////////////
-    
-    cout<<endl<<"Events analyzed "<<ievnt<<endl;
-    time(&eventLoop);
-
+  if (argc < 2) {
+    std::cerr << "Usage: " << argv[0] << " filelist.txt [maxEvents]\n";
+    return 1;
   }
 
+  const string list_file = argv[1];
+  if (argc >= 3) MaxEvent = std::stoi(argv[2]);  // -1 for ALL
+
+  // read input list
+  std::ifstream list(list_file);
+  if (!list) {
+    std::cerr << "Cannot open list file: " << list_file << "\n";
+    return 2;
+  }
+
+  std::vector<string> inputs;
+  for (string line; std::getline(list, line); ) {
+    if (!line.empty()) inputs.push_back(line);
+  }
+  if (inputs.empty()) {
+    std::cerr << "No inputs found in " << list_file << "\n";
+    return 3;
+  }
+
+  std::cout << (MaxEvent==-1 ? "Requested ALL events\n" :
+                ("Requested " + std::to_string(MaxEvent) + " events\n"));
+
+  // Create one analyzer instance (so counters accumulate across files)
+  MyAnalysis Hmm;
+
+  // process files
+  for (const auto& infile : inputs) {
+    ++fcount;
+
+    // open input file & tree
+    TFile* f = TFile::Open(infile.c_str(), "READ");
+    if (!f || f->IsZombie()) {
+      std::cerr << "Cannot open input: " << infile << "\n";
+      if (f) { f->Close(); delete f; }
+      continue;
+    }
+
+    TTree* tree = nullptr;
+    f->GetObject("Events", tree);
+    if (!tree) {
+      std::cerr << "No 'Events' tree in: " << infile << "\n";
+      f->Close(); delete f;
+      continue;
+    }
+
+    // init reader on this tree
+    Hmm.Init(tree);
+
+    // ---- Slim the Events tree: disable all, then re-enable only what's needed
+    tree->SetBranchStatus("*", 0);
+
+    std::vector<const char*> keep = {
+        // bookkeeping
+        "run", "event", "luminosityBlock",
+
+        // vertices
+        "PV_*",
+
+        // muons (matches what Streamer / selection uses)
+        "nMuon",
+        "Muon_pt","Muon_eta","Muon_phi","Muon_charge",
+        "Muon_isGlobal","Muon_isTracker","Muon_tightId",
+        "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers",
+        "Muon_pfRelIso04_all",   
+        "Muon_tkRelIso", 
+        "Muon_bsConstrainedPt",
+
+        // triggers and trig objects
+        "HLT_IsoMu24",
+        "nTrigObj","TrigObj_pt","TrigObj_eta","TrigObj_phi","TrigObj_id","TrigObj_filterBits",
+
+        // jets (+ things you read from them)
+        "nJet",
+        "Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
+        "Jet_btagDeepFlavB","Jet_area",
+        "Jet_chHEF","Jet_neHEF","Jet_chEmEF","Jet_neEmEF","Jet_muEF",
+        "Jet_genJetIdx",
+
+        // gen jets (harmless on data)
+        "nGenJet","GenJet_pt","GenJet_eta","GenJet_phi","GenJet_mass",
+
+        // FSR photons (you push these into fsrphotons)
+        "nFsrPhoton","FsrPhoton_pt","FsrPhoton_eta","FsrPhoton_phi",
+        "FsrPhoton_muonIdx","FsrPhoton_dROverEt2","FsrPhoton_electronIdx",
+
+        // electrons (used by vetoAdditionalLeptons)
+        "nElectron","Electron_pt","Electron_eta","Electron_phi","Electron_cutBased",
+
+        // rho (name expected by your Streamer)
+        "Rho_fixedGridRhoFastjetAll",
+
+        // MET (your Streamer binds and you may assign to met later)
+        "MET_pt","MET_phi",
+    };
+    for (auto b : keep) tree->SetBranchStatus(b, 1);
+
+    // open output file
+    const string outPath = FileLocation(infile);
+    std::cout << "Writing: " << outPath << "\n";
+    NewTreeFile = TFile::Open(outPath.c_str(), "RECREATE");
+    if (!NewTreeFile || NewTreeFile->IsZombie()) {
+      std::cerr << "Cannot create output: " << outPath << "\n";
+      if (NewTreeFile) { delete NewTreeFile; NewTreeFile = nullptr; }
+      f->Close(); delete f;
+      continue;
+    }
+
+    // clone ONLY enabled branches
+    newtree = tree->CloneTree(0);
+    newtree->SetDirectory(NewTreeFile);
+
+    // loop & fill
+    Hmm.Loop();
+
+    // write & close
+    newtree->Write();
+    NewTreeFile->Close();
+    delete NewTreeFile; NewTreeFile = nullptr;
+    newtree = nullptr;
+
+    // Stop across files if we hit the global cap
+    if (MaxEvent != -1 && (int)ievnt >= MaxEvent) break;
+
+    f->Close();
+    delete f;
+  }
+
+  // print/save cutflow
   Hmm.EffPrint(eff_fname);
-    
-  cout<<endl;
-  cout<<fixed<<"Program running time "<<difftime(eventLoop, startOfProgram)/3600<<" Hours"<<endl;
-  system("date");
+
+  std::cout << "\nDone. Files skimmed: " << fcount << "  |  Events kept: " << ievnt << "\n";
+  return 0;
 }
 
-
-void sighandler(int signum) {
-
-  cout<<endl<<"_____********_____"<<endl;
-  cout << endl <<"Ctrl-C , saving histograms" << signum << endl;
-  IsRunning = false;
-}
-
-unsigned int  MyAnalysis::Loop()
-{
-  if (fChain == 0) return(1);   
-   /////////////////////////////////////////////////////////////////////
-   Long64_t nentries = fChain->GetEntriesFast();
-   
-   cout<<endl;
-   cout<<"Number of entries in a given file = "<<nentries<<endl;
-   cout<<endl;
-   cout<<endl;
-
-   
-   Long64_t nbytes = 0, nb = 0;
-   for (Long64_t jentry=0; jentry<nentries;jentry++) {
-     //////////////////////////////////////////////////////////////////////
-     ievnt++;
-
-     //if(jentry>100000) return(0);
-     if(ievnt%100000==0) cout << '\r'
-          << std::setw(28) << std::setfill(' ') << "Looping over events, event: " 
-          << std::setw(10) <<ievnt << flush;
-     //////////////////////////////////////////////////////////////////////
-     ///// Signal handling /////
-
-     signal(SIGABRT, &sighandler);
-     signal(SIGTERM, &sighandler);
-     signal(SIGINT, &sighandler);
-     if(!IsRunning){
-
-       newtree->Write();
-       delete newtree;
-       NewTreeFile->Close();
-       delete NewTreeFile;
-
-       Hmm.EffPrint(eff_fname);
-
-       cout<<endl;
-       time(&eventLoop);
-       cout<<"Program running time "<<difftime(eventLoop, startOfProgram)/3600<<" Hours"<<endl;
-       cout<<endl<<"Events analyzed "<<ievnt<<endl;
-       system("date");
-       exit(1);
-     }
-
-     Long64_t ientry = LoadTree(jentry);
-      nb = fChain->GetEntry(jentry);
-      nbytes += nb;
-	
-      if (ientry < 0) break;
-      Hmm.analyze_event(ientry);
-      if(MaxEvent==-1) continue;
-      if(ievnt>=MaxEvent) {
-	cout<<endl<<"_____********_____"<<endl;
-	cout<<"Requested number of events reached  "<<ievnt<<" ... saving histograms"<<endl;
-	return(1);
-      }
-
-   } //Loop over events
-   cout<<endl;
-   return(0);
-}
-void MyAnalysis::EffPrint(string Eff_file_name)
-{
-  ofstream eff_file;
-  //aliko
-  string filename = "eff_"+Eff_file_name+".txt";
-    //eff_file.open("CutEfficiencies.txt");
-    eff_file.open(filename.c_str());
-  
-  cout<<endl;
-  eff_file<<fcount<<" __files skimmed"<<endl;
-  cout<<endl;
-  eff_file<<"Evetnts after cut 1 a.k.a Total number of analyzed events"<<endl;
-
-  cout<<"Evetnts after cut 1 a.k.a Total number of analyzed events"<<endl;
-  for(int i = 0; i<50;i++){
-    if(CutEf[i]!=0) {
-      cout<<fixed<<"Events after cut "<<i+1<<" "<<" N = "<<CutEf[i]<<endl;
-      eff_file<<fixed<<"Events after "<<i+1<<"-th cut "<<" N = "<<CutEf[i]<<endl;
-    }
-  }
-  cout<<scientific;
-  eff_file.close();
-}
-string FileLocation( string initfile )
-{
-      const char* folder;
-      struct stat sb;
-      string SK="Skimmed_";
-
-      cout << "Input file: " << initfile << std::endl;
-
-      //Find position of the last slash in the initfile  
-      size_t LastSlashPos = initfile.find_last_of("/");
-      if (LastSlashPos == std::string::npos) {
-        cerr << "Error: '/' not found in initfile." << initfile << endl;
-        return "";
-      }
-
-      // Extract the directory name and file name from initfile
-      string DirectoryName =initfile.substr(0,LastSlashPos);
-      string FileName = initfile.substr(LastSlashPos + 1);
-
-      size_t YearPos = DirectoryName.find("Run2_DYMC_RootFiles/20");
-      string Year;
-      if (YearPos != string::npos) {
-        Year = DirectoryName.substr(YearPos + 20, 4);
-        } else {
-	cerr << "Error: Year not found in directory name: " << DirectoryName << endl;
-        return "";
-}
-
-      // Create the directory if it does not exist
-      string ToMakeDir = NewPath + Year;
-      string cmd = "mkdir -p " + ToMakeDir;
-      eff_fname = Year;
-      folder = ToMakeDir.c_str();
-
-      if (dirExists(folder)==0) {
-	system(cmd.c_str());
-      }else
-	{
-	  cout<<"Directory Exists, creating only file" << endl;;
-	}
-
-      // Construct the new tree file path
-      string newTreeFile = NewPath + Year + slash + SK + FileName;
-      cout<< "New tree file path: " << newTreeFile << endl;
-     
-      return newTreeFile;
-}
-int dirExists(const char*  path)
-{
-    struct stat info;
-
-    int statRC = stat( path, &info );
-    if( statRC != 0 )
-    {
-        if (errno == ENOENT)  { return 0; } 
-        if (errno == ENOTDIR) { return 0; } 
-        return -1;
-    }
-
-    return ( info.st_mode & S_IFDIR ) ? 1 : 0;
-}

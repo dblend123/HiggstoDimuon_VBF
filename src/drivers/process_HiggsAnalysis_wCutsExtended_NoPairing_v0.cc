@@ -24,6 +24,7 @@
 
 // ROOT Header Files
 #include "TFile.h"
+#include "TTree.h"
 #include "TChain.h"
 #include "TString.h"
 #include "TMath.h"
@@ -34,6 +35,13 @@
 #include "boost/program_options.hpp"
 #include "signal.h"
 #include "memory"
+
+// Reading Weights
+#include <fstream>
+#include <sstream>
+#include <unordered_map>
+#include <regex>
+
 
 //*******************************************************************
 //                   HISTOGRAM MACROS
@@ -85,6 +93,41 @@ std::string const NTUPLEMAKER_NAME =  "";
 bool __isMC;
 bool __genPUMC;
 std::atomic<bool> __continueRunning = true;
+
+// MVA tree 
+TTree* gMvaTree = nullptr;
+float g_z = -99.f;
+float g_ptBalance = -99.f;
+float g_y_mumu = 0.f, g_y_j1 = 0.f, g_y_j2 = 0.f;
+float g_pt_mumu = 0.f, g_pt_j1 = 0.f, g_pt_j2 = 0.f;
+float g_weight = 1.f;
+
+// Weights Config
+struct SampleConfig {
+    double xsec = 0.0;        // pb
+    double sumw = 0.0;        // genEventSumw
+    double sumw_ext = 0.0;    // Ext genEventSumw
+};
+
+// Defaults = your current in-code numbers (so it's backward compatible)
+double g_lumi_BCD = 7.980454145e3; // pb^-1
+
+std::unordered_map<std::string, SampleConfig> g_samples = {
+    {"DY",         {6688.0,     1.17668e12, 1.73021e12}},
+    {"TT",         {762.1,      1.9129e9,   1.93459e9}},
+    {"WZ",         {7.568,      3.1537e7,   3.07671e7}},
+    {"WZto3LNu",   {4.924,      1.3561e7,   4.37112e7}},
+    {"ZZto2L2Nu",  {1.031,      1.50043e7,  1.73775e7}},
+    {"ZZto2L2Q",   {6.788,      9.95594e7,  1.01821e8}},
+    {"GGH",        {32.69,      6.53894e6,  0.0}},
+    {"VBF",        {4.18,       1.66873e6,  0.0}},
+    {"TTH",        {0.5742,     1.13023e5,  0.0}},
+    {"ZH",         {0.5478,     8.09902e5,  0.0}},
+};
+
+std::string g_weightsFile = "None";  // set via --weights
+std::string g_sampleName  = "DATA";  // set via --sample
+
 
 // Kinematic Cuts  
 enum MuonType {kLead=0, kSubLead=1};  // Muon Id --> lead = 0, sublead =1
@@ -466,7 +509,7 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
 //JET CRITERIA 
 // -------------------------------------
 
-enum class JetAlgo { AK4PUPPI, AK4CHS, AK8PUPPI };
+/*enum class JetAlgo { AK4PUPPI, AK4CHS, AK8PUPPI };
 enum class JetIDWP { Tight, TightLeptonVeto };
 
 inline const char* jetIdCorrectionName(JetAlgo algo, JetIDWP wp) {
@@ -522,7 +565,7 @@ bool passJetIDfromJSON(const Jet& jet,
         // Be conservative on error:
         return false;
     }
-}
+}*/
 
 //*******************************************************************
 //                          SCALE FACTORS
@@ -576,7 +619,7 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
 void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, const analysis::core::Muon& mu1, 
 const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons, 
 analysis::core::Vertices* vertices, const analysis::core::MET& met, const analysis::core::Event& event, 
-analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
+analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
 
     // -------------------------------------
     //             MUONS 
@@ -677,12 +720,11 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
         float corr_pt   = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet);
         float corr_mass = j._mass * (corr_pt / std::max(1e-6f, j._pt));
 
-        // basic quality and acceptance (same everywhere!)
         if (corr_pt <= 25.f) continue;
         if (std::abs(j._eta) >= 4.7f) continue;
-        //if ( (j._jetId & 4) != 4 ) continue; // Tight ID
-        const bool passJetID = passJetIDfromJSON(j, JetAlgo::AK4PUPPI, JetIDWP::Tight);
-        if (!passJetID) continue;
+        if ( (j._jetId & 4) != 4 ) continue; // Tight ID
+        //const bool passJetID = passJetIDfromJSON(j, JetAlgo::AK4PUPPI, JetIDWP::Tight);
+        //if (!passJetID) continue;
 
         // muon cleaning
         if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) < 0.4) continue;
@@ -701,8 +743,31 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
 
     if (p4jets.size() < 2) return; // no dijet
     
-    TLorentzVector p4lead = p4jets[0];
-    TLorentzVector p4sub  = p4jets[1];
+    //  Choosing Largest Dijet Mass Pair
+    double best_mjj = -1.0;
+    int i_best = -1, j_best = -1;
+
+    for (size_t i = 0; i < p4jets.size(); ++i) {
+        for (size_t j = i + 1; j < p4jets.size(); ++j) {
+            double mjj = (p4jets[i] + p4jets[j]).M();
+            if (mjj > best_mjj) {
+                best_mjj = mjj;
+                i_best = static_cast<int>(i);
+                j_best = static_cast<int>(j);
+            }
+        }
+    }
+
+    // safety (shouldn't happen if size>=2)
+    if (i_best < 0 || j_best < 0) return;
+
+    TLorentzVector jA = p4jets[i_best];
+    TLorentzVector jB = p4jets[j_best];
+
+    // order the chosen pair by pT (so "lead/sub" still mean pT-ordered)
+    TLorentzVector p4lead = (jA.Pt() >= jB.Pt()) ? jA : jB;
+    TLorentzVector p4sub  = (jA.Pt()  <  jB.Pt()) ? jA : jB;
+
     TLorentzVector dijet = p4lead + p4sub;
     
     float dijetdeta = TMath::Abs(p4lead.Eta() - p4sub.Eta());
@@ -715,17 +780,15 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     float jet1pt = p4lead.Pt();
     float jet2pt = p4sub.Pt();
     
-    //std::cout << std::endl;
-    //std::cout << "MCweight Before getMuonSF " << std::setprecision(15) << MCweight << std::endl;
-    
+    // -------------------------------------
+    //          SF && WEIGHTS  
+    // -------------------------------------
+   
     float mu1_SF = getMuonSF(mu1, __isMC);
     float mu2_SF = getMuonSF(mu2, __isMC);
-    float totalWeight = MCweight * mu1_SF * mu2_SF;
+    float totalWeight = Dataweight * mu1_SF * mu2_SF;
     float noWeight = 1.0;
     
-    //std::cout << "totalWeight " << std::setprecision(15) << totalWeight << std::endl;
-    //std::cout << std::endl;
-
     // -------------------------------------
     //        PRE-SELECTION HISTOGRAMS  
     // -------------------------------------
@@ -785,6 +848,38 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     if (p4sub.Pt() < _subleadJetPt) return;   // subleading threshold
 
     // -------------------------------------
+    //  ZEPPENFELD && PT-BALANCE VARIABLES  
+    // -------------------------------------
+   
+    // 1) rapidities 
+    g_y_mumu = static_cast<float>(corr_p4dimuon.Rapidity());
+    g_y_j1   = static_cast<float>(p4lead.Rapidity());
+    g_y_j2   = static_cast<float>(p4sub.Rapidity());
+
+    // Zeppenfeld variable
+    g_z = std::fabs(g_y_mumu - 0.5f*(g_y_j1 + g_y_j2));
+
+    // 2) pT-balance ratio
+    const double px_sum =
+        corr_p4dimuon.Px() + p4lead.Px() + p4sub.Px();
+    const double py_sum =
+        corr_p4dimuon.Py() + p4lead.Py() + p4sub.Py();
+    const double vec_sum = std::sqrt(px_sum*px_sum + py_sum*py_sum);
+
+    g_pt_mumu = static_cast<float>(corr_p4dimuon.Pt());
+    g_pt_j1   = static_cast<float>(p4lead.Pt());
+    g_pt_j2   = static_cast<float>(p4sub.Pt());
+
+    const double scalar_sum = static_cast<double>(g_pt_mumu + g_pt_j1 + g_pt_j2);
+    g_ptBalance = (scalar_sum > 0.0) ? static_cast<float>(vec_sum / scalar_sum) : 0.f;
+
+    // 3) weight (your existing total per-event weight)
+    g_weight = totalWeight;
+
+    // 4) fill exactly once per selected dimuon+2jet pair
+    if (gMvaTree) gMvaTree->Fill();
+    
+    // -------------------------------------
     //          VBF HISTOGRAMS  
     // -------------------------------------
 
@@ -793,7 +888,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float MCweight) {
     
     if (pass_bjet_veto) {
 
-        //PRE-DIJET CUTS 
+        //  PRE-DIJET CUTS 
         FILL_DIJET_HIST(hists.setJet_PreDiJet_VBF, totalWeight); 
 
         if (dijetmass > _dijetMass_VBF && TMath::Abs(dijetdeta) > _dijetdEta_VBF) {
@@ -901,6 +996,75 @@ void showProgressBar(uint32_t current, uint32_t total) {
     std::cout.flush();  // Ensure output is immediately shown
 }
 
+//*******************************************************************
+//                       READING WEIGHTS 
+//*******************************************************************
+
+// Parse simple key=value file, ignoring blank lines and lines starting with #
+// Recognized keys:
+//   luminosity_BCD = <double>
+//   <SAMPLE>.xsec = <double>
+//   <SAMPLE>.sumw = <double>
+//   <SAMPLE>.sumw_ext = <double>
+static void loadWeightsFile(const std::string& path) {
+    if (path == "None" || path == "DATA" || path.empty()) return;
+
+    std::ifstream in(path);
+    if (!in) {
+        std::cerr << "[weights] Could not open file: " << path << "\n";
+        return;
+    }
+
+    std::string line;
+    std::regex kv_re(R"(^\s*([^#][^=]*)\s*=\s*([^\s#]+)\s*$)");
+    while (std::getline(in, line)) {
+        if (line.empty() || line[0]=='#') continue;
+        std::smatch m;
+        if (!std::regex_match(line, m, kv_re)) continue;
+
+        std::string key = m[1];
+        std::string val = m[2];
+
+        try {
+            if (key == "luminosity_BCD" || key == "luminosity") {
+                g_lumi_BCD = std::stod(val);
+                continue;
+            }
+
+            // Expect <SAMPLE>.<field>
+            auto dot = key.find('.');
+            if (dot == std::string::npos) continue;
+            std::string name  = key.substr(0, dot);
+            std::string field = key.substr(dot+1);
+
+            double dval = std::stod(val);
+            auto& s = g_samples[name]; // creates if missing
+            if (field == "xsec")      s.xsec      = dval;
+            else if (field == "sumw") s.sumw      = dval;
+            else if (field == "sumw_ext") s.sumw_ext = dval;
+        } catch (const std::exception& e) {
+            std::cerr << "[weights] Bad line: " << line << " (" << e.what() << ")\n";
+        }
+    }
+}
+
+// Returns the *per-event* base MC weight independent of per-event pu/genWeight.
+// i.e. (lumi * xsec) / (sumw + sumw_ext)
+static double sampleBaseWeight(const std::string& sample) {
+    auto it = g_samples.find(sample);
+    if (it == g_samples.end()) {
+        std::cerr << "[weights] Unknown sample '" << sample << "'. Using 1.0.\n";
+        return 1.0;
+    }
+    const auto& s = it->second;
+    const double denom = s.sumw + s.sumw_ext;
+    if (denom <= 0.0) {
+        std::cerr << "[weights] Non-positive denom for '" << sample << "'. Using 1.0.\n";
+        return 1.0;
+    }
+    return (g_lumi_BCD * s.xsec) / denom;
+}
+
 
 //*******************************************************************
 //                        MAIN PROGRESS FUCNTION 
@@ -997,11 +1161,24 @@ void process()
 	
     auto numEventsWeighted = 100;
     hEventWeights->Fill(0.5, numEventsWeighted);
-    
+   
+    //MVA Branch outputs 
+    gMvaTree = new TTree("mva", "Training features for VBF discriminator");
+    gMvaTree->Branch("z",          &g_z);
+    gMvaTree->Branch("pt_balance", &g_ptBalance);
+
+    gMvaTree->Branch("y_mumu", &g_y_mumu);
+    gMvaTree->Branch("y_j1",   &g_y_j1);
+    gMvaTree->Branch("y_j2",   &g_y_j2);
+    gMvaTree->Branch("pt_mumu",&g_pt_mumu);
+    gMvaTree->Branch("pt_j1",  &g_pt_j1);
+    gMvaTree->Branch("pt_j2",  &g_pt_j2);
+    gMvaTree->Branch("weight", &g_weight);
+ 
+
     // Loading Muon SF Corrections
     loadMuonCorrections();
     loadJetCorrections();
-    loadJetIdCorrections();
     loadPileupCorrections();
 
     Muons *muons=NULL;
@@ -1293,67 +1470,12 @@ void process()
         }
         float genWeight = (__isMC && aux) ? aux->_genWeight : 1.0;
         
-        //----- LUMINOSITY -----
+        // --- Final per-event MC/Data weight ---
+        // base = (lumi * xsec) / (sumw + sumw_ext) for the chosen sample
+        double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);
 
-        float luminosity_BCD = 7.980454145e3; 
-        
-        //----- CROSS-SECTION -----
-        
-        //Background:
-        //-------------------------------------- 
-        float DYcrosssection_BCD = 6.688e3;
-        //float EWKcrosssection_BCD = 1.0; //CHANGE LATER 
-        float TTcrosssection_BCD = 762.1;
-        float WZcrosssection_BCD = 7.568;
-        float WZto3LNucrosssection_BCD = 4.924;
-        float ZZto2L2Nucrosssection_BCD = 1.031;
-        float ZZto2L2Qcrosssection_BCD = 6.788;
-        
-        //Signal:
-        //-------------------------------------- 
-        //float GGHcrosssection_BCD = 32.69;
-        float VBFcrosssection_BCD = 4.18; 
-        //float TTHcrosssection_BCD = 0.5742;
-        //float ZHcrosssiection_BCD = 0.5478;
-        
-        //----- TOTAL "genEventSumw" ------
-        
-        //Background:
-        //-------------------------------------- 
-        float DYgenEventSumw_BCD = 1.17668e12;
-        //float EWKgenEventSumw_BCD = 8.51310e5;
-        float TTgenEventSumw_BCD = 1.9129e9;
-        float WZgenEventSumw_BCD = 3.1537e7;
-        float WZto3LNugenEventSumw_BCD = 1.3561e7;
-        float ZZto2L2NugenEventSumw_BCD = 1.50043e7;
-        float ZZto2L2QgenEventSumw_BCD = 9.95594e7;
-        
-        float Ext_DYgenEventSumw_BCD = 1.73021e12;
-        float Ext_TTgenEventSumw_BCD = 1.93459e9;
-        float Ext_WZgenEventSumw_BCD = 3.07671e7;
-        float Ext_WZto3LNugenEventSumw_BCD = 4.37112e7;
-        float Ext_ZZto2L2NugenEventSumw_BCD = 1.73775e7;
-        float Ext_ZZto2L2QgenEventSumw_BCD = 1.01821e8;
-        
-        //Signal:
-        //-------------------------------------- 
-        //float GGHgenEventSumw_BCD = 6.53894e6;
-        float VBFgenEventSumw_BCD = 1.66873e6;
-        //float TTHgenEventSumw_BCD = 1.13023e5;
-        //float ZHgenEventSumw_BCD = 8.09902e5;
-        
-        //----- FINAL MC-WEIGHT ------
-       
-        //float MCweight  = ((luminosity_BCD * DYcrosssection_BCD)/(DYgenEventSumw_BCD + Ext_DYgenEventSumw_BCD)) * pileupWeight * genWeight;
-        //float MCweight  = ((luminosity_BCD * TTcrosssection_BCD)/(TTgenEventSumw_BCD + Ext_TTgenEventSumw_BCD)) * pileupWeight * genWeight;
-        //float MCweight  = ((luminosity_BCD * WZcrosssection_BCD)/(WZgenEventSumw_BCD + Ext_WZgenEventSumw_BCD)) * pileupWeight * genWeight;
-        //float MCweight  = ((luminosity_BCD * WZto3LNucrosssection_BCD)/(WZto3LNugenEventSumw_BCD + Ext_WZto3LNugenEventSumw_BCD)) * pileupWeight * genWeight;
-        //float MCweight  = ((luminosity_BCD * ZZto2L2Nucrosssection_BCD)/(ZZto2L2NugenEventSumw_BCD + Ext_ZZto2L2NugenEventSumw_BCD)) * pileupWeight * genWeight;
-        //float MCweight  = ((luminosity_BCD * ZZto2L2Qcrosssection_BCD)/(ZZto2L2QgenEventSumw_BCD + Ext_ZZto2L2QgenEventSumw_BCD)) * pileupWeight * genWeight;
-        //float MCweight  = ((luminosity_BCD * VBFcrosssection_BCD)/(VBFgenEventSumw_BCD)) * pileupWeight * genWeight;
-        float MCweight  = 1.0;
- 		
-        //std::cout << "Before Categorize Function --> MCweight " << std::setprecision(15)  << MCweight << std::endl;
+        // pileupWeight, genWeight computed above as you do already
+        float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
 
         //	Selections
         //if (!FsrPhoton(fsrphotons)) continue; HAVEN'T SET THIS UP YET
@@ -1366,7 +1488,7 @@ void process()
             
             if (!passMuons(*it, *jt, trigobjs)) continue;
             
-            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, MCweight);
+            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight);
             break;
         }
         break;
@@ -1496,11 +1618,19 @@ int main(int argc, char** argv)
         ("subleadJetEta", po::value<double>(&_subleadJetEta)->default_value(_subleadJetEta), "SubLeading Jet Eta Cut")
         ("dijetMass_VBF", po::value<double>(&_dijetMass_VBF)->default_value(_dijetMass_VBF), "DiJet Mass VBF-Category Cut")
         ("dijetdEta_VBF", po::value<double>(&_dijetdEta_VBF)->default_value(_dijetdEta_VBF), "DiJet deta VBF-Category Cut")
-	;
+	    ("weights", po::value<std::string>(&g_weightsFile)->default_value("None"), "path to weights config (key=value)")
+        ("sample",  po::value<std::string>(&g_sampleName)->default_value("DATA"), "sample name (e.g. DY, TT, WZ, VBF, DATA)")
+    ;
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	po::notify(vm);
+    
+    if (__isMC) {  // only load for MC
+    if (g_weightsFile != "None") {
+        loadWeightsFile(g_weightsFile);
+        }
+    }
 
     if (vm.count("help") || argc<2)
 	{
@@ -1537,7 +1667,6 @@ int main(int argc, char** argv)
     
     // Start Main Loop Process 
 	loadMuonCorrections();
-    loadJetIdCorrections();
     if (__isMC) {
         loadJetCorrections();               // JEC/JER for MC
         loadPileupCorrections();            // PU weights for MC

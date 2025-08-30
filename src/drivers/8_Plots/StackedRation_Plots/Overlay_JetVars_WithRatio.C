@@ -1,13 +1,13 @@
 void Overlay_JetVars_WithRatio() {
     // ---------- Open inputs ----------
-    TFile* f_data   = TFile::Open("Muon_DataRun22CD.root");
-    TFile* f_DY     = TFile::Open("DY_MCRun22CD.root");
-    TFile* f_TT     = TFile::Open("TT_MCRun22CD.root");
-    TFile* f_WZ     = TFile::Open("WZ_MCRun22CD.root");
-    TFile* f_WZ3L   = TFile::Open("WZto3LNu_MCRun22CD.root");
-    TFile* f_Z2L2Q  = TFile::Open("ZiZTo2L2Q_MCRun22CD.root");
-    TFile* f_Z2L2N  = TFile::Open("ZZTo2L2Nu_MCRun22CD.root");
-    TFile* f_signal = TFile::Open("VBF_Run22CD.root");
+    TFile* f_data   = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/Data/Muon_DataRun22CD.root");
+    TFile* f_DY     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/DY/DY_FullMCRun22CD.root");
+    TFile* f_TT     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/TT/TT_MCRun22CD.root");
+    TFile* f_WZ     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/WZ/WZ_FullMCRun22CD.root");
+    TFile* f_WZ3L   = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/WZto3LNu/WZto3LNu_FullMCRun22CD.root");
+    TFile* f_Z2L2Q  = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/ZiZto2L2Q/ZZto2L2Q_FullMCRun22CD.root");
+    TFile* f_Z2L2N  = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/ZZto2L2Nu/ZZTo2L2Nu_FullMCRun22CD.root");
+    TFile* f_signal = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/VBF/VBF_MCRun22CD.root");
 
     if (!f_data || !f_DY || !f_TT || !f_WZ || !f_WZ3L || !f_Z2L2Q || !f_Z2L2N || !f_signal) {
         std::cerr << "[ERROR] One or more files couldn't be opened!" << std::endl;
