@@ -1297,7 +1297,22 @@ void process()
 
     //Setting Branch Array for Rho Properties
     SET_BRANCH_FLOAT(fixedGridRhoFastjetAll);
-    
+   
+    // --- Event-level weights from NanoAOD ---
+    float Generator_weight = 1.0f;   // falls back to 1 for DATA automatically
+    float Pileup_nTrueInt  = 0.0f;
+
+    // Prefer NanoAODv12 branch names; keep fallbacks for older ntuples
+    if (ROOT_CHAIN->GetBranch("Generator_weight"))
+        ROOT_CHAIN->SetBranchAddress("Generator_weight", &Generator_weight);
+    else if (ROOT_CHAIN->GetBranch("genWeight"))
+        ROOT_CHAIN->SetBranchAddress("genWeight", &Generator_weight);
+
+    if (ROOT_CHAIN->GetBranch("Pileup_nTrueInt"))
+        ROOT_CHAIN->SetBranchAddress("Pileup_nTrueInt", &Pileup_nTrueInt);
+    else if (ROOT_CHAIN->GetBranch("nTrueInt"))
+        ROOT_CHAIN->SetBranchAddress("nTrueInt", &Pileup_nTrueInt);
+
 
     muons = new std::vector<Muon>();
     jets = new std::vector<Jet>();
@@ -1424,59 +1439,44 @@ void process()
 
         float rho = rhos->at(0)._fixedGridRhoFastjetAll;
 
-        //for (size_t i=0; i<PV_npvs; i++){
-            Vertex vertex;
-            vertex._chi2 = PV_chi2;
-            vertex._ndof = PV_ndof;
-            vertex._score = PV_score;
-            vertex._x = PV_x;
-            vertex._y = PV_y;
-            vertex._z = PV_z;
+        Vertex vertex;
+        vertex._chi2 = PV_chi2;
+        vertex._ndof = PV_ndof;
+        vertex._score = PV_score;
+        vertex._x = PV_x;
+        vertex._y = PV_y;
+        vertex._z = PV_z;
          
-            vertices->push_back(std::move(vertex));
-        //}
+        vertices->push_back(std::move(vertex));
         
-/*        L1 l1trigger;
-        l1trigger._SingleMu12er1p5 = L1_SingleMu12er1p5;
-        l1s->push_back(std::move(l1trigger));
-
-        HLT hlttrigger;
-        hlttrigger._IsoMu24 = HLT_IsoMu24;
-        hlts->push_back(std::move(hlttrigger));
-        
-        std::cout << "L1 Triggers:\n";
-        for (const auto& l1 : *l1s) {
-            std::cout << "L1_DoubleMu_12_5: " << l1._DoubleMu_12_5 << std::endl;
-        }
-
-        std::cout << "HLT Triggers:\n";
-        for (const auto& hlt : *hlts) {
-            std::cout << "HLT_IsoMu24: " << hlt._IsoMu24 << std::endl;
-        }
-
-        met->_pt = MET_pt;
-
-        if (__isMC && !__genPUMC && weighter && aux)
-            pileupWeight = weighter->weight(aux->_nPU);
-*/
-        float pileupWeight = 1.0;
-        if (__isMC && pu_corrections && aux) {
+        // Pileup from correctionlib (JSON expects: NumTrueInteractions, "weights")
+        float pileupWeight = 1.0f;
+        if (__isMC && pu_corrections) {
             try {
-                pileupWeight = pu_corrections->evaluate({aux->_nPU, "nominal"});
+                pileupWeight = static_cast<float>(pu_corrections->evaluate({static_cast<double>(Pileup_nTrueInt), "nominal"}));
             } catch (const std::exception& e) {
                 std::cerr << "[PU ERROR] " << e.what() << std::endl;
-                pileupWeight = 1.0;
+                pileupWeight = 1.0f;
             }
         }
-        float genWeight = (__isMC && aux) ? aux->_genWeight : 1.0;
-        
-        // --- Final per-event MC/Data weight ---
-        // base = (lumi * xsec) / (sumw + sumw_ext) for the chosen sample
-        double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);
 
-        // pileupWeight, genWeight computed above as you do already
+        // Generator weight straight from the branch
+        float genWeight = __isMC ? Generator_weight : 1.0f;
+
+        // Final per-event weight
+        double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);  // your function
         float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
 
+        // temporary debug
+          
+          std::cout << std::setprecision(10) 
+          << "genWeight=" << genWeight
+          << " puTrue=" << Pileup_nTrueInt
+          << " puW=" << pileupWeight
+          << " base=" << base
+          << " total=" << Dataweight << "\n";
+
+        
         //	Selections
         //if (!FsrPhoton(fsrphotons)) continue; HAVEN'T SET THIS UP YET
 		//if (!passVertex(vertices))continue;

@@ -1,13 +1,13 @@
 void Overlay_JetVars_WithRatio() {
     // ---------- Open inputs ----------
-    TFile* f_data   = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/Data/Muon_DataRun22CD.root");
-    TFile* f_DY     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/DY/DY_FullMCRun22CD.root");
-    TFile* f_TT     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/TT/TT_MCRun22CD.root");
-    TFile* f_WZ     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/WZ/WZ_FullMCRun22CD.root");
-    TFile* f_WZ3L   = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/WZto3LNu/WZto3LNu_FullMCRun22CD.root");
-    TFile* f_Z2L2Q  = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/ZiZto2L2Q/ZZto2L2Q_FullMCRun22CD.root");
-    TFile* f_Z2L2N  = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/ZZto2L2Nu/ZZTo2L2Nu_FullMCRun22CD.root");
-    TFile* f_signal = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/VBF/VBF_MCRun22CD.root");
+    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/Data/DATA/Muon_FullDataRun22CD.root");
+    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/DY/DY_FullMCRun22CD.root");
+    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/TT/TT_FullMCRun22CD.root");
+    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZ/WZto2L2Q_FullMCRunCD.root");
+    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZto3LNu/WZto3LNu_FullMCRun22CD.root");
+    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Q/ZZto2L2Q_FullMCRun22CD.root");
+    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Nu/ZZTo2L2Nu_FullMCRun22CD.root");
+    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/VBF/VBF_MCRun22CD.root");
 
     if (!f_data || !f_DY || !f_TT || !f_WZ || !f_WZ3L || !f_Z2L2Q || !f_Z2L2N || !f_signal) {
         std::cerr << "[ERROR] One or more files couldn't be opened!" << std::endl;
@@ -72,7 +72,7 @@ void Overlay_JetVars_WithRatio() {
         // ---------- Top pad: overlays ----------
         pad1->cd();
         // Optional: comment out next line if you prefer linear scale
-        // pad1->SetLogy();
+         pad1->SetLogy();
 
         // Pick a sensible y-max to fit data and MC comfortably
         double ymax = std::max({
@@ -91,6 +91,7 @@ void Overlay_JetVars_WithRatio() {
         h_data->GetYaxis()->SetLabelSize(0.04);
         h_data->GetYaxis()->SetTitleOffset(1.2);
         h_data->SetMaximum(ymax);
+        h_data->SetMinimum(0.1);
         h_data->Draw("E1");              // data points
         h_DY->Draw("HIST SAME");
         h_TT->Draw("HIST SAME");
@@ -161,9 +162,10 @@ void Overlay_JetVars_WithRatio() {
         line->Draw("SAME");
 
         // ---------- Save ----------
+        TString outdir = "/eos/user/d/dblend/StackedPlots/Jets/";
         TString base = "OverlayRatio_" + TString(var.c_str());
-        c->SaveAs(base + ".pdf");
-        c->SaveAs(base + ".png");
+        c->SaveAs(outdir + base + ".pdf");
+        c->SaveAs(outdir + base + ".png");
     }
 
     // ---------- Cleanup ----------

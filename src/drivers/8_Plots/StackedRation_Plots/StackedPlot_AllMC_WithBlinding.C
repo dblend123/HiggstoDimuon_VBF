@@ -1,13 +1,13 @@
 void StackedPlot_AllMC_WithBlinding() {
     // Input files
-    TFile* f_data   = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/Data/Muon_DataRun22CD.root");
-    TFile* f_DY     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/DY/DY_FullMCRun22CD.root");
-    TFile* f_TT     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/TT/TT_MCRun22CD.root");
-    TFile* f_WZ     = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/WZ/WZ_FullMCRun22CD.root");
-    TFile* f_WZ3L   = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/WZto3LNu/WZto3LNu_FullMCRun22CD.root");
-    TFile* f_Z2L2Q  = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/ZiZto2L2Q/ZZto2L2Q_FullMCRun22CD.root");
-    TFile* f_Z2L2N  = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/ZZto2L2Nu/ZZTo2L2Nu_FullMCRun22CD.root");
-    TFile* f_signal = TFile::Open("/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/HTCondor/outputs/MC/VBF/VBF_MCRun22CD.root");
+    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/Data/DATA/Muon_FullDataRun22CD.root");
+    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/DY/DY_FullMCRun22CD.root");
+    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/TT/TT_FullMCRun22CD.root");
+    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZ/WZto2L2Q_FullMCRunCD.root");
+    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZto3LNu/WZto3LNu_FullMCRun22CD.root");
+    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Q/ZZto2L2Q_FullMCRun22CD.root");
+    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Nu/ZZTo2L2Nu_FullMCRun22CD.root");
+    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/VBF/VBF_MCRun22CD.root");
 
     if (!f_data || !f_DY || !f_TT || !f_WZ || !f_WZ3L || !f_Z2L2Q || !f_Z2L2N || !f_signal) {
         std::cerr << "One or more files couldn't be opened!" << std::endl;
@@ -156,9 +156,11 @@ void StackedPlot_AllMC_WithBlinding() {
     // Draw
     h_ratio->Draw("E1");
 
+    TString outdir = "/eos/user/d/dblend/StackedPlots/Muons/";
+
     // Save
-    c->SaveAs("Stacked_DiMuonMass_blinded_withRatio.pdf");
-    c->SaveAs("Stacked_DiMuonMass_blinded_withRatio.png");
+    c->SaveAs(outdir + "Stacked_DiMuonMass_blinded_withRatio.pdf");
+    c->SaveAs(outdir + "Stacked_DiMuonMass_blinded_withRatio.png");
 
     // Cleanup
     f_data->Close(); f_DY->Close(); f_TT->Close(); f_signal->Close();

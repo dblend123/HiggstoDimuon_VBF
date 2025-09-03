@@ -224,48 +224,52 @@ int main(int argc, char* argv[])
     tree->SetBranchStatus("*", 0);
 
     std::vector<const char*> keep = {
-        // bookkeeping
-        "run", "event", "luminosityBlock",
+      // bookkeeping
+      "run", "event", "luminosityBlock",
 
-        // vertices
-        "PV_*",
+      // vertices
+      "PV_*",
 
-        // muons (matches what Streamer / selection uses)
-        "nMuon",
-        "Muon_pt","Muon_eta","Muon_phi","Muon_charge",
-        "Muon_isGlobal","Muon_isTracker","Muon_tightId",
-        "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers",
-        "Muon_pfRelIso04_all",   
-        "Muon_tkRelIso", 
-        "Muon_bsConstrainedPt",
+      // *** ADD: event weights & pileup (both namings) ***
+      "Generator_*",
+      "genWeight",
+      "Pileup_*",
+      "nTrueInt",
 
-        // triggers and trig objects
-        "HLT_IsoMu24",
-        "nTrigObj","TrigObj_pt","TrigObj_eta","TrigObj_phi","TrigObj_id","TrigObj_filterBits",
+      // muons
+      "nMuon",
+      "Muon_pt","Muon_eta","Muon_phi","Muon_charge",
+      "Muon_isGlobal","Muon_isTracker","Muon_tightId",
+      "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers",
+      "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt",
 
-        // jets (+ things you read from them)
-        "nJet",
-        "Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
-        "Jet_btagDeepFlavB","Jet_area",
-        "Jet_chHEF","Jet_neHEF","Jet_chEmEF","Jet_neEmEF","Jet_muEF",
-        "Jet_genJetIdx",
+      // triggers & trig objects
+      "HLT_IsoMu24",
+      "nTrigObj","TrigObj_pt","TrigObj_eta","TrigObj_phi","TrigObj_id","TrigObj_filterBits",
 
-        // gen jets (harmless on data)
-        "nGenJet","GenJet_pt","GenJet_eta","GenJet_phi","GenJet_mass",
+      // jets
+      "nJet",
+      "Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
+      "Jet_btagDeepFlavB","Jet_area","Jet_chHEF","Jet_neHEF","Jet_chEmEF","Jet_neEmEF","Jet_muEF",
+      "Jet_genJetIdx",
 
-        // FSR photons (you push these into fsrphotons)
-        "nFsrPhoton","FsrPhoton_pt","FsrPhoton_eta","FsrPhoton_phi",
-        "FsrPhoton_muonIdx","FsrPhoton_dROverEt2","FsrPhoton_electronIdx",
+      // gen jets
+      "nGenJet","GenJet_pt","GenJet_eta","GenJet_phi","GenJet_mass",
 
-        // electrons (used by vetoAdditionalLeptons)
-        "nElectron","Electron_pt","Electron_eta","Electron_phi","Electron_cutBased",
+      // FSR photons
+      "nFsrPhoton","FsrPhoton_pt","FsrPhoton_eta","FsrPhoton_phi",
+      "FsrPhoton_muonIdx","FsrPhoton_dROverEt2","FsrPhoton_electronIdx",
 
-        // rho (name expected by your Streamer)
-        "Rho_fixedGridRhoFastjetAll",
+      // electrons
+      "nElectron","Electron_pt","Electron_eta","Electron_phi","Electron_cutBased",
 
-        // MET (your Streamer binds and you may assign to met later)
-        "MET_pt","MET_phi",
+      // Rho
+      "Rho_fixedGridRhoFastjetAll",
+
+      // MET
+      "MET_pt","MET_phi",
     };
+
     for (auto b : keep) tree->SetBranchStatus(b, 1);
 
     // open output file

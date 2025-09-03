@@ -102,33 +102,39 @@ set -e
 echo "my_skim exit code: ${SKIM_RC}"
 
 # ---------------------------
-# Stage out: copy *each* skim file to EOS, then hand Condor a tiny placeholder
+# Stage out: copy each skim file to EOS, then delete local copies
 # ---------------------------
-EOS_BASE="root://eosuser.cern.ch//eos/user/d/dblend/Outputs/${SAMPLE}/${TAG}"
+EOS_BASE="${EOS_BASE:-root://eosuser.cern.ch//eos/user/d/dblend/Outputs/${SAMPLE}/${TAG}}"
 echo "Staging to: ${EOS_BASE}"
 xrdfs root://eosuser.cern.ch mkdir -p "/eos/user/d/dblend/Outputs/${SAMPLE}/${TAG}" || true
 
 mapfile -t OUTS < <(find ./skims -type f -name 'Skimmed_*.root' 2>/dev/null | sort || true)
 echo "Found ${#OUTS[@]} skim files."
 
+FAILS=0
 if (( ${#OUTS[@]} > 0 )); then
   for f in "${OUTS[@]}"; do
     base=$(basename "$f")
     echo "xrdcp -> ${EOS_BASE}/${base}"
-    xrdcp -f "$f" "${EOS_BASE}/${base}"
+    if xrdcp -f "$f" "${EOS_BASE}/${base}"; then
+      rm -f "$f" || true     # remove local file after successful copy
+    else
+      echo "ERROR: xrdcp failed for ${f}" >&2
+      ((FAILS++))
+    fi
   done
 else
   echo "WARNING: no skim outputs found"
 fi
 
-# Always create a tiny placeholder ${TAG}.root so Condor transfer doesn’t fail
-# (It will be remapped by your JDL; the placeholder is tiny so no quota issues.)
-echo "Creating tiny placeholder ${TAG}.root for Condor transfer"
-root -l -q -b -e "TFile f(\"${TAG}.root\",\"RECREATE\"); f.Write(); f.Close();" || \
-  /usr/bin/env python3 - <<'PY'
-import uproot; import numpy as np
-with uproot.recreate("PLACEHOLDER.root") as f: pass
-PY
+# Remove (now empty) directory to avoid leaving anything behind
+rm -rf ./skims || true
+
+# If any copies failed, exit non-zero so you notice in logs/monitoring
+if (( FAILS > 0 )); then
+  echo "FATAL: ${FAILS} file(s) failed to stage to EOS." >&2
+  exit 4
+fi
 
 echo "Done staging."
 echo "== Job finished: $(date)"
