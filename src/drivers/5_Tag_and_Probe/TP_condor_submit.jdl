@@ -1,0 +1,16 @@
+arguments               = $(inputList) $(tag)
+executable              = TP_run_job.sh
+output                  = /afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/5_Tag_and_Probe/Logs/$(tag)_$(ClusterId).out
+error                   = /afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/5_Tag_and_Probe/Logs/$(tag)_$(ClusterId).err
+log                     = /afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/5_Tag_and_Probe/Logs/$(tag)_$(ClusterId).log
+use_x509userproxy       = true
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_input_files    = Root_Tag_and_Probe.C, TP_run_job.sh, $(inputList), x509up.cert
+x509userproxy           = x509up.cert
+transfer_output_files = TagAndProbe_DimuonInvMass_$(tag).root, TagAndProbe_Heatmaps_$(tag).root
+transfer_output_remaps = "TagAndProbe_DimuonInvMass_$(tag).root=/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/5_Tag_and_Probe/Outputs/TagAndProbe_DimuonInvMass_$(tag).root;TagAndProbe_Heatmaps_$(tag).root=/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/5_Tag_and_Probe/Outputs/TagAndProbe_Heatmaps_$(tag).root"
+# transfer_output_files = WholeSpectrum_$(tag).root, DY_pt_pass_fail_$(tag).pdf, DY_efficiency_pt_$(tag).pdf, DY_eta_pass_fail_$(tag).pdf, DY_efficiency_eta_$(tag).pdf, DY_phi_pass_fail_$(tag).pdf, DY_efficiency_phi_$(tag).pdf
+# transfer_output_remaps = "WholeSpectrum_$(tag).root=/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/5_Tag_and_Probe/Outputs/DY_pass_fail_$(tag).root"
++JobFlavour             = "tomorrow"
+queue inputList, tag from input_lists.txt

@@ -1,0 +1,62 @@
+arguments               = $(inputList) $(tag) $(sample)
+
+executable              = Skim_run_job.sh
+output                  = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/6_Skimming/Outs/$(tag)_$(ClusterId).out
+error                   = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/6_Skimming/Errors/$(tag)_$(ClusterId).err
+log                     = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/6_Skimming/Logs/$(tag)_$(ClusterId).log
+
+use_x509userproxy       = true
+x509userproxy           = x509up.cert
+
+requirements = (OpSysAndVer == "AlmaLinux9")
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+
+transfer_input_files    = my_skim, Skim_run_job.sh, $(inputList), x509up.cert
+
++JobFlavour             = "tomorrow"
+
+# Base path to listfiles
+path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2022/Condor_listfiles
+ 
+# ===== Example MC queue (DY; edit/uncomment others as needed) =====
+# sample    = DY
+# maxEvents = -1
+# queue inputList, tag from $(path)/Background_input_lists/DYto2L2Jets_input_lists.txt
+
+# # TT
+# sample    = TT
+# maxEvents = -1
+# queue inputList, tag from $(path)/Background_input_lists/TTto2L2Nu_input_lists.txt
+ 
+# # WZ->2L2Q
+# sample    = WZ
+# maxEvents = -1
+# queue inputList, tag from $(path)/Background_input_lists/WZto2L2Q_input_lists.txt
+ 
+# # WZ->3LNu
+# sample    = WZto3LNu
+# maxEvents = -1
+# queue inputList, tag from $(path)/Background_input_lists/WZto3LNu_input_lists.txt
+ 
+# # ZZ->2L2Nu
+# sample    = ZZto2L2Nu
+# maxEvents = -1
+# queue inputList, tag from $(path)/Background_input_lists/ZZto2L2Nu_input_lists.txt
+
+# # ZZ->2L2Q
+# sample    = ZZto2L2Q
+# maxEvents = -1
+# queue inputList, tag from $(path)/Background_input_lists/ZZto2L2Q_input_lists.txt
+ 
+# # VBF
+sample    = VBF
+maxEvents = -1
+queue inputList, tag from $(path)/Signal_input_lists/VBF_input_lists.txt
+ 
+# ===== DATA example =====
+# sample    = DATA
+# maxEvents = -1
+# queue inputList, tag from $(path)/Data_input_lists/Muon_input_lists.txt
+  
