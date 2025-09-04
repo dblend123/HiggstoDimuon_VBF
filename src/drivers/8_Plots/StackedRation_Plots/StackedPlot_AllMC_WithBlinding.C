@@ -1,13 +1,13 @@
 void StackedPlot_AllMC_WithBlinding() {
     // Input files
-    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/Data/DATA/Muon_FullDataRun22CD.root");
-    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/DY/DY_FullMCRun22CD.root");
-    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/TT/TT_FullMCRun22CD.root");
-    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZ/WZto2L2Q_FullMCRunCD.root");
-    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZto3LNu/WZto3LNu_FullMCRun22CD.root");
-    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Q/ZZto2L2Q_FullMCRun22CD.root");
-    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Nu/ZZTo2L2Nu_FullMCRun22CD.root");
-    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/VBF/VBF_MCRun22CD.root");
+    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/Data/DATA/DATA_all.root");
+    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/DY/DY_all.root");
+    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/TT/TT_all.root");
+    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZ/WZ_all.root");
+    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZto3LNu/WZto3LNu_all.root");
+    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Q/ZZto2L2Q_all.root");
+    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Nu/ZZto2L2Nu_all.root");
+    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/VBF/VBF_all.root");
 
     if (!f_data || !f_DY || !f_TT || !f_WZ || !f_WZ3L || !f_Z2L2Q || !f_Z2L2N || !f_signal) {
         std::cerr << "One or more files couldn't be opened!" << std::endl;
@@ -21,13 +21,13 @@ void StackedPlot_AllMC_WithBlinding() {
     };
 
     // Get histograms
-    TH1* h_data  = get(f_data,  "DM_Pre-Selection/DiMuonMass");
-    TH1* h_DY    = get(f_DY,    "DM_VBF/DiMuonMass");
-    TH1* h_TT    = get(f_TT,    "DM_VBF/DiMuonMass");
-    TH1* h_WZ    = get(f_WZ,    "DM_VBF/DiMuonMass");
-    TH1* h_WZ3L  = get(f_WZ3L,  "DM_VBF/DiMuonMass");
-    TH1* h_Z2L2Q = get(f_Z2L2Q, "DM_VBF/DiMuonMass");
-    TH1* h_Z2L2N = get(f_Z2L2N, "DM_VBF/DiMuonMass");
+    TH1* h_data  = get(f_data,  "corr_DM_VBF/DiMuonMass");
+    TH1* h_DY    = get(f_DY,    "corr_DM_VBF/DiMuonMass");
+    TH1* h_TT    = get(f_TT,    "corr_DM_VBF/DiMuonMass");
+    TH1* h_WZ    = get(f_WZ,    "corr_DM_VBF/DiMuonMass");
+    TH1* h_WZ3L  = get(f_WZ3L,  "corr_DM_VBF/DiMuonMass");
+    TH1* h_Z2L2Q = get(f_Z2L2Q, "corr_DM_VBF/DiMuonMass");
+    TH1* h_Z2L2N = get(f_Z2L2N, "corr_DM_VBF/DiMuonMass");
     TH1* h_signal = get(f_signal, "corr_DM_VBF/DiMuonMass");
 
     if (!h_data || !h_DY || !h_TT || !h_WZ || !h_WZ3L || !h_Z2L2Q || !h_Z2L2N || !h_signal) {

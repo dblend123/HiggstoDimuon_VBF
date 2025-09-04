@@ -21,9 +21,9 @@ transfer_input_files    = my_skim, Skim_run_job.sh, $(inputList), x509up.cert
 path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2022/Condor_listfiles
  
 # ===== Example MC queue (DY; edit/uncomment others as needed) =====
-# sample    = DY
-# maxEvents = -1
-# queue inputList, tag from $(path)/Background_input_lists/DYto2L2Jets_input_lists.txt
+sample    = DY
+maxEvents = -1
+queue inputList, tag from $(path)/Background_input_lists/DYto2L2Jets_input_lists.txt
 
 # # TT
 # sample    = TT
@@ -51,9 +51,9 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2022/Con
 # queue inputList, tag from $(path)/Background_input_lists/ZZto2L2Q_input_lists.txt
  
 # # VBF
-sample    = VBF
-maxEvents = -1
-queue inputList, tag from $(path)/Signal_input_lists/VBF_input_lists.txt
+# sample    = VBF
+# maxEvents = -1
+# queue inputList, tag from $(path)/Signal_input_lists/VBF_input_lists.txt
  
 # ===== DATA example =====
 # sample    = DATA
