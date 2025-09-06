@@ -13,16 +13,16 @@ SUFFIX="${SUFFIX:-MCRun22023}"
 # If a folder isn’t listed here, its folder name is used as-is.
 declare -A ALIAS=(
   ["DYto2L-2Jets"]="DY"
-  ["EWK"]="EWK"
   ["TTto2L2Nu"]="TT"
+  ["EWK"]="EWK"
+  ["WZto2L2Q"]="WZ2L2Q"
+  ["ZZto2L2Q"]="ZZ2L2Q"
+  ["ZZto2L2Nu"]="ZZ2L2Nu"
+  ["WZto3LNu"]="WZ3LNu"
+  ["ZZto4L"]="ZZ4L"
   ["WWW"]="WWW"
   ["WWZ"]="WWZ"
-  ["WZto2L2Q"]="WZ2L2Q"
-  ["WZto3LNu"]="WZ3LNu"
   ["WZZ"]="WZZ"
-  ["ZZto2L2Nu"]="ZZ2L2Nu"
-  ["ZZto2L2Q"]="ZZ2L2Q"
-  ["ZZto4L"]="ZZ4L"
   ["ZZZ"]="ZZZ"
 )
 

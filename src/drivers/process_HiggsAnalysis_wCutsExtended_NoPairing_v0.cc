@@ -1467,12 +1467,12 @@ void process()
         double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);  // your function
         float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
 
-          /*std::cout << std::setprecision(10) 
+          std::cout << std::setprecision(10) 
           << "genWeight=" << genWeight
           << " puTrue=" << Pileup_nTrueInt
           << " puW=" << pileupWeight
           << " base=" << base
-          << " total=" << Dataweight << "\n";*/
+          << " total=" << Dataweight << "\n";
 
         
         //	Selections

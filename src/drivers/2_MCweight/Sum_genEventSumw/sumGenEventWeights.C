@@ -3,8 +3,6 @@ void sumGenEventWeights() {
     std::vector<std::pair<std::string, std::string>> filelists = {
         //Data
         //{"Muon", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Background_listfiles/DYBackground_listfiles/v5-v2/v5-v2_fullpaths.list"},
-        //{"SingleMuon", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Background_listfiles/DYBackground_listfiles/v5-v2/v5-v2_fullpaths.list"},
-        //{"DoubleMuon", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Background_listfiles/DYBackground_listfiles/v5-v2/v5-v2_fullpaths.list"},
 
         // Backgrounds
         //{"DY", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Background_listfiles/DYBackground_listfiles/v5-v2/v5-v2_fullpaths.list"},
@@ -22,15 +20,12 @@ void sumGenEventWeights() {
         //{"ZZTo2L2Q_Ext", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Background_listfiles/ZZto2L2QBackground_listfiles/ZZTo2L2Q_Ext_All.list"},
 
         // Signals
-        //{"GluGluHTo2Mu", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Signal_listfiles/GGHSignal_listfiles/GluGluHto2Mu_Full.list"},
         //{"VBFHTo2Mu", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Signal_listfiles/VBFSignal_listfiles/VBFSignal_FullRun22.lsit"},
-        //{"TTHTo2Mu", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Signal_listfiles/TTHSignal_listfiles/TTHTo2Mu_All.list"},
-        //{"ZHTo2Mu", "/afs/cern.ch/user/d/dblend/test-analysis/build/src/drivers/1_ListFiles/2022/Signal_listfiles/ZHSignal_listfiles/ZHTo2Mu_ZToAll.list"}
     };
 
     // Output file to store the results
-    std::ofstream outfile("justtheonefile_genEventSumw_output.txt");
-    //std::ofstream outfile("genEventSumw_output.txt");
+    //std::ofstream outfile("justtheonefile_genEventSumw_output.txt");
+    std::ofstream outfile("genEventSumw_output.txt");
     //std::ofstream outfile("Ext_genEventSumw_output.txt");
     if (!outfile.is_open()) {
         std::cerr << "Error: Could not open output file." << std::endl;
