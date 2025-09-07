@@ -19,90 +19,113 @@ transfer_input_files    = my_skim, Skim_run_job.sh, $(inputList), x509up.cert
 
 # Base path to listfiles
 path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Condor_listfiles
+# path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Condor_listfiles
+# path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22023/Condor_listfiles
  
 # ===== MC queue =====
+# ===== Background =====
+
 # # DY
-sample    = DY
-maxEvents = -1
-queue inputList, tag from $(path)/Background_input_lists/DYto2L-2Jets.txt
+# sample    = DY
+# queue inputList, tag from $(path)/Background_input_lists/DYto2L-2Jets.txt
 
 # # EWK
 # sample    = EWK
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/EWK.txt
  
 # # TT
 # sample    = TT
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/TTto2L2Nu.txt
  
 # # WWW
 # sample    = WWW
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/WWW.txt
 
 # # WWZ
 # sample    = WWZ
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/WWZ.txt
  
 # # WZZ
 # sample    = WZZ
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/WZZ.txt
  
 # # WZto2L2Q
 # sample    = WZto2L2Q
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/WZto2L2Q.txt
 
 # # WZto3LNu
 # sample    = WZto3LNu
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/WZto3LNu.txt
  
 # # ZZZ
 # sample    = ZZZ
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/ZZZ.txt
  
 # # ZZto2L2Nu
 # sample    = ZZto2L2Nu
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/ZZto2L2Nu.txt
  
-# # ZZto2L2Q.txt
+# # ZZto2L2Q
 # sample    = ZZto2L2Q
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/ZZto2L2Q.txt
  
 # # ZZto4L
 # sample    = ZZto4L
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/ZZto4L.txt
  
 # # ZZZ
 # sample    = ZZZ
-# maxEvents = -1
 # queue inputList, tag from $(path)/Background_input_lists/ZZZ.txt
+
+# ===== Signal =====
 
 # # VBF
 # sample    = VBF
-# maxEvents = -1
 # queue inputList, tag from $(path)/Signal_input_lists/VBF.txt
 
-# ===== DATA queue =====
+# ===== 12022 DATA queue =====
+
+# # C
+# sample    = DATA
+# queue inputList, tag from $(path)/Data_input_lists/C.txt
+
+# # D
+# sample    = DATA
+# queue inputList, tag from $(path)/Data_input_lists/D.txt
+
+# ===== 22022 DATA queue =====
+
 # # E
 # sample    = DATA
-# maxEvents = -1
 # queue inputList, tag from $(path)/Data_input_lists/Muon22022E.txt
   
 # # F
 # sample    = DATA
-# maxEvents = -1
 # queue inputList, tag from $(path)/Data_input_lists/Muon22022F.txt
   
 # # G
 # sample    = DATA
-# maxEvents = -1
 # queue inputList, tag from $(path)/Data_input_lists/Muon22022G.txt
+
+# ===== 12023 DATA queue =====
+
+# # B/C
+# # Muon0
+# sample    = DATA
+# queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
+
+# # Muon1
+# sample    = DATA
+# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+
+# ===== 22023 DATA queue =====
+
+# # D
+# # Muon0
+# sample    = DATA
+# queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
+
+# # Muon1
+# sample    = DATA
+# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+

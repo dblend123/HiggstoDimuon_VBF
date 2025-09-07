@@ -51,7 +51,7 @@ static const float PV_CHI2_MAX  = 10.0f;  // was 4
 static const float PV_Z_MAX     = 24.0f;  // was 5
 // Muon
 static const float MU_PT_MIN    = 10.0f;  // was 23
-static const float MU_ETA_MAX   = 3.5f;   // was 2.4
+static const float MU_ETA_MAX   = 3.8f;   // was 2.4
 static const float MU_DXY_MAX   = 1.0f;   // was 0.3
 static const float MU_DXYBS_MAX = 1.0f;   // was 0.5
 static const float MU_DZ_MAX    = 15.0f;  // was 5
@@ -68,10 +68,10 @@ void MyAnalysis::BookHistograms() {
 void MyAnalysis::analyze_event(Long64_t /*entry*/)
 {
   // --- PV quality ---
-  if (PV_npvsGood < 1)  return;
-  if (PV_ndof    <= 4)  return;
-  if (PV_chi2    >  PV_CHI2_MAX) return;
-  if (std::fabs(PV_z) > PV_Z_MAX) return;
+  //if (PV_npvsGood < 1)  return;
+  //if (PV_ndof    <= 4)  return;
+  //if (PV_chi2    >  PV_CHI2_MAX) return;
+  //if (std::fabs(PV_z) > PV_Z_MAX) return;
 
   // --- muons ---
   if (nMuon < 2) return;
@@ -80,11 +80,11 @@ void MyAnalysis::analyze_event(Long64_t /*entry*/)
   for (int i=0; i<nMuon; ++i) {
     if (Muon_pt[i]            <= MU_PT_MIN)    continue;
     if (std::fabs(Muon_eta[i])>  MU_ETA_MAX)   continue;
-    if (std::fabs(Muon_dxy[i])>  MU_DXY_MAX)   continue;
-    if (std::fabs(Muon_dxybs[i])> MU_DXYBS_MAX) continue;
-    if (std::fabs(Muon_dz[i]) >  MU_DZ_MAX)    continue;
-    if (Muon_tkRelIso[i]      >  MU_ISO_MAX)   continue;
-    if (Muon_sip3d[i]         >  MU_SIP3D_MAX) continue;
+    //if (std::fabs(Muon_dxy[i])>  MU_DXY_MAX)   continue;
+    //if (std::fabs(Muon_dxybs[i])> MU_DXYBS_MAX) continue;
+    //if (std::fabs(Muon_dz[i]) >  MU_DZ_MAX)    continue;
+    //if (Muon_tkRelIso[i]      >  MU_ISO_MAX)   continue;
+    //if (Muon_sip3d[i]         >  MU_SIP3D_MAX) continue;
 
     if (Muon_charge[i] > 0) ++ipositive;
     if (Muon_charge[i] < 0) ++inegative;
