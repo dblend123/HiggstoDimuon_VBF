@@ -18,6 +18,7 @@ transfer_input_files    = my_skim, Skim_run_job.sh, $(inputList), x509up.cert
 +JobFlavour             = "tomorrow"
 
 # Base path to listfiles
+# path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12022/Condor_listfiles
 path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Condor_listfiles
 # path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Condor_listfiles
 # path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22023/Condor_listfiles
@@ -30,8 +31,8 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Co
 # queue inputList, tag from $(path)/Background_input_lists/DYto2L-2Jets.txt
 
 # # EWK
-# sample    = EWK
-# queue inputList, tag from $(path)/Background_input_lists/EWK.txt
+sample    = EWK
+queue inputList, tag from $(path)/Background_input_lists/EWK.txt
  
 # # TT
 # sample    = TT
@@ -73,10 +74,6 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Co
 # sample    = ZZto4L
 # queue inputList, tag from $(path)/Background_input_lists/ZZto4L.txt
  
-# # ZZZ
-# sample    = ZZZ
-# queue inputList, tag from $(path)/Background_input_lists/ZZZ.txt
-
 # ===== Signal =====
 
 # # VBF

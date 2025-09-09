@@ -1,13 +1,13 @@
 void StackedPlot_AllMC_WithBlinding() {
     // Input files
-    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/Data/DATA/DATA_all.root");
-    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/DY/DY_all.root");
-    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/TT/TT_all.root");
-    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZ/WZ_all.root");
-    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZto3LNu/WZto3LNu_all.root");
-    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Q/ZZto2L2Q_all.root");
-    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Nu/ZZto2L2Nu_all.root");
-    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/VBF/VBF_all.root");
+    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/Data/DATA/DATA_all.root");
+    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/DY/DY_all.root");
+    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/TT/TT_all.root");
+    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/WZ/WZ_all.root");
+    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/WZto3LNu/WZto3LNu_all.root");
+    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/ZZto2L2Q/ZZto2L2Q_all.root");
+    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/ZZto2L2Nu/ZZto2L2Nu_all.root");
+    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/VBF/VBF_all.root");
 
     if (!f_data || !f_DY || !f_TT || !f_WZ || !f_WZ3L || !f_Z2L2Q || !f_Z2L2N || !f_signal) {
         std::cerr << "One or more files couldn't be opened!" << std::endl;
@@ -156,7 +156,7 @@ void StackedPlot_AllMC_WithBlinding() {
     // Draw
     h_ratio->Draw("E1");
 
-    TString outdir = "/eos/user/d/dblend/StackedPlots/Muons/";
+    TString outdir = "/eos/user/d/dblend/StackedPlots/12022/Muons/";
 
     // Save
     c->SaveAs(outdir + "Stacked_DiMuonMass_blinded_withRatio.pdf");

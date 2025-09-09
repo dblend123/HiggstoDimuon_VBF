@@ -3,14 +3,14 @@ void Overlay_JetVars_WithRatio() {
     gStyle->SetOptStat(0);
 
     // ---------- Open inputs ----------
-    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/Data/DATA/DATA_all.root");
-    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/DY/DY_all.root");
-    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/TT/TT_all.root");
-    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZ/WZ_all.root");
-    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/WZto3LNu/WZto3LNu_all.root");
-    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Q/ZZto2L2Q_all.root");
-    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/ZZto2L2Nu/ZZto2L2Nu_all.root");
-    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedRun22CD/MC/VBF/VBF_all.root");
+    TFile* f_data   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/Data/DATA/DATA_all.root");
+    TFile* f_DY     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/DY/DY_all.root");
+    TFile* f_TT     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/TT/TT_all.root");
+    TFile* f_WZ     = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/WZ/WZ_all.root");
+    TFile* f_WZ3L   = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/WZto3LNu/WZto3LNu_all.root");
+    TFile* f_Z2L2Q  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/ZZto2L2Q/ZZto2L2Q_all.root");
+    TFile* f_Z2L2N  = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/ZZto2L2Nu/ZZto2L2Nu_all.root");
+    TFile* f_signal = TFile::Open("/eos/user/d/dblend/Analyzed_SkimmedFiles/MC/VBF/VBF_all.root");
 
     if (!f_data || !f_DY || !f_TT || !f_WZ || !f_WZ3L || !f_Z2L2Q || !f_Z2L2N || !f_signal) {
         std::cerr << "[ERROR] One or more files couldn't be opened!" << std::endl;
@@ -119,8 +119,8 @@ void Overlay_JetVars_WithRatio() {
 
         // Draw filled MC back-to-front to avoid occlusion
         // Order chosen to MATCH the stacked plot composition: VV (back), DY, TT, Signal (front)
-        h_VV->Draw("HIST SAME");
         h_DY->Draw("HIST SAME");
+        h_VV->Draw("HIST SAME");
         h_TT->Draw("HIST SAME");
         h_signal->Draw("HIST SAME");
 
@@ -190,7 +190,7 @@ void Overlay_JetVars_WithRatio() {
         line->Draw("SAME");
 
         // ---------- Save ----------
-        TString outdir = "/eos/user/d/dblend/StackedPlots/Jets/";
+        TString outdir = "/eos/user/d/dblend/StackedPlots/12022/Jets/";
         TString base = "OverlayRatio_" + TString(var.c_str());
         c->SaveAs(outdir + base + ".pdf");
         c->SaveAs(outdir + base + ".png");

@@ -1,0 +1,24 @@
+arguments               = $(inputList) $(tag) $(sample)
+executable              = Skim_run_job.sh
+output                  = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/6_Skimming/Outs/$(tag)_$(ClusterId).out
+error                   = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/6_Skimming/Errors/$(tag)_$(ClusterId).err
+log                     = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/6_Skimming/Logs/$(tag)_$(ClusterId).log
+
+use_x509userproxy       = true
+x509userproxy           = x509up.cert
+
+requirements = (OpSysAndVer == "AlmaLinux9")
+
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+
+transfer_input_files    = my_skim, Skim_run_job.sh, $(inputList), x509up.cert
+
++JobFlavour             = "tomorrow"
+
+# --- Queue many at once from a TSV file ---
+# Columns must match the variable names in 'arguments' above
+# queue inputList, tag, sample from skim_jobs_12022.tsv
+queue inputList, tag, sample from skim_jobs_22022.tsv
+# queue inputList, tag, sample from skim_jobs_12023.tsv
+# queue inputList, tag, sample from skim_jobs_22023.tsv

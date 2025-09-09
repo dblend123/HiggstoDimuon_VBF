@@ -1,7 +1,7 @@
 //=============================
 // MyAnaSkim.C — minimal, standalone NanoAOD skimmer
 // Build:  c++ -O2 -std=gnu++17 MyAnaSkim.C -o my_skim $(root-config --cflags --libs)
-// Run:    ./my_skim filelist.txt 20000   # (max events per file; use -1 for all)
+// Run:    source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh && ./my_skim filelist.txt 20000   # (max events per file; use -1 for all)
 //=============================
 
 #define MyAnalysis_cxx
@@ -34,7 +34,7 @@ static string NewPath = "./skims";   // change if you like
 static time_t startOfProgram = 0;
 static unsigned int fcount = 0;
 static unsigned int ievnt  = 0;
-static int MaxEvent = 500000;        // default cap (use -1 for all)
+static int MaxEvent = -1;        // default cap (use -1 for all)
 
 //--------- cutflow / bookkeeping --
 static unsigned int CutEf[50] = {0};
@@ -50,8 +50,8 @@ static const bool  REQUIRE_OS   = true;   // set false to also keep same-sign
 static const float PV_CHI2_MAX  = 10.0f;  // was 4
 static const float PV_Z_MAX     = 24.0f;  // was 5
 // Muon
-static const float MU_PT_MIN    = 10.0f;  // was 23
-static const float MU_ETA_MAX   = 3.8f;   // was 2.4
+static const float MU_PT_MIN    = 5.0f;  // was 23
+static const float MU_ETA_MAX   = 4.0f;   // was 2.4
 static const float MU_DXY_MAX   = 1.0f;   // was 0.3
 static const float MU_DXYBS_MAX = 1.0f;   // was 0.5
 static const float MU_DZ_MAX    = 15.0f;  // was 5

@@ -106,27 +106,17 @@ float g_weight = 1.f;
 struct SampleConfig {
     double xsec = 0.0;        // pb
     double sumw = 0.0;        // genEventSumw
-    double sumw_ext = 0.0;    // Ext genEventSumw
-};
-
-// Defaults = your current in-code numbers (so it's backward compatible)
-double g_lumi_BCD = 7.980454145e3; // pb^-1
-
-std::unordered_map<std::string, SampleConfig> g_samples = {
-    {"DY",         {6688.0,     1.17668e12, 1.73021e12}},
-    {"TT",         {762.1,      1.9129e9,   1.93459e9}},
-    {"WZ",         {7.568,      3.1537e7,   3.07671e7}},
-    {"WZto3LNu",   {4.924,      1.3561e7,   4.37112e7}},
-    {"ZZto2L2Nu",  {1.031,      1.50043e7,  1.73775e7}},
-    {"ZZto2L2Q",   {6.788,      9.95594e7,  1.01821e8}},
-    {"GGH",        {32.69,      6.53894e6,  0.0}},
-    {"VBF",        {4.18,       1.66873e6,  0.0}},
-    {"TTH",        {0.5742,     1.13023e5,  0.0}},
-    {"ZH",         {0.5478,     8.09902e5,  0.0}},
 };
 
 std::string g_weightsFile = "None";  // set via --weights
 std::string g_sampleName  = "DATA";  // set via --sample
+
+// Era handling
+std::string g_era = "12022";  // default section (can be overridden via --era)
+std::unordered_map<std::string, std::unordered_map<std::string, double>> g_sectionLumis;
+std::unordered_map<std::string, std::unordered_map<std::string, SampleConfig>> g_sectionSamples;
+
+double g_selected_lumi = 0.0; 
 
 
 // Kinematic Cuts  
@@ -160,23 +150,46 @@ using namespace correction;
 // -------------------------------------
 
 // Muon SF && Momentum Corrections 
-std::shared_ptr<correction::CorrectionSet> corrections = nullptr;
-std::shared_ptr<correction::CorrectionSet> muoncorrections = nullptr;
+std::shared_ptr<correction::CorrectionSet> corrections = nullptr;     // muon SFs
+std::shared_ptr<correction::CorrectionSet> muoncorrections = nullptr; // Rochester
+
+// ---------- Era-aware config (edit defaults if your layout changes) ----------
+std::string g_muDir     = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/MUO";
+std::string g_muSFJSON  = "auto";   // "auto" => muon_Z<era>.json
+std::string g_muSFKeyID = "NUM_TightID_DEN_TrackerMuons";
+std::string g_muSFKeyISO = "NUM_TightPFIso_DEN_TightID";
+std::string g_muSFKeyTRG = "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight";
+
+std::string g_rochJSON  = "auto";   // "auto" => RoccoR<era>.json
+std::string g_rochKeyDT = "kScaleDT";
+std::string g_rochKeyMC = "kScaleMC";
+
+static std::string muSFFileForEra(const std::string& era) {
+    if (g_muSFJSON != "auto") return g_muSFJSON;
+    // Example naming: muon_Z12022.json, muon_Z22022.json, muon_Z12023.json, muon_Z22023.json
+    return g_muDir + "/muon_Z" + era + ".json";
+}
+
+static std::string rochFileForEra(const std::string& era) {
+    if (g_rochJSON != "auto") return g_rochJSON;
+    // Example naming: RoccoR12022.json, RoccoR22022.json, RoccoR12023.json, RoccoR22023.json
+    return g_muDir + "/RoccoR" + era + ".json";
+}
+
 void loadMuonCorrections() {
     try {
-        if (!corrections)
-            corrections = correction::CorrectionSet::from_file(
-                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/muon_Z.json");
+        const std::string sfPath   = muSFFileForEra(g_era);
+        const std::string rochPath = rochFileForEra(g_era);
+
+        // Load (or reload if null). If you want forced reload per era, you can reset to nullptr first.
+        if (!corrections)     corrections     = correction::CorrectionSet::from_file(sfPath);
+        if (!muoncorrections) muoncorrections = correction::CorrectionSet::from_file(rochPath);
+
+        std::cerr << "[MUON] Loaded SFs from " << sfPath << "\n";
+        std::cerr << "[MUON] Loaded Rochester from " << rochPath << "\n";
     } catch (const std::exception& e) {
-        std::cerr << "[Muon SF load ERROR] " << e.what() << std::endl;
+        std::cerr << "[Muon load ERROR] " << e.what() << std::endl;
         corrections = nullptr;
-    }
-    try {
-        if (!muoncorrections)
-            muoncorrections = correction::CorrectionSet::from_file(
-                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/RoccoR2022.json");
-    } catch (const std::exception& e) {
-        std::cerr << "[Rochester load ERROR] " << e.what() << std::endl;
         muoncorrections = nullptr;
     }
 }
@@ -189,32 +202,130 @@ void loadMuonCorrections() {
 std::shared_ptr<correction::CorrectionSet> jetCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetVetoMaps = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetIdCorrections = nullptr;
-void loadJetCorrections() {
-    try {
-        if (!jetCorrections)
-            jetCorrections = correction::CorrectionSet::from_file(
-                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/jet_jerc.json");
-    } catch (const std::exception& e) {
-        std::cerr << "[Jet JERC load ERROR] " << e.what() << std::endl;
-        jetCorrections = nullptr;
-    }
-    try {
-        if (!jetVetoMaps)
-            jetVetoMaps = correction::CorrectionSet::from_file(
-                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/jetvetomaps.json");
-    } catch (const std::exception& e) {
-        std::cerr << "[Jet veto map load ERROR] " << e.what() << std::endl;
-        jetVetoMaps = nullptr;
-    }
-    try {
-        if (!jetIdCorrections)
-            jetIdCorrections = correction::CorrectionSet::from_file(
-                "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/jetid.json");
-    } catch (const std::exception& e) {
-        std::cerr << "[JetID load ERROR] " << e.what() << std::endl;
-        jetIdCorrections = nullptr;
-    }
+
+// ---------- Era-aware config & helpers ----------
+std::string g_jmeDir        = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/JME";
+std::string g_jercJSON      = "auto"; // "auto" => jet_jerc<era>.json
+std::string g_jetVetoJSON   = "auto"; // "auto" => jetvetomaps<era>.json
+std::string g_jetIdJSON     = "auto"; // "auto" => jetid<era>.json
+
+struct JecEraConfig {
+  std::string prefixBase;   // base for JEC keys, we’ll append _MC or _<RunTag>_DATA
+  std::string dataRunTag;   // e.g. RunCD, RunE, RunF, RunG, RunCv123, RunCv4, RunD
+  std::string jerScaleKey;  // exact JER SF key
+  std::string jerResKey;    // exact JER resolution key
+  std::string vetoMapKey;   // veto map key (if available for this era/tag); leave "" to skip
+};
+
+// Optional: try to infer 2022EE/2023 data run from the input file name
+static std::string inferDataRunTag(const std::string& era, const std::string& inputFile) {
+  if (era == "22022") {
+    if (inputFile.find("RunE") != std::string::npos) return "RunE";
+    if (inputFile.find("RunF") != std::string::npos) return "RunF";
+    if (inputFile.find("RunG") != std::string::npos) return "RunG";
+    return "RunE"; // default
+  }
+  if (era == "12023") {
+    if (inputFile.find("RunCv4")   != std::string::npos) return "RunCv4";
+    if (inputFile.find("RunCv123") != std::string::npos) return "RunCv123";
+    return "RunCv123";
+  }
+  if (era == "22023") return "RunD";
+  return "RunCD";
 }
+
+static JecEraConfig jecConfigForEra(const std::string& era, const std::string& inputFile) {
+  if (era == "12022") {
+    // 2022 BCD
+    return {
+      "Summer22_22Sep2023_V2",        // prefix base
+      "RunCD",                        // DATA tag
+      "Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",   // JER SF
+      "Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",  // JER Res
+      "Summer22_23Sep2023_RunCD_V1"   // veto map
+    };
+  }
+  if (era == "22022") {
+    // 2022 E/F/G (DATA is split by run; infer from input)
+    const std::string runTag = inferDataRunTag(era, inputFile);
+    return {
+      "Summer22EE_22Sep2023_V2",
+      runTag, // "RunE" or "RunF" or "RunG"
+      "Summer22EE_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",
+      "Summer22EE_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",
+      // veto map keys in your dump are per-run; you can point to the matching one:
+      // "Summer22EE_23Sep2023_RunE_V1", "Summer22EE_23Sep2023_RunF_V1", "Summer22EE_23Sep2023_RunG_V1"
+      "Summer22EE_23Sep2023_" + runTag + "_V1"
+    };
+  }
+  if (era == "12023") {
+    // 2023 C (split into RunCv123 vs RunCv4 for DATA; MC uses Prompt set)
+    const std::string runTag = inferDataRunTag(era, inputFile); // RunCv123 (default) or RunCv4
+    return {
+      "Summer23Prompt23_V2",
+      runTag,
+      // JER MC keys available in your list (both combined and split exist; use combined set):
+      "Summer23Prompt23_RunCv1234_JRV1_MC_ScaleFactor_AK4PFPuppi",
+      "Summer23Prompt23_RunCv1234_JRV1_MC_PtResolution_AK4PFPuppi",
+      "" // veto maps not listed explicitly for 2023 in your dumps; leave blank to skip
+    };
+  }
+  if (era == "22023") {
+    // 2023 D (BPixPrompt set)
+    return {
+      "Summer23BPixPrompt23_V3",
+      "RunD",
+      "Summer23BPixPrompt23_RunD_JRV1_MC_ScaleFactor_AK4PFPuppi",
+      "Summer23BPixPrompt23_RunD_JRV1_MC_PtResolution_AK4PFPuppi",
+      "" // veto map not listed explicitly; leave blank to skip
+    };
+  }
+  // Fallback to 2022 BCD
+  return {
+    "Summer22_22Sep2023_V2","RunCD",
+    "Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",
+    "Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",
+    "Summer22_23Sep2023_RunCD_V1"
+  };
+}
+
+static std::string jercFileForEra(const std::string& era) {
+  if (g_jercJSON != "auto") return g_jercJSON;
+  return g_jmeDir + "/jet_jerc" + era + ".json";
+}
+static std::string vetoFileForEra(const std::string& era) {
+  if (g_jetVetoJSON != "auto") return g_jetVetoJSON;
+  return g_jmeDir + "/jetvetomaps" + era + ".json";
+}
+static std::string jetIdFileForEra(const std::string& era) {
+  if (g_jetIdJSON != "auto") return g_jetIdJSON;
+  return g_jmeDir + "/jetid" + era + ".json";
+}
+
+void loadJetCorrections() {
+  try {
+    if (!jetCorrections)
+      jetCorrections = correction::CorrectionSet::from_file(jercFileForEra(g_era));
+  } catch (const std::exception& e) {
+    std::cerr << "[Jet JERC load ERROR] " << e.what() << std::endl;
+    jetCorrections = nullptr;
+  }
+  try {
+    if (!jetVetoMaps)
+      jetVetoMaps = correction::CorrectionSet::from_file(vetoFileForEra(g_era));
+  } catch (const std::exception& e) {
+    std::cerr << "[Jet veto map load ERROR] " << e.what() << std::endl;
+    jetVetoMaps = nullptr;
+  }
+  try {
+    if (!jetIdCorrections)
+      jetIdCorrections = correction::CorrectionSet::from_file(jetIdFileForEra(g_era));
+  } catch (const std::exception& e) {
+    std::cerr << "[JetID load ERROR] " << e.what() << std::endl;
+    jetIdCorrections = nullptr;
+  }
+}
+
 
 // -------------------------------------
 //             PU WEIGHTS 
@@ -222,18 +333,49 @@ void loadJetCorrections() {
 
 std::shared_ptr<correction::CorrectionSet> pileupCorrections = nullptr;
 std::shared_ptr<const correction::Correction> pu_corrections = nullptr;
+
+// Optional CLI-configurable bits (declare these near your other globals if you prefer)
+std::string g_puDir   = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/puWeights";
+std::string g_puJSON  = "auto";  // "auto" => use puWeights<era>.json
+std::string g_puKey   = "auto";  // "auto" => pick key by era via map below
+
+static std::string puFileForEra(const std::string& era) {
+  if (g_puJSON != "auto") return g_puJSON;
+  // convention: puWeights<era>.json sitting in g_puDir
+  return g_puDir + "/puWeights" + era + ".json";
+}
+
+// Fill in the exact names from your JSONs if they differ.
+static std::string puKeyForEra(const std::string& era) {
+  if (g_puKey != "auto") return g_puKey;
+  // Known keys (edit if your JSONs use slightly different strings)
+  if (era == "12022") return "Collisions2022_355100_357900_eraBCD_GoldenJson";
+  if (era == "22022") return "Collisions2022_359022_362760_eraEFG_GoldenJson";
+  if (era == "12023") return "Collisions2023_366403_369802_eraBC_GoldenJson";
+  if (era == "22023") return "Collisions2023_369803_370790_eraD_GoldenJson";
+  // fallback: common names people use in PU JSONs
+  return "weights";  // try a generic name if your files have only one correction
+}
+
 void loadPileupCorrections() {
   try {
-    if (!pileupCorrections)
-      pileupCorrections = correction::CorrectionSet::from_file
-      ("/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/puWeightsBCD.json");
-      pu_corrections = pileupCorrections->at("Collisions2022_355100_357900_eraBCD_GoldenJson");
+    const std::string puPath = puFileForEra(g_era);
+    const std::string puKey  = puKeyForEra(g_era);
+
+    pileupCorrections = correction::CorrectionSet::from_file(puPath);
+    pu_corrections    = pileupCorrections->at(puKey);
+
+    std::cerr << "[PU] Loaded " << puKey << " from " << puPath << "\n";
   } catch (const std::exception& e) {
     std::cerr << "[PU load ERROR] " << e.what() << std::endl;
+    std::cerr << "[PU load ERROR] era=" << g_era
+              << " file=" << puFileForEra(g_era)
+              << " key="  << puKeyForEra(g_era) << "\n";
     pileupCorrections = nullptr;
     pu_corrections = nullptr;
   }
 }
+
 
 TH1D *hEventWeights = NULL;
 
@@ -261,9 +403,9 @@ float getMuonRochester(const Muon& mu, bool isMC)
 
     try {
         if (!isMC) {  // DATA
-            return muoncorrections->at("kScaleDT")->evaluate({charge, pt, eta, phi, s, m});
+            return muoncorrections->at(g_rochKeyDT)->evaluate({charge, pt, eta, phi, s, m});
         } else {      // MC
-            return muoncorrections->at("kScaleMC")->evaluate({charge, pt, eta, phi, s, m});
+            return muoncorrections->at(g_rochKeyMC)->evaluate({charge, pt, eta, phi, s, m});
         }
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] Failed to evaluate Rochester correction: " << e.what() << std::endl;
@@ -276,58 +418,70 @@ float getMuonRochester(const Muon& mu, bool isMC)
 // -------------------------------------
 
 float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet) {
-    if (!jetCorrections) {
-        std::cerr << "[ERROR] Jet corrections not loaded!\n";
-        return jet._pt;
+  if (!jetCorrections) {
+    std::cerr << "[ERROR] Jet corrections not loaded!\n";
+    return jet._pt;
+  }
+
+  const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
+
+  float eta  = std::clamp(jet._eta, -5.191f, 5.191f);
+  float pt   = std::max(jet._pt, 0.1f);
+  float area = jet._area;
+
+  // JEC prefixes (MC vs DATA)
+  const std::string prefix = isMC
+      ? (cfg.prefixBase + "_MC")
+      : (cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA");
+
+  float l1  = jetCorrections->at(prefix + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
+  float l2  = jetCorrections->at(prefix + "_L2Relative_AK4PFPuppi")->evaluate({eta, pt});
+  float l3  = jetCorrections->at(prefix + "_L3Absolute_AK4PFPuppi")->evaluate({eta, pt});
+  float res = isMC ? 1.0f : jetCorrections->at(prefix + "_L2L3Residual_AK4PFPuppi")->evaluate({eta, pt});
+
+  float jecFactor = l1 * l2 * l3 * res;
+  float corr_pt   = pt * jecFactor;
+
+  // ---- JER (MC only) ----
+  if (isMC) {
+    // Use JRV1 keys from your JSON
+    double sf = jetCorrections->at(cfg.jerScaleKey)->evaluate({(double)eta, (double)corr_pt, std::string("nom")});
+    
+    if (hasGenJet && genJetPt > 0.f) {
+      // Truth-anchored smearing
+      float smear = 1.0f + (sf - 1.0f) * (corr_pt - genJetPt) / std::max(corr_pt, 1e-3f);
+      // Optional safety: avoid negative scaling
+      smear = std::max(smear, 0.0f);
+      corr_pt *= smear;
+    } else {
+      // Stochastic smearing
+      double reso = jetCorrections->at(cfg.jerResKey)->evaluate({(double)eta, (double)corr_pt, (double)rho});
+      float sigma = static_cast<float>(reso * std::sqrt(std::max(sf*sf - 1.0, 0.0)));
+      // Consider a deterministic seed (event, jet index) if you run multithreaded
+      static TRandom3 rand(42);
+      corr_pt *= (1.0f + rand.Gaus(0, sigma));
+      corr_pt  = std::max(corr_pt, 0.0f);
     }
+  }
 
-    float eta  = std::clamp(jet._eta, -5.191f, 5.191f);
-    float pt   = std::max(jet._pt, 0.1f);
-    float area = jet._area;
-
-    // JEC prefixes (MC vs DATA)
-    std::string era = isMC
-    ? "Summer22_22Sep2023_V2_MC"
-    : "Summer22_22Sep2023_RunCD_V2_DATA";
-
-    float l1  = jetCorrections->at(era + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
-    float l2  = jetCorrections->at(era + "_L2Relative_AK4PFPuppi")->evaluate({eta, pt});
-    float l3  = jetCorrections->at(era + "_L3Absolute_AK4PFPuppi")->evaluate({eta, pt});
-    float res = isMC ? 1.0f : jetCorrections->at(era + "_L2L3Residual_AK4PFPuppi")->evaluate({eta, pt});
-
-    float jecFactor = l1 * l2 * l3 * res;
-    float corr_pt   = pt * jecFactor;
-
-    // ---- JER (MC only) ----
-    if (isMC) {
-        // Use JRV1 keys from your JSON
-        double sf = jetCorrections->at("Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi")->evaluate({(double)eta, (double)corr_pt, std::string("nom")});
-
-        if (hasGenJet && genJetPt > 0.f) {
-            // Truth-anchored smearing
-            float smearFactor = 1.0f + (sf - 1.0f) * (corr_pt - genJetPt) / corr_pt;
-            // Optional safety: avoid negative scaling
-            smearFactor = std::max(smearFactor, 0.0f);
-            corr_pt *= smearFactor;
-        } else {
-            // Stochastic smearing
-            double resolution = jetCorrections->at("Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi")->evaluate({(double)eta, (double)corr_pt, (double)rho});
-            float sigma = resolution * std::sqrt(std::max(sf*sf - 1.0, 0.0));
-            // Consider a deterministic seed (event, jet index) if you run multithreaded
-            static TRandom3 rand(42);
-            corr_pt *= (1.0f + rand.Gaus(0, sigma));
-            corr_pt  = std::max(corr_pt, 0.0f); // keep physical
-        }
-    }
-
-    return corr_pt;
+  return corr_pt;
 }
 
-
 inline bool isVetoedJet(float eta, float phi) {
-    if (!jetVetoMaps) { std::cerr << "[ERROR] Jet veto corr not loaded!\n"; return false; }
-    const double val = jetVetoMaps->at("Summer22_23Sep2023_RunCD_V1")->evaluate({std::string("jetvetomap"), eta, phi});
+  if (!jetVetoMaps) { std::cerr << "[ERROR] Jet veto corr not loaded!\n"; return false; }
+  const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
+  if (cfg.vetoMapKey.empty()) return false; // no maps listed for this era
+  try {
+    const double val = jetVetoMaps->at(cfg.vetoMapKey)->evaluate({std::string("jetvetomap"), (double)eta, (double)phi});
     return (val != 0.0);
+  } catch (...) {
+    static bool warned = false;
+    if (!warned) {
+      std::cerr << "[WARN] Veto map key '" << cfg.vetoMapKey << "' not found for era " << g_era << "\n";
+      warned = true;
+    }
+    return false;
+  }
 }
 
 float jetMuondR(float jeta,float jphi, float meta, float mphi)
@@ -598,10 +752,10 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
     float trig_sf = 1.0;
 
     try {
-        id_sf   = corrections->at("NUM_TightID_DEN_TrackerMuons")->evaluate({eta, pt, "nominal"});
-        iso_sf  = corrections->at("NUM_TightPFIso_DEN_TightID")->evaluate({eta, pt, "nominal"});
+        id_sf   = corrections->at(g_muSFKeyID)->evaluate({eta, pt, "nominal"});
+        iso_sf  = corrections->at(g_muSFKeyISO)->evaluate({eta, pt, "nominal"});
         if (applyTriggerSF && pt >= 26) {
-            trig_sf = corrections->at("NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight")->evaluate({eta, pt, "nominal"});
+            trig_sf = corrections->at(g_muSFKeyTRG)->evaluate({eta, pt, "nominal"});
         }
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] Failed to evaluate muon SF: " << e.what() << std::endl;
@@ -996,16 +1150,16 @@ void showProgressBar(uint32_t current, uint32_t total) {
     std::cout.flush();  // Ensure output is immediately shown
 }
 
+
 //*******************************************************************
 //                       READING WEIGHTS 
 //*******************************************************************
 
-// Parse simple key=value file, ignoring blank lines and lines starting with #
-// Recognized keys:
-//   luminosity_BCD = <double>
-//   <SAMPLE>.xsec = <double>
-//   <SAMPLE>.sumw = <double>
-//   <SAMPLE>.sumw_ext = <double>
+// Parse an INI with section headers like [12022], [22022], etc.
+// Keys inside a section:
+//   luminosity_*         = <double>   (any key that starts with "luminosity")
+//   <SAMPLE>.xsec        = <double>
+//   <SAMPLE>.sumw        = <double>
 static void loadWeightsFile(const std::string& path) {
     if (path == "None" || path == "DATA" || path.empty()) return;
 
@@ -1015,19 +1169,48 @@ static void loadWeightsFile(const std::string& path) {
         return;
     }
 
+    // simple trim lambda
+    auto trim = [](std::string& s) {
+        size_t b = s.find_first_not_of(" \t\r\n");
+        size_t e = s.find_last_not_of(" \t\r\n");
+        if (b == std::string::npos) { s.clear(); return; }
+        s.assign(s, b, e - b + 1);
+    };
+
     std::string line;
+    std::string currentSection = "global";
+    std::regex sec_re(R"(^\s*\[([^\]]+)\]\s*$)");
     std::regex kv_re(R"(^\s*([^#][^=]*)\s*=\s*([^\s#]+)\s*$)");
+
     while (std::getline(in, line)) {
-        if (line.empty() || line[0]=='#') continue;
+        if (line.empty()) continue;
+        if (line[0] == '#') continue;
+
+        // Section header like: [22022]
+        {
+            std::smatch sm;
+            if (std::regex_match(line, sm, sec_re)) {
+                currentSection = sm[1].str();
+                trim(currentSection);
+                continue;
+            }
+        }
+
+        // key=value
         std::smatch m;
         if (!std::regex_match(line, m, kv_re)) continue;
 
         std::string key = m[1];
         std::string val = m[2];
+        trim(key);
+        trim(val);
 
         try {
-            if (key == "luminosity_BCD" || key == "luminosity") {
-                g_lumi_BCD = std::stod(val);
+            // Any key starting with "luminosity" goes to this section's lumi map
+            if (key.rfind("luminosity", 0) == 0) {
+                double L = std::stod(val);
+                g_sectionLumis[currentSection]["lumi"] = L; // canonical entry
+                g_sectionLumis[currentSection][key]    = L; // keep original key
                 continue;
             }
 
@@ -1035,13 +1218,19 @@ static void loadWeightsFile(const std::string& path) {
             auto dot = key.find('.');
             if (dot == std::string::npos) continue;
             std::string name  = key.substr(0, dot);
-            std::string field = key.substr(dot+1);
+            std::string field = key.substr(dot + 1);
+            trim(name);
+            trim(field);
 
             double dval = std::stod(val);
-            auto& s = g_samples[name]; // creates if missing
-            if (field == "xsec")      s.xsec      = dval;
-            else if (field == "sumw") s.sumw      = dval;
-            else if (field == "sumw_ext") s.sumw_ext = dval;
+            auto& s = g_sectionSamples[currentSection][name]; // per-section sample
+            if (field == "xsec")          s.xsec      = dval;
+            else if (field == "sumw")     s.sumw      = dval;
+            else {
+                std::cerr << "[weights] Unknown field '" << field
+                          << "' for sample '" << name
+                          << "' in section [" << currentSection << "]\n";
+            }
         } catch (const std::exception& e) {
             std::cerr << "[weights] Bad line: " << line << " (" << e.what() << ")\n";
         }
@@ -1049,20 +1238,31 @@ static void loadWeightsFile(const std::string& path) {
 }
 
 // Returns the *per-event* base MC weight independent of per-event pu/genWeight.
-// i.e. (lumi * xsec) / (sumw + sumw_ext)
+// i.e. (lumi * xsec) / (sumw)
 static double sampleBaseWeight(const std::string& sample) {
-    auto it = g_samples.find(sample);
-    if (it == g_samples.end()) {
-        std::cerr << "[weights] Unknown sample '" << sample << "'. Using 1.0.\n";
+    // Look up the sample in the chosen era/section
+    auto secIt = g_sectionSamples.find(g_era);
+    if (secIt == g_sectionSamples.end()) {
+        std::cerr << "[weights] Unknown era '" << g_era << "'. Using 1.0.\n";
         return 1.0;
     }
+    const auto& samples = secIt->second;
+    auto it = samples.find(sample);
+    if (it == samples.end()) {
+        std::cerr << "[weights] Unknown sample '" << sample
+                  << "' in era '" << g_era << "'. Using 1.0.\n";
+        return 1.0;
+    }
+
     const auto& s = it->second;
-    const double denom = s.sumw + s.sumw_ext;
+    const double denom = s.sumw;
     if (denom <= 0.0) {
-        std::cerr << "[weights] Non-positive denom for '" << sample << "'. Using 1.0.\n";
+        std::cerr << "[weights] Non-positive denom for '" << sample
+                  << "' in era '" << g_era << "'. Using 1.0.\n";
         return 1.0;
     }
-    return (g_lumi_BCD * s.xsec) / denom;
+
+    return (g_selected_lumi * s.xsec) / denom;
 }
 
 
@@ -1453,9 +1653,10 @@ void process()
         float pileupWeight = 1.0f;
         if (__isMC && pu_corrections) {
             try {
-                pileupWeight = static_cast<float>(pu_corrections->evaluate({static_cast<double>(Pileup_nTrueInt), "nominal"}));
+                pileupWeight = static_cast<float>(
+                    pu_corrections->evaluate({static_cast<double>(Pileup_nTrueInt), "nominal"}));
             } catch (const std::exception& e) {
-                std::cerr << "[PU ERROR] " << e.what() << std::endl;
+                std::cerr << "[PU ERROR] evaluate failed: " << e.what() << std::endl;
                 pileupWeight = 1.0f;
             }
         }
@@ -1618,18 +1819,28 @@ int main(int argc, char** argv)
         ("dijetdEta_VBF", po::value<double>(&_dijetdEta_VBF)->default_value(_dijetdEta_VBF), "DiJet deta VBF-Category Cut")
 	    ("weights", po::value<std::string>(&g_weightsFile)->default_value("None"), "path to weights config (key=value)")
         ("sample",  po::value<std::string>(&g_sampleName)->default_value("DATA"), "sample name (e.g. DY, TT, WZ, VBF, DATA)")
+        ("era", po::value<std::string>(&g_era)->default_value("12022"), "Era section from weights.ini (e.g. 12022, 22022, 12023, 22023)")
+        ("puDir",  po::value<std::string>(&g_puDir)->default_value(g_puDir), "Directory containing PU JSONs")
+        ("puJSON", po::value<std::string>(&g_puJSON)->default_value("auto"), "PU JSON file path or 'auto' to use puWeights<era>.json")
+        ("puKey",  po::value<std::string>(&g_puKey)->default_value("auto"),  "Correction key inside PU JSON or 'auto' to use era-based default")
+        ("--muDir",     po::value<std::string>(&g_muDir)->default_value(g_muDir), "Directory containing muon JSONs")
+        ("--muSFJSON",  po::value<std::string>(&g_muSFJSON)->default_value("auto"), "Muon SF JSON (path) or 'auto' => muon_Z<era>.json")
+        ("--muSFKeyID", po::value<std::string>(&g_muSFKeyID)->default_value(g_muSFKeyID),  "Muon ID SF key")
+        ("--muSFKeyISO",po::value<std::string>(&g_muSFKeyISO)->default_value(g_muSFKeyISO),"Muon ISO SF key")
+        ("--muSFKeyTRG",po::value<std::string>(&g_muSFKeyTRG)->default_value(g_muSFKeyTRG),"Muon trigger SF key")
+        ("--rochJSON",  po::value<std::string>(&g_rochJSON)->default_value("auto"),        "Rochester JSON (path) or 'auto' => RoccoR<era>.json")
+        ("--rochKeyDT", po::value<std::string>(&g_rochKeyDT)->default_value(g_rochKeyDT),  "Rochester data key")
+        ("--rochKeyMC", po::value<std::string>(&g_rochKeyMC)->default_value(g_rochKeyMC),  "Rochester MC key")
+        ("--jmeDir",     po::value<std::string>(&g_jmeDir)->default_value(g_jmeDir), "Directory containing JME JSONs")
+        ("--jercJSON",   po::value<std::string>(&g_jercJSON)->default_value("auto"), "Path to JERC JSON, or 'auto' => jet_jerc<era>.json")
+        ("--jetVetoJSON",po::value<std::string>(&g_jetVetoJSON)->default_value("auto"), "Path to veto map JSON, or 'auto' => jetvetomaps<era>.json")
+        ("--jetIdJSON",  po::value<std::string>(&g_jetIdJSON)->default_value("auto"), "Path to jet ID JSON, or 'auto' => jetid<era>.json")
     ;
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	po::notify(vm);
     
-    if (__isMC) {  // only load for MC
-    if (g_weightsFile != "None") {
-        loadWeightsFile(g_weightsFile);
-        }
-    }
-
     if (vm.count("help") || argc<2)
 	{
 		std::cout << desc << std::endl;
@@ -1660,6 +1871,35 @@ int main(int argc, char** argv)
     _subleadJetEta = vm["subleadJetEta"].as<double>();
     _dijetMass_VBF = vm["dijetMass_VBF"].as<double>();
     _dijetdEta_VBF = vm["dijetdEta_VBF"].as<double>();
+    
+    // --- Load weights & pick lumi for the chosen era (only for MC) ---
+    if (__isMC && g_weightsFile != "None") {
+        loadWeightsFile(g_weightsFile);   // fills g_sectionLumis / g_sectionSamples
+
+        // Choose lumi from the section named by --era (e.g. 12022, 22022, 12023, 22023)
+        auto sec = g_sectionLumis.find(g_era);
+        if (sec != g_sectionLumis.end()) {
+            auto &lmap = sec->second;
+            // Prefer canonical "lumi" if present; otherwise fall back to any "luminosity_*" in that section
+            if (lmap.count("lumi")) {
+                g_selected_lumi = lmap.at("lumi");
+            } else {
+                // fallback: first luminosity_* key if user used specific names like luminosity_BCD/EFG/D
+                for (const auto &kv : lmap) {
+                    if (kv.first.rfind("luminosity", 0) == 0) { g_selected_lumi = kv.second; break; }
+                }
+            }
+            if (g_selected_lumi <= 0.0) {
+                std::cerr << "[weights] No valid lumi found in section [" << g_era
+                          << "]; using default " << g_selected_lumi << "\n";
+            }
+        } else {
+            std::cerr << "[weights] Era section [" << g_era
+                      << "] not found in weights file; using default lumi = "
+                      << g_selected_lumi << "\n";
+        }
+    }
+
     printCuts();
 
     
