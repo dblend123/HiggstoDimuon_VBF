@@ -20,6 +20,7 @@ tag="${2:?missing tag}"
 sample="${3:-DATA}"          # e.g. DY, TT, WZ, ... or DATA
 weights_remote="${4:-None}"  # transferred by Condor (we'll use its basename if present)
 maxEvents="${5:--1}"         # -1 = all
+era="${6:-22022}"  
 
 echo "=== Job $(date) ==="
 echo "tag=$tag  sample=$sample  maxEvents=$maxEvents"
@@ -55,7 +56,7 @@ fi
 
 # Build args; use the full (already-edited) list as-is
 bin="./process_HiggsAnalysis_wCutsExtended_NoPairing_v0"
-args=( --input "$inputList" --output "${tag}.root" --isMC "$isMC" --sample "$sample" )
+args=( --input "$inputList" --output "${tag}.root" --isMC "$isMC" --sample "$sample" --era "$era" )
 
 # Only pass --maxEvents if binary supports it
 if "$bin" --help 2>&1 | grep -q -- '--maxEvents'; then
@@ -83,7 +84,7 @@ ls -lh || true
 # Stage out to EOS (inside job)
 # --------------------
 OUTDIR="${OUTDIR:-MC}"   # comes from JDL environment = "OUTDIR=$(outdir)"
-EOS_BASE="/eos/user/d/dblend/Analyzed_SkimmedRun22CD/${OUTDIR}/${sample}"
+EOS_BASE="/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/${OUTDIR}/${sample}"
 EOS_URL="root://eosuser.cern.ch//${EOS_BASE}"
 
 echo

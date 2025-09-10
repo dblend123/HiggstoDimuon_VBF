@@ -31,8 +31,8 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Co
 # queue inputList, tag from $(path)/Background_input_lists/DYto2L-2Jets.txt
 
 # # EWK
-sample    = EWK
-queue inputList, tag from $(path)/Background_input_lists/EWK.txt
+# sample    = EWK
+# queue inputList, tag from $(path)/Background_input_lists/EWK.txt
  
 # # TT
 # sample    = TT
@@ -101,8 +101,8 @@ queue inputList, tag from $(path)/Background_input_lists/EWK.txt
 # queue inputList, tag from $(path)/Data_input_lists/Muon22022F.txt
   
 # # G
-# sample    = DATA
-# queue inputList, tag from $(path)/Data_input_lists/Muon22022G.txt
+sample    = DATA
+queue inputList, tag from $(path)/Data_input_lists/Muon22022G.txt
 
 # ===== 12023 DATA queue =====
 

@@ -220,10 +220,17 @@ struct JecEraConfig {
 // Optional: try to infer 2022EE/2023 data run from the input file name
 static std::string inferDataRunTag(const std::string& era, const std::string& inputFile) {
   if (era == "22022") {
-    if (inputFile.find("RunE") != std::string::npos) return "RunE";
-    if (inputFile.find("RunF") != std::string::npos) return "RunF";
-    if (inputFile.find("RunG") != std::string::npos) return "RunG";
-    return "RunE"; // default
+      // accept both "RunE/F/G" and your list naming "E_...list", "F_...list", "G_...list"
+    if (inputFile.find("RunE") != std::string::npos ||
+        inputFile.find("/E_")  != std::string::npos ||
+        inputFile.find("_E_")  != std::string::npos ) return "RunE";
+    if (inputFile.find("RunF") != std::string::npos ||
+        inputFile.find("/F_")  != std::string::npos ||
+        inputFile.find("_F_")  != std::string::npos ) return "RunF";
+    if (inputFile.find("RunG") != std::string::npos ||
+        inputFile.find("/G_")  != std::string::npos ||
+        inputFile.find("_G_")  != std::string::npos ) return "RunG";
+    return "RunE"; // safe default
   }
   if (era == "12023") {
     if (inputFile.find("RunCv4")   != std::string::npos) return "RunCv4";
@@ -433,6 +440,13 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
   const std::string prefix = isMC
       ? (cfg.prefixBase + "_MC")
       : (cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA");
+  
+  static bool jecOnce = false;
+  if (!jecOnce) {
+    std::cerr << "[JEC] era=" << g_era << " runTag=" << cfg.dataRunTag
+              << " prefix=" << prefix << std::endl;
+    jecOnce = true;
+  }
 
   float l1  = jetCorrections->at(prefix + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
   float l2  = jetCorrections->at(prefix + "_L2Relative_AK4PFPuppi")->evaluate({eta, pt});
@@ -1668,12 +1682,12 @@ void process()
         double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);  // your function
         float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
 
-          std::cout << std::setprecision(10) 
+         /*std::cout << std::setprecision(10) 
           << "genWeight=" << genWeight
           << " puTrue=" << Pileup_nTrueInt
           << " puW=" << pileupWeight
           << " base=" << base
-          << " total=" << Dataweight << "\n";
+          << " total=" << Dataweight << "\n";*/
 
         
         //	Selections

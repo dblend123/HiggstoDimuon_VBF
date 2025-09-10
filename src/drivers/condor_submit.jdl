@@ -1,5 +1,5 @@
 # Args: $1=inputList $2=tag $3=sample $4=weights $5=maxEvents
-arguments               = $(inputList) $(tag) $(sample) $(weights) $(maxEvents)
+arguments               = $(inputList) $(tag) $(sample) $(weights) $(maxEvents) $(era)
 
 executable              = run_job.sh
 output                  = HTCondor/outs/$(tag)_$(ClusterId).out
@@ -14,7 +14,7 @@ x509userproxy           = x509up.cert
 
 should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT
-dont_transfer_output_files  = "*"
+transfer_output_files  = ""
 
 # Fixed path to your weights file
 weights                 = weights.ini
@@ -50,54 +50,95 @@ request_cpus            = 1
 request_memory          = 2000
 request_disk            = 4000
 
+maxEvents = -1
+# era       = 12022
+# era       = 22022
+# era       = 12023
+era       = 22023
+
 # Base path to listfiles
-path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2022/Condor_listfiles/Skimmed_input_lists/
+path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/Condor_listfiles/Skimmed_input_lists/
 
-# ===== Example MC queue (DY; edit/uncomment others as needed) =====
+# ===== MC queue =====
+# ===== Background =====
+
+# # DY
 # sample    = DY
-# outdir    = MC
-# maxEvents = -1
-# queue inputList, tag from $(path)/DYto2L2Jets_input_lists.txt
+# queue inputList, tag from $(path)/DY_input_lists.txt
 
+# # EWK
+# sample    = EWK
+# queue inputList, tag from $(path)/EWK_input_lists.txt
+ 
 # # TT
 # sample    = TT
-# outdir    = MC
-# maxEvents = -1
-# queue inputList, tag from $(path)/TTto2L2Nu_input_lists.txt
+# queue inputList, tag from $(path)/TT_input_lists.txt
+ 
+# # WWW
+# sample    = WWW
+# queue inputList, tag from $(path)/WWW_input_lists.txt
 
-# # WZ->2L2Q
-# sample    = WZ
-# outdir    = MC
-# maxEvents = -1
+# # WWZ
+# sample    = WWZ
+# queue inputList, tag from $(path)/WWZ_input_lists.txt
+ 
+# # WZZ
+# sample    = WZZ
+# queue inputList, tag from $(path)/WZZ_input_lists.txt
+ 
+# # WZto2L2Q
+# sample    = WZto2L2Q
 # queue inputList, tag from $(path)/WZto2L2Q_input_lists.txt
 
-# # WZ->3LNu
+# # WZto3LNu
 # sample    = WZto3LNu
-# outdir    = MC
-# maxEvents = -1
 # queue inputList, tag from $(path)/WZto3LNu_input_lists.txt
-
-# # ZZ->2L2Nu
-sample    = ZZto2L2Nu
-outdir    = MC
-maxEvents = -1
-queue inputList, tag from $(path)/ZZto2L2Nu_input_lists.txt
-
-# # ZZ->2L2Q
+ 
+# # ZZZ
+# sample    = ZZZ
+# queue inputList, tag from $(path)/ZZZ_input_lists.txt
+ 
+# # ZZto2L2Nu
+# sample    = ZZto2L2Nu
+# queue inputList, tag from $(path)/ZZto2L2Nu_input_lists.txt
+ 
+# # ZZto2L2Q
 # sample    = ZZto2L2Q
-# outdir    = MC
-# maxEvents = -1
 # queue inputList, tag from $(path)/ZZto2L2Q_input_lists.txt
+ 
+# # ZZto4L
+# sample    = ZZto4L
+# queue inputList, tag from $(path)/ZZto4L_input_lists.txt
+
+# ===== Signal =====
 
 # # VBF
 # sample    = VBF
-# outdir    = MC
-# maxEvents = -1
 # queue inputList, tag from $(path)/VBF_input_lists.txt
 
-# ===== DATA example =====
+# ===== 12022 DATA queue =====
+
+# # C/D
 # sample    = DATA
-# outdir    = Data
-# maxEvents = -1
-# queue inputList, tag from $(path)/Muon_input_lists.txt
+# queue inputList, tag from $(path)/DATA_input_lists.txt
+
+# ===== 22022 DATA queue =====
+
+# # E/F/G
+# sample    = DATA
+# queue inputList, tag from $(path)/DATA_input_lists.txt
+
+# ===== 12023 DATA queue =====
+
+# # B/C
+# # Muon0/1
+# sample    = DATA
+# queue inputList, tag from $(path)/DATA_input_lists.txt
+
+# ===== 22023 DATA queue =====
+
+# # D
+# # Muon0/1
+# sample    = DATA
+# queue inputList, tag from $(path)/DATA_input_lists.txt
 

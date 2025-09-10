@@ -1,0 +1,42 @@
+== Job started: Wed Sep 10 05:07:49 PM CEST 2025
+Host: b9g03p2624.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Data_listfiles/G/Muon2022G_part002.list'  tag='G_002MCRun22022'  sample='DATA'
+MAX_EVENTS:  -1
+Using Condor proxy: /pool/condor/dir_2434329/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Data_listfiles/G/Muon2022G_part002.list
+Input list has 8 lines
+root://cms-xrd-global.cern.ch//store/data/Run2022G/Muon/NANOAOD/22Sep2023-v1/30000/822a34d7-7f2b-496d-a584-0ea331a23b35.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2022G/Muon/NANOAOD/22Sep2023-v1/30000/c9cc9079-72e7-4cf9-889d-3df1a6ea40e1.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2022G/Muon/NANOAOD/22Sep2023-v1/30000/b71935af-8245-4e81-a169-80a2b5b8f9bd.root ...
+Using skimmer: my_skim
+90f99533a7cc64f35ab97b890ecb933d  ./my_skim
+ 0x000000000000000f (RPATH)              Library rpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: G_002MCRun22022
+Running: ./my_skim '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Data_listfiles/G/Muon2022G_part002.list' '-1'
+Requested ALL events
+Writing: ./skims/misc/Skimmed_822a34d7-7f2b-496d-a584-0ea331a23b35.root
+Writing: ./skims/misc/Skimmed_c9cc9079-72e7-4cf9-889d-3df1a6ea40e1.root
+Writing: ./skims/misc/Skimmed_b71935af-8245-4e81-a169-80a2b5b8f9bd.root
+Writing: ./skims/misc/Skimmed_7da91c1a-f2f0-485c-b9b9-2270b0e61b0c.root
+Writing: ./skims/misc/Skimmed_4f50f6c4-559f-4b49-86a3-225c35b0344b.root
+Writing: ./skims/misc/Skimmed_252efaaa-23d7-413a-919d-44976ba30937.root
+Writing: ./skims/misc/Skimmed_84090821-a0d2-4477-a332-21ec467d5186.root
+Writing: ./skims/misc/Skimmed_56fac115-461b-4533-8ea1-f2829582d6c7.root
+
+Done. Files skimmed: 8  |  Events kept: 1706183
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022
+Found 8 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_252efaaa-23d7-413a-919d-44976ba30937.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_4f50f6c4-559f-4b49-86a3-225c35b0344b.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_56fac115-461b-4533-8ea1-f2829582d6c7.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_7da91c1a-f2f0-485c-b9b9-2270b0e61b0c.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_822a34d7-7f2b-496d-a584-0ea331a23b35.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_84090821-a0d2-4477-a332-21ec467d5186.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_b71935af-8245-4e81-a169-80a2b5b8f9bd.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/DATA/G_002MCRun22022/Skimmed_c9cc9079-72e7-4cf9-889d-3df1a6ea40e1.root
+Done staging.
+== Job finished: Wed Sep 10 05:15:55 PM CEST 2025
