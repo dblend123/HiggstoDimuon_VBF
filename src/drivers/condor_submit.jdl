@@ -51,10 +51,10 @@ request_memory          = 2000
 request_disk            = 4000
 
 maxEvents = -1
-# era       = 12022
+era       = 12022
 # era       = 22022
 # era       = 12023
-era       = 22023
+# era       = 22023
 
 # Base path to listfiles
 path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/Condor_listfiles/Skimmed_input_lists/
@@ -113,8 +113,8 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # ===== Signal =====
 
 # # VBF
-# sample    = VBF
-# queue inputList, tag from $(path)/VBF_input_lists.txt
+sample    = VBF
+queue inputList, tag from $(path)/VBF_input_lists.txt
 
 # ===== 12022 DATA queue =====
 

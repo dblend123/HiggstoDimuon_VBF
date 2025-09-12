@@ -15,6 +15,8 @@ if [[ -z "${INPUT_LIST}" || -z "${TAG}" || -z "${SAMPLE}" ]]; then
   echo "Usage: $0 <inputList> <tag> <sample>" >&2
   exit 2
 fi
+ERA="${4:-}"
+
 # my_skim takes: <filelist> <max_events>
 MAX_EVENTS="${MAX_EVENTS:- -1}"
 # normalize MAX_EVENTS to avoid stray leading spaces
@@ -129,12 +131,12 @@ echo "my_skim exit code: ${SKIM_RC}"
 # Stage-out to EOS (and remove local files)
 # ---------------------------
 # Allow override via EOS_BASE; otherwise default to your user path
-DEFAULT_EOS_BASE="root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/${SAMPLE}/${TAG_CLEAN}"
+DEFAULT_EOS_BASE="root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/${ERA}/${SAMPLE}/${TAG_CLEAN}"
 EOS_BASE="${EOS_BASE:-${DEFAULT_EOS_BASE}}"
 
 echo "Staging to: ${EOS_BASE}"
 # Make dir on EOS (ignore if exists)
-xrdfs root://eosuser.cern.ch mkdir -p "/eos/user/d/dblend/SkimmedFiles/22022/${SAMPLE}/${TAG_CLEAN}" || true
+xrdfs root://eosuser.cern.ch mkdir -p "/eos/user/d/dblend/SkimmedFiles/${ERA}/${SAMPLE}/${TAG_CLEAN}" || true
 
 # Gather outputs
 mapfile -t OUTS < <(find ./skims -type f -name 'Skimmed_*.root' 2>/dev/null | LC_ALL=C sort || true)

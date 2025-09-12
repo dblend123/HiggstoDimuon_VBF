@@ -35,6 +35,8 @@
 #include "boost/program_options.hpp"
 #include "signal.h"
 #include "memory"
+#include <map>
+#include <set>
 
 // Reading Weights
 #include <fstream>
@@ -161,8 +163,8 @@ std::string g_muSFKeyISO = "NUM_TightPFIso_DEN_TightID";
 std::string g_muSFKeyTRG = "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight";
 
 std::string g_rochJSON  = "auto";   // "auto" => RoccoR<era>.json
-std::string g_rochKeyDT = "kScaleDT";
-std::string g_rochKeyMC = "kScaleMC";
+static std::string g_rochKeyDT = "kScaleDT";
+static std::string g_rochKeyMC = "kScaleMC";
 
 static std::string muSFFileForEra(const std::string& era) {
     if (g_muSFJSON != "auto") return g_muSFJSON;
@@ -192,6 +194,39 @@ void loadMuonCorrections() {
         corrections = nullptr;
         muoncorrections = nullptr;
     }
+
+    // --- Verify Rochester keys (probe + fallback) ---
+    try {
+        (void) muoncorrections->at(g_rochKeyDT)->evaluate({+1, 30.0, 0.0, 0.0, 0, 0});
+        std::cerr << "[MUON] Rochester DT key: " << g_rochKeyDT << "\n";
+    } catch (const std::exception& e) {
+        std::cerr << "[MUON] WARN: '" << g_rochKeyDT
+                  << "' failed probe (" << e.what() << "). Trying fallback 'kScaleDT'.\n";
+        try {
+            (void) muoncorrections->at("kScaleDT")->evaluate({+1, 30.0, 0.0, 0.0, 0, 0});
+            g_rochKeyDT = "kScaleDT";
+            std::cerr << "[MUON] Rochester DT key resolved to 'kScaleDT'.\n";
+        } catch (const std::exception& e2) {
+            std::cerr << "[MUON] ERROR: No valid Rochester DT key found (" << e2.what() << "). DT scale will be 1.0.\n";
+            g_rochKeyDT.clear();
+        }
+    }
+
+    try {
+        (void) muoncorrections->at(g_rochKeyMC)->evaluate({+1, 30.0, 0.0, 0.0, 0, 0});
+        std::cerr << "[MUON] Rochester MC key: " << g_rochKeyMC << "\n";
+    } catch (const std::exception& e) {
+        std::cerr << "[MUON] WARN: '" << g_rochKeyMC
+                  << "' failed probe (" << e.what() << "). Trying fallback 'kScaleMC'.\n";
+        try {
+            (void) muoncorrections->at("kScaleMC")->evaluate({+1, 30.0, 0.0, 0.0, 0, 0});
+            g_rochKeyMC = "kScaleMC";
+            std::cerr << "[MUON] Rochester MC key resolved to 'kScaleMC'.\n";
+        } catch (const std::exception& e2) {
+            std::cerr << "[MUON] ERROR: No valid Rochester MC key found (" << e2.what() << "). MC scale will be 1.0.\n";
+            g_rochKeyMC.clear();
+        }
+    }
 }
 
 // -------------------------------------
@@ -220,16 +255,16 @@ struct JecEraConfig {
 // Optional: try to infer 2022EE/2023 data run from the input file name
 static std::string inferDataRunTag(const std::string& era, const std::string& inputFile) {
   if (era == "22022") {
-      // accept both "RunE/F/G" and your list naming "E_...list", "F_...list", "G_...list"
+    // accept both "RunE/F/G" and your list naming "E_...list", "F_...list", "G_...list"
     if (inputFile.find("RunE") != std::string::npos ||
         inputFile.find("/E_")  != std::string::npos ||
-        inputFile.find("_E_")  != std::string::npos ) return "RunE";
+         inputFile.find("_E_")  != std::string::npos) return "RunE";
     if (inputFile.find("RunF") != std::string::npos ||
         inputFile.find("/F_")  != std::string::npos ||
-        inputFile.find("_F_")  != std::string::npos ) return "RunF";
+        inputFile.find("_F_")  != std::string::npos) return "RunF";
     if (inputFile.find("RunG") != std::string::npos ||
         inputFile.find("/G_")  != std::string::npos ||
-        inputFile.find("_G_")  != std::string::npos ) return "RunG";
+        inputFile.find("_G_")  != std::string::npos) return "RunG";
     return "RunE"; // safe default
   }
   if (era == "12023") {
@@ -398,25 +433,49 @@ float getMuonRochester(const Muon& mu, bool isMC)
 {
     if (!muoncorrections) {
         std::cerr << "[ERROR] Rochester corrections not loaded!\n";
-        return 1.0;
+        return 1.0f;
     }
 
-    float pt     = mu._bsConstrainedPt;
-    float eta    = mu._eta;
-    float phi    = mu._phi;
-    int   charge = mu._charge;
+    // --- Sanitize inputs ---
+    int   charge = (mu._charge > 0) ? +1 : (mu._charge < 0 ? -1 : +1); // zero -> +1
+    float pt     = std::isfinite(mu._bsConstrainedPt) ? mu._bsConstrainedPt : mu._pt;
+    float eta    = std::isfinite(mu._eta) ? mu._eta : 0.0f;
+    float phi    = std::isfinite(mu._phi) ? mu._phi : 0.0f;
+
+    // keep pt in a safe physical range
+    if (!std::isfinite(pt) || pt <= 0.f) return 1.0f;
+
+    // wrap phi into [-pi, pi] if it drifted
+    if (phi >  M_PI) phi = std::fmod(phi + M_PI, 2*M_PI) - M_PI;
+    if (phi < -M_PI) phi = std::fmod(phi - M_PI, 2*M_PI) + M_PI;
+
     int s = 0;
     int m = 0;
 
     try {
-        if (!isMC) {  // DATA
+        // Primary: numeric leafs (kScaleDT/kScaleMC)
+        if (!isMC) {
+            if (g_rochKeyDT.empty()) return 1.0f;
             return muoncorrections->at(g_rochKeyDT)->evaluate({charge, pt, eta, phi, s, m});
-        } else {      // MC
+        } else {
+            if (g_rochKeyMC.empty()) return 1.0f;
             return muoncorrections->at(g_rochKeyMC)->evaluate({charge, pt, eta, phi, s, m});
         }
     } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Failed to evaluate Rochester correction: " << e.what() << std::endl;
-        return 1.0;
+        // Fallback: some JSONs expose a category node requiring a string first (rare).
+        try {
+            const char* tag = isMC ? "MC" : "DT";
+            return muoncorrections->at("RoccoR")->evaluate({std::string(tag), charge, pt, eta, phi, s, m});
+        } catch (const std::exception& e2) {
+            static int printed = 0;
+            if (printed++ < 5) {
+                std::cerr << "[ERROR] Rochester failed. primary=" << e.what()
+                          << " fallback=" << e2.what()
+                          << " (charge=" << charge << ", pt=" << pt
+                          << ", eta=" << eta << ", phi=" << phi << ")\n";
+            }
+            return 1.0f;
+        }
     }
 }
 
@@ -425,42 +484,276 @@ float getMuonRochester(const Muon& mu, bool isMC)
 // -------------------------------------
 
 float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet) {
-  if (!jetCorrections) {
-    std::cerr << "[ERROR] Jet corrections not loaded!\n";
-    return jet._pt;
-  }
+    if (!jetCorrections) {
+        std::cerr << "[ERROR] Jet corrections not loaded!\n";
+        return jet._pt;
+    }
 
-  const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
+    const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
 
-  float eta  = std::clamp(jet._eta, -5.191f, 5.191f);
-  float pt   = std::max(jet._pt, 0.1f);
-  float area = jet._area;
+    float eta  = std::clamp(jet._eta, -5.191f, 5.191f);
+    float pt   = std::max(jet._pt, 0.1f);
+    float phi  = jet._phi;
+    float area = jet._area;
 
-  // JEC prefixes (MC vs DATA)
-  const std::string prefix = isMC
-      ? (cfg.prefixBase + "_MC")
-      : (cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA");
+    // JEC prefixes (MC vs DATA)
+    const std::string prefix = isMC
+        ? (cfg.prefixBase + "_MC")
+        : (cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA");
   
-  static bool jecOnce = false;
-  if (!jecOnce) {
-    std::cerr << "[JEC] era=" << g_era << " runTag=" << cfg.dataRunTag
-              << " prefix=" << prefix << std::endl;
-    jecOnce = true;
+    static bool jecOnce = false;
+    if (!jecOnce) {
+        std::cerr << "[JEC] era=" << g_era << " runTag=" << cfg.dataRunTag << " prefix=" << prefix << std::endl;
+        jecOnce = true;
+    }
+
+// --- L2/L3/Residual adapter ----------------------------------------------
+// Some JEC pieces take (eta,phi,pt), others only (eta,pt).
+auto evalEtaPhiPtOrEtaPt = [&](const std::string& key, float eta_, float phi_, float pt_) -> float {
+    static std::map<std::string,int> mode;
+    try {
+        if (mode[key] != 2) {
+            double v3 = jetCorrections->at(key)->evaluate({eta_, phi_, pt_});
+            mode[key] = 3;
+            static std::set<std::string> printed;
+            if (!printed.count(key)) {
+                std::cerr << "[JEC] " << key << " uses 3-arg schema (eta,phi,pt)\n";
+                printed.insert(key);
+            }
+                return v3;
+        }
+    } catch (...) { /* fall through */ }
+    
+    double v2 = jetCorrections->at(key)->evaluate({eta_, pt_});
+    mode[key] = 2;
+    static std::set<std::string> printed;
+    if (!printed.count(key)) {
+        std::cerr << "[JEC] " << key << " uses 2-arg schema (eta,pt)\n";
+        printed.insert(key);
+    }
+        return v2;
+  };
+
+// Insert the run tag (e.g. "RunE") just before the trailing "_V..." in the base,
+// e.g. base="Summer22EE_22Sep2023_V2" + "RunE" -> "Summer22EE_22Sep2023_RunE_V2"
+auto insertRunBeforeVersion = [](const std::string& base, const std::string& runTag) {
+    const auto pos = base.rfind("_V");
+    if (pos == std::string::npos) return base + "_" + runTag; // fallback
+        return base.substr(0, pos) + "_" + runTag + base.substr(pos);
+};
+
+// Build candidate DATA keys for a given step ("L1FastJet_AK4PFPuppi", "L2Relative_AK4PFPuppi", ...)
+auto dataKeyCandidates = [&](const std::string& step) -> std::vector<std::string> {
+    std::vector<std::string> ks;
+
+    if (g_era == "12022") {
+        // Exact from your file: Summer22_22Sep2023_RunCD_V2_DATA_<STEP>
+        ks.push_back(insertRunBeforeVersion(cfg.prefixBase, "RunCD") + "_DATA_" + step);
+        // Loose fallback: no run tag
+        ks.push_back(cfg.prefixBase + "_DATA_" + step);
+    }
+    else if (g_era == "22022") {
+        // Exact per-run keys exist in your file for E/F/G
+        ks.push_back(insertRunBeforeVersion(cfg.prefixBase, cfg.dataRunTag) + "_DATA_" + step); // RunE/RunF/RunG
+        // Loose fallback: no run tag
+        ks.push_back(cfg.prefixBase + "_DATA_" + step);
+    }
+    else if (g_era == "12023") {
+        // Steps have NO run tag in keys: Summer23Prompt23_V2_DATA_<STEP>
+        ks.push_back(cfg.prefixBase + "_DATA_" + step);
+    }
+    else if (g_era == "22023") {
+        // Steps have NO run tag in keys: Summer23BPixPrompt23_V3_DATA_<STEP>
+        ks.push_back(cfg.prefixBase + "_DATA_" + step);
+    } else {
+        // Generic fallback
+        ks.push_back(cfg.prefixBase + "_DATA_" + step);
+    }
+
+    return ks;
+};
+
+// --- DATA compound L1L2L3Res adapter ------------------------------------
+// Some DATA JSONs expose a compound correction key:
+//   <prefixBase>_DATA_L1L2L3Res_AK4PFPuppi
+// Inputs can be (area,eta,pt,rho,phi) OR (area,eta,pt,rho,phi,run).
+auto evalDataCompoundL1L2L3Res = [&](float area_, float eta_, float pt_, float rho_, float phi_) -> std::optional<float> {
+  // Build candidate keys for your eras (matches your lists)
+  std::vector<std::string> keys;
+  if (g_era == "12022") {
+    // Summer22_22Sep2023_RunCD_V2_DATA_L1L2L3Res_AK4PFPuppi  (exists)
+    auto k = insertRunBeforeVersion(cfg.prefixBase, "RunCD") + "_DATA_L1L2L3Res_AK4PFPuppi";
+    keys.push_back(k);
+  } else if (g_era == "22022") {
+    // Summer22EE_22Sep2023_RunE/F/G_V2_DATA_L1L2L3Res_AK4PFPuppi  (exists per run)
+    auto k = insertRunBeforeVersion(cfg.prefixBase, cfg.dataRunTag) + "_DATA_L1L2L3Res_AK4PFPuppi";
+    keys.push_back(k);
+  } else if (g_era == "12023") {
+    // Summer23Prompt23_V2_DATA_L1L2L3Res_AK4PFPuppi  (exists)
+    keys.push_back(cfg.prefixBase + "_DATA_L1L2L3Res_AK4PFPuppi");
+  } else if (g_era == "22023") {
+    // Summer23BPixPrompt23_V3_DATA_L1L2L3Res_AK4PFPuppi  (exists)
+    keys.push_back(cfg.prefixBase + "_DATA_L1L2L3Res_AK4PFPuppi");
+  } else {
+    keys.push_back(cfg.prefixBase + "_DATA_L1L2L3Res_AK4PFPuppi");
   }
 
-  float l1  = jetCorrections->at(prefix + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
-  float l2  = jetCorrections->at(prefix + "_L2Relative_AK4PFPuppi")->evaluate({eta, pt});
-  float l3  = jetCorrections->at(prefix + "_L3Absolute_AK4PFPuppi")->evaluate({eta, pt});
-  float res = isMC ? 1.0f : jetCorrections->at(prefix + "_L2L3Residual_AK4PFPuppi")->evaluate({eta, pt});
+  // Try each candidate with 5-arg first, then (if it fails) with a synthetic run number (e.g. 0)
+  for (const auto& key : keys) {
+    try {
+      double v5 = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, phi_});
+      static std::set<std::string> printed;
+      if (!printed.count(key)) {
+        std::cerr << "[JEC] Using DATA compound key (5-arg): " << key << "\n";
+        printed.insert(key);
+      }
+      return (float)v5;
+    } catch (...) {
+      // try 6-arg form with 'run' if the node expects it
+      try {
+        // If you have an event run number available, replace 0 with it.
+        double v6 = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, phi_, (double)0});
+        static std::set<std::string> printed;
+        if (!printed.count(key)) {
+          std::cerr << "[JEC] Using DATA compound key (6-arg with run): " << key << "\n";
+          printed.insert(key);
+        }
+        return (float)v6;
+      } catch (...) {
+        // keep trying next candidate
+      }
+    }
+  }
+
+  return std::nullopt; // no compound available
+};
+
+// Evaluate a DATA JEC step with fallbacks (handles (eta,phi,pt) vs (eta,pt) internally via your evalEtaPhiPtOrEtaPt)
+auto evalDataStep = [&](const std::string& step, float eta_, float phi_, float pt_) -> float {
+    for (const auto& k : dataKeyCandidates(step)) {
+        try {
+            return evalEtaPhiPtOrEtaPt(k, eta_, phi_, pt_);
+        } catch (const std::exception&) {
+        // try next candidate
+        }
+    }
+
+static std::set<std::string> warned;
+    if (!warned.count(step)) {
+        std::cerr << "[JEC WARN] No DATA key matched for step '" << step << "' (era=" << g_era << ", tag=" << cfg.dataRunTag << "). Using 1.0.\n";
+        warned.insert(step);
+    }
+    return 1.0f;
+};
+
+// Evaluate DATA L1 with fallbacks (L1 in all your sets is 4-arg: area,eta,pt,rho)
+auto evalDataL1 = [&](float area_, float eta_, float pt_, float rho_) -> float {
+    const std::string step = "L1FastJet_AK4PFPuppi";
+    for (const auto& k : dataKeyCandidates(step)) {
+        try {
+            return (float)jetCorrections->at(k)->evaluate({area_, eta_, pt_, rho_});
+        } catch (const std::exception&) {
+        // try next candidate
+        }
+    }
+
+static bool warned = false;
+    if (!warned) {
+        std::cerr << "[JEC WARN] No DATA key matched for L1FastJet (era=" << g_era << ", tag=" << cfg.dataRunTag << "). Using 1.0.\n";
+        warned = true;
+    }
+    return 1.0f;
+};
+
+float jecFactor = 1.0f;
+
+if (!isMC) {
+  // Prefer compound for DATA if present
+  if (auto comp = evalDataCompoundL1L2L3Res(area, eta, pt, rho, phi); comp.has_value()) {
+    jecFactor = comp.value();
+  } else {
+    // Fall back to the piecewise product (your existing logic)
+    float l1  = evalDataL1(area, eta, pt, rho);
+    float l2  = evalDataStep("L2Relative_AK4PFPuppi",  eta, phi, pt);
+    float l3  = evalDataStep("L3Absolute_AK4PFPuppi",  eta, phi, pt);
+    float res = evalDataStep("L2L3Residual_AK4PFPuppi", eta, phi, pt); // may be 1.0 if missing
+    jecFactor = l1 * l2 * l3 * res;
+  }
+} else {
+  // MC: keep your current MC path
+  float l1  = (float)jetCorrections->at(prefix + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
+  float l2  = evalEtaPhiPtOrEtaPt(prefix + "_L2Relative_AK4PFPuppi",  eta, phi, pt);
+  float l3  = evalEtaPhiPtOrEtaPt(prefix + "_L3Absolute_AK4PFPuppi",  eta, phi, pt);
+  float res = 1.0f; // residuals are DATA-only
+  jecFactor = l1 * l2 * l3 * res;
+}
+
+float corr_pt = pt * jecFactor;
+
+
+/*    // MC uses the normal keys you already call; DATA uses the fallbacks above
+    float l1  = isMC ? (float)jetCorrections->at(prefix + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho})
+                     : evalDataL1(area, eta, pt, rho);
+
+    float l2  = isMC ? evalEtaPhiPtOrEtaPt(prefix + "_L2Relative_AK4PFPuppi",  eta, phi, pt)
+                     : evalDataStep("L2Relative_AK4PFPuppi",  eta, phi, pt);
+
+    float l3  = isMC ? evalEtaPhiPtOrEtaPt(prefix + "_L3Absolute_AK4PFPuppi",  eta, phi, pt)
+                     : evalDataStep("L3Absolute_AK4PFPuppi",  eta, phi, pt);
+
+// Residual only for DATA
+float res = isMC ? 1.0f
+                 : evalDataStep("L2L3Residual_AK4PFPuppi", eta, phi, pt);
 
   float jecFactor = l1 * l2 * l3 * res;
   float corr_pt   = pt * jecFactor;
+*/
+// --- JER adapters -------------------------------------------------------
+// Some JER ScaleFactor JSONs take (eta, pt, "nom"), others take (eta, "nom") only.
+auto evalJerScale = [&](const std::string& key, double eta_, double pt_) -> double {
+    static int mode = 0; // 0=unknown, 3=(eta,pt,"nom"), 2=(eta,"nom")
+    try {
+        if (mode != 2) {
+            double v3 = jetCorrections->at(key)->evaluate({eta_, pt_, std::string("nom")});
+            mode = 3;
+            static bool printed3=false;
+            if (!printed3) { std::cerr << "[JER] " << key << " uses 3-arg schema (eta,pt,\"nom\")\n"; printed3=true; }
+                return v3;
+        }
+    } catch (...) { /* fall through to 2-arg */ }
+    
+    double v2 = jetCorrections->at(key)->evaluate({eta_, std::string("nom")});
+    mode = 2;
+    static bool printed2=false;
+    if (!printed2) { std::cerr << "[JER] " << key << " uses 2-arg schema (eta,\"nom\")\n"; printed2=true; }
+        return v2;
+    };
+
+// Some JER Resolution JSONs take (eta, pt, rho), others take (eta, pt).
+auto evalJerRes = [&](const std::string& key, double eta_, double pt_, double rho_) -> double {
+    static int mode = 0; // 0=unknown, 3=(eta,pt,rho), 2=(eta,pt)
+    try {
+        if (mode != 2) {
+            double v3 = jetCorrections->at(key)->evaluate({eta_, pt_, rho_});
+            mode = 3;
+            static bool printed3=false;
+            if (!printed3) { std::cerr << "[JER] " << key << " uses 3-arg schema (eta,pt,rho)\n"; printed3=true; }
+                return v3;
+        }
+    } catch (...) { /* fall through to 2-arg */ }
+    
+    double v2 = jetCorrections->at(key)->evaluate({eta_, pt_});
+    mode = 2;
+    static bool printed2=false;
+    if (!printed2) { std::cerr << "[JER] " << key << " uses 2-arg schema (eta,pt)\n"; printed2=true; }
+        return v2;
+ };
 
   // ---- JER (MC only) ----
   if (isMC) {
     // Use JRV1 keys from your JSON
-    double sf = jetCorrections->at(cfg.jerScaleKey)->evaluate({(double)eta, (double)corr_pt, std::string("nom")});
-    
+    double sf = evalJerScale(cfg.jerScaleKey, (double)eta, (double)corr_pt);
+
     if (hasGenJet && genJetPt > 0.f) {
       // Truth-anchored smearing
       float smear = 1.0f + (sf - 1.0f) * (corr_pt - genJetPt) / std::max(corr_pt, 1e-3f);
@@ -469,7 +762,7 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
       corr_pt *= smear;
     } else {
       // Stochastic smearing
-      double reso = jetCorrections->at(cfg.jerResKey)->evaluate({(double)eta, (double)corr_pt, (double)rho});
+      double reso = evalJerRes(cfg.jerResKey, (double)eta, (double)corr_pt, (double)rho);
       float sigma = static_cast<float>(reso * std::sqrt(std::max(sf*sf - 1.0, 0.0)));
       // Consider a deterministic seed (event, jet index) if you run multithreaded
       static TRandom3 rand(42);
