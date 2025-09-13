@@ -1,0 +1,39 @@
+013 (9520728.003.000) 09/13 19:11:29 Job was released.
+	via condor_release (by user dblend)
+...
+040 (9520728.003.000) 09/13 19:41:26 Started transferring input files
+	Transferring to host: <128.142.33.35:9618?addrs=128.142.33.35-9618+[2001-1458-301-53--100-20]-9618&alias=b9g34p7363.cern.ch&noUDP&sock=slot1_20_241294_338d_89048>
+...
+040 (9520728.003.000) 09/13 19:41:26 Finished transferring input files
+...
+001 (9520728.003.000) 09/13 19:41:26 Job executing on host: <128.142.33.35:9618?addrs=128.142.33.35-9618+[2001-1458-301-53--100-20]-9618&alias=b9g34p7363.cern.ch&noUDP&sock=startd_233529_0c61>
+	SlotName: slot1_20@b9g34p7363.cern.ch
+	CondorScratchDir = "/pool/condor/dir_3963843"
+	Cpus = 1
+	Disk = 6804
+	GPUs = 0
+	Memory = 3000
+...
+006 (9520728.003.000) 09/13 19:41:39 Image size of job updated: 50660
+	50  -  MemoryUsage of job (MB)
+	50660  -  ResidentSetSize of job (KB)
+...
+040 (9520728.003.000) 09/13 19:41:39 Started transferring output files
+...
+040 (9520728.003.000) 09/13 19:41:39 Finished transferring output files
+...
+004 (9520728.003.000) 09/13 19:41:39 Job was evicted.
+	(0) CPU times
+		Usr 0 00:00:02, Sys 0 00:00:01  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+	5300  -  Run Bytes Sent By Job
+	191869  -  Run Bytes Received By Job
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :        0        1         1 
+	   Disk (KB)            :      220     4000      6804 
+	   GPUs                 :                           0 
+	   Memory (MB)          :       50     3000      3000 
+...
+009 (9520728.003.000) 09/13 19:41:39 Job was aborted.
+	via condor_rm (by user dblend)
+...

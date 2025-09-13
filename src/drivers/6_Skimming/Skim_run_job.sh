@@ -32,6 +32,23 @@ echo "Host: ${host}"
 echo "Args: inputList='${INPUT_LIST}'  tag='${TAG}'  sample='${SAMPLE}'"
 echo "MAX_EVENTS:  ${MAX_EVENTS}"
 
+# Normalize the list file to the transferred local copy
+LIST_BASE="$(basename "${INPUT_LIST}")"
+LIST_LOCAL="${PWD}/${LIST_BASE}"
+echo "PWD: ${PWD}"
+echo "Input list arg: '${INPUT_LIST}' -> using local: '${LIST_LOCAL}'"
+
+if [[ -f "${LIST_LOCAL}" ]]; then
+  : # OK, use the transferred list
+elif [[ -f "${INPUT_LIST}" ]]; then
+  # Rare case: worker can see AFS; copy for consistency
+  cp -v "${INPUT_LIST}" "${LIST_LOCAL}"
+else
+  echo "FATAL: neither '${LIST_LOCAL}' (transferred) nor '${INPUT_LIST}' (original) exists on the worker." >&2
+  echo "Listing working dir:"; ls -l
+  exit 2
+fi
+
 # ---------------------------
 # Auth (optional): print proxy path if present
 # ---------------------------
@@ -73,13 +90,13 @@ echo "libdir:     $(root-config --libdir || echo 'unknown')"
 # ---------------------------
 # Input list sanity
 # ---------------------------
-echo "Using input list: ${INPUT_LIST}"
-if [[ ! -s "${INPUT_LIST}" ]]; then
-  echo "FATAL: Input list missing or empty: ${INPUT_LIST}" >&2
+echo "Using input list: ${LIST_LOCAL}"
+if [[ ! -s "${LIST_LOCAL}" ]]; then
+  echo "FATAL: Input list missing or empty: ${LIST_LOCAL}" >&2  
   exit 3
 fi
-echo "Input list has $(wc -l < "${INPUT_LIST}") lines"
-head -n 3 "${INPUT_LIST}" | sed 's|$| ...|' || true
+echo "Input list has $(wc -l < "${LIST_LOCAL}") lines"
+head -n 3 "${LIST_LOCAL}" | sed 's|$| ...|' || true
 
 # ---------------------------
 # Prepare skims dir
@@ -121,8 +138,8 @@ echo "Using cleaned TAG: ${TAG_CLEAN}"
 # Run the skimmer
 # ---------------------------
 set +e
-echo "Running: ./${SKIM_BIN} '${INPUT_LIST}' '${MAX_EVENTS}'"
-"./${SKIM_BIN}" "${INPUT_LIST}" "${MAX_EVENTS}"
+echo "Running: ./${SKIM_BIN} '${LIST_LOCAL}' '${MAX_EVENTS}'"
+"./${SKIM_BIN}" "${LIST_LOCAL}" "${MAX_EVENTS}"
 SKIM_RC=$?
 set -e
 echo "my_skim exit code: ${SKIM_RC}"

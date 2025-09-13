@@ -12,6 +12,6 @@ files=(
 for f in "${files[@]}"; do
   echo "==== $f ===="
   # Extract all words containing DATA
-  grep -o '\w*DATA\w*' "$f" | sort -u
+  grep -o '\w*Res\w*' "$f" | sort -u
 done
 

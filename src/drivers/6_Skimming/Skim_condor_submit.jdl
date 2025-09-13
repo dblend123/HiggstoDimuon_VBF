@@ -5,8 +5,8 @@ output                  = outs/$(tag)_$(ClusterId).out
 error                   = errors/$(tag)_$(ClusterId).err
 log                     = logs/$(tag)_$(ClusterId).log
 
-stream_output           = False
-stream_error            = False
+stream_output           = True
+stream_error            = True
 
 use_x509userproxy       = true
 x509userproxy           = x509up.cert

@@ -690,24 +690,6 @@ if (!isMC) {
 
 float corr_pt = pt * jecFactor;
 
-
-/*    // MC uses the normal keys you already call; DATA uses the fallbacks above
-    float l1  = isMC ? (float)jetCorrections->at(prefix + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho})
-                     : evalDataL1(area, eta, pt, rho);
-
-    float l2  = isMC ? evalEtaPhiPtOrEtaPt(prefix + "_L2Relative_AK4PFPuppi",  eta, phi, pt)
-                     : evalDataStep("L2Relative_AK4PFPuppi",  eta, phi, pt);
-
-    float l3  = isMC ? evalEtaPhiPtOrEtaPt(prefix + "_L3Absolute_AK4PFPuppi",  eta, phi, pt)
-                     : evalDataStep("L3Absolute_AK4PFPuppi",  eta, phi, pt);
-
-// Residual only for DATA
-float res = isMC ? 1.0f
-                 : evalDataStep("L2L3Residual_AK4PFPuppi", eta, phi, pt);
-
-  float jecFactor = l1 * l2 * l3 * res;
-  float corr_pt   = pt * jecFactor;
-*/
 // --- JER adapters -------------------------------------------------------
 // Some JER ScaleFactor JSONs take (eta, pt, "nom"), others take (eta, "nom") only.
 auto evalJerScale = [&](const std::string& key, double eta_, double pt_) -> double {

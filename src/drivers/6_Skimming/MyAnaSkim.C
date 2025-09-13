@@ -28,7 +28,10 @@ using namespace std;
 static string FileLocation(const string& initfile);
 
 //--------- output root dir --------
-static string NewPath = "./skims";   // change if you like
+//static string NewPath = "./skims";   // change if you like
+//static string NewPath = "/eos/user/d/dblend/SkimmedFiles/12022/DATA/C";   // change if you like
+//static string NewPath = "/eos/user/d/dblend/SkimmedFiles/12022/DATA/D";   // change if you like
+static string NewPath = "/eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023";   // change if you like
 
 //--------- run stats --------------
 static time_t startOfProgram = 0;
@@ -154,8 +157,9 @@ static string FileLocation(const string& initfile)
   }
 
   // ensure output dir exists
-  string outDir = NewPath + "/" + year + "/";
-  gSystem->mkdir(outDir.c_str(), /*recursive=*/true);
+  //string outDir = NewPath + "/" + year + "/";
+  string outDir = NewPath + "/" ;
+  //gSystem->mkdir(outDir.c_str(), recursive=true);
 
   return outDir + SK + fileName;
 }
@@ -304,7 +308,7 @@ int main(int argc, char* argv[])
   }
 
   // print/save cutflow
-  Hmm.EffPrint(eff_fname);
+  //Hmm.EffPrint(eff_fname);
 
   std::cout << "\nDone. Files skimmed: " << fcount << "  |  Events kept: " << ievnt << "\n";
   return 0;
