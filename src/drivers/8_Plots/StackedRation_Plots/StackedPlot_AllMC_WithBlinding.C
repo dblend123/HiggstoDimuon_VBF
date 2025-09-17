@@ -104,11 +104,11 @@ void StackedPlot_AllMC_WithBlinding(TString era = "12022") {
 
     // -------- Stack (signal on top for visibility) --------
     THStack* hs = new THStack("hs", ";;Events / 1 [GeV]");
-    hs->Add(h_DY, "HIST");
-    hs->Add(h_TT, "HIST");
-    hs->Add(h_VV, "HIST");
-    hs->Add(h_VVV, "HIST");
-    hs->Add(h_signal, "HIST");
+    hs->Add(h_signal, "HIST SAME");
+    hs->Add(h_VVV, "HIST SAME");
+    hs->Add(h_VV, "HIST SAME");
+    hs->Add(h_TT, "HIST SAME");
+    hs->Add(h_DY, "HIST SAME");
 
     // -------- Canvas & pads --------
     TCanvas* c = new TCanvas("c", "CMS Data vs MC", 800, 800);

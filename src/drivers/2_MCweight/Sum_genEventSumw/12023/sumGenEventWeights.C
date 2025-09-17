@@ -3,7 +3,7 @@ void sumGenEventWeights() {
     std::vector<std::pair<std::string, std::string>> filelists = {
         // Backgrounds
         {"DY",        "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/DYto2L-2Jets/fullpath.list"},
-        {"EWK",       "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/EWK/fullpath.list"},
+        /*{"EWK",       "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/EWK/fullpath.list"},
         {"TTto2L2Nu", "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/TTto2L2Nu/fullpath.list"},
         {"WWW",       "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/WWW/fullpath.list"},
         {"WWZ",       "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/WWZ/fullpath.list"},
@@ -16,12 +16,12 @@ void sumGenEventWeights() {
         {"ZZto4L",    "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/ZZto4L/fullpath.list"},
 
         // Signals
-        {"VBFHTo2Mu", "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Signal_listfiles/VBFHto2Mu/fullpath.list"},
+        {"VBFHTo2Mu", "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Signal_listfiles/VBFHto2Mu/fullpath.list"},*/
     };
 
     // Output file to store the results
-    //std::ofstream outfile("justtheonefile_genEventSumw_output.txt");
-    std::ofstream outfile("genEventSumw_output.txt");
+    std::ofstream outfile("DY_genEventSumw_output.txt");
+    //std::ofstream outfile("genEventSumw_output.txt");
     //std::ofstream outfile("Ext_genEventSumw_output.txt");
     if (!outfile.is_open()) {
         std::cerr << "Error: Could not open output file." << std::endl;
@@ -76,7 +76,8 @@ void sumGenEventWeights() {
     }
 
     outfile.close();
-    std::cout << "All results written to genEventSumw_output.txt" << std::endl;
+    std::cout << "All results written to DY_genEventSumw_output.txt" << std::endl;
+    //std::cout << "All results written to genEventSumw_output.txt" << std::endl;
     //std::cout << "All results written to Ext_genEventSumw_output.txt" << std::endl;
 }
 

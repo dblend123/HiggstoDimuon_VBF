@@ -1788,14 +1788,29 @@ void process()
     SET_BRANCH_FLOAT(fixedGridRhoFastjetAll);
    
     // --- Event-level weights from NanoAOD ---
-    float Generator_weight = 1.0f;   // falls back to 1 for DATA automatically
+    //float Generator_weight = 1.0f;   // falls back to 1 for DATA automatically
     float Pileup_nTrueInt  = 0.0f;
 
-    // Prefer NanoAODv12 branch names; keep fallbacks for older ntuples
+    float genWeight_branch = 1.0f;
+    float Generator_weight_branch = 1.0f;
+
+    if (ROOT_CHAIN->GetBranch("genWeight"))
+        ROOT_CHAIN->SetBranchAddress("genWeight", &genWeight_branch);
     if (ROOT_CHAIN->GetBranch("Generator_weight"))
+        ROOT_CHAIN->SetBranchAddress("Generator_weight", &Generator_weight_branch);
+
+    // Choose the one that matches Runs/genEventSumw semantics
+    auto pickGenW = [&]() -> float {
+        if (ROOT_CHAIN->GetBranch("genWeight")) return genWeight_branch;            // preferred
+        if (ROOT_CHAIN->GetBranch("Generator_weight")) return Generator_weight_branch; // fallback
+        return 1.0f;
+    };
+
+    // Prefer NanoAODv12 branch names; keep fallbacks for older ntuples
+    /*if (ROOT_CHAIN->GetBranch("Generator_weight"))
         ROOT_CHAIN->SetBranchAddress("Generator_weight", &Generator_weight);
     else if (ROOT_CHAIN->GetBranch("genWeight"))
-        ROOT_CHAIN->SetBranchAddress("genWeight", &Generator_weight);
+        ROOT_CHAIN->SetBranchAddress("genWeight", &Generator_weight);*/
 
     if (ROOT_CHAIN->GetBranch("Pileup_nTrueInt"))
         ROOT_CHAIN->SetBranchAddress("Pileup_nTrueInt", &Pileup_nTrueInt);
@@ -1950,17 +1965,23 @@ void process()
             }
         }
 
+        float genWeight = __isMC ? pickGenW() : 1.0f;
+        double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);
+        float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
+        
         // Generator weight straight from the branch
-        float genWeight = __isMC ? Generator_weight : 1.0f;
+        /*float genWeight = __isMC ? Generator_weight : 1.0f;
 
         // Final per-event weight
         double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);  // your function
-        float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
+        float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;*/
 
-         /*std::cout << std::setprecision(10) 
-          << "genWeight=" << genWeight
-          << " puTrue=" << Pileup_nTrueInt
-          << " puW=" << pileupWeight
+          /*std::cout << std::setprecision(10) 
+          << " genWeight=" << genWeight
+          //<< " Generator_weight=" << Generator_weight
+          << " Generator_weight=" << Generator_weight_branch
+          << " Pileup_nTrueInt=" << Pileup_nTrueInt
+          << " pileupWeight=" << pileupWeight
           << " base=" << base
           << " total=" << Dataweight << "\n";*/
 
