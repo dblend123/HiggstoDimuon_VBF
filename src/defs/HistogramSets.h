@@ -22,8 +22,8 @@ namespace analysis
                 hDiMuonpt = new TH1F("DiMuonpt", "DiMuonpt", 50, 0, 200);
                 hDiMuoneta = new TH1F("DiMuoneta", "DiMuoneta", 50, -2.5, 2.5);
                 hDiMuonrapidity = new TH1F("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
-                hDiMuonCS = new TH1F("DiMuonCS","DiMounCS", 30, -3.2, 3.2);
-                hDiMuoncosCS = new TH1F("DiMuoncosCS","DiMouncosCS", 30, -3.2, 3.2);
+                //hDiMuonCS = new TH1F("DiMuonCS","DiMounCS", 30, -3.2, 3.2);
+                //hDiMuoncosCS = new TH1F("DiMuoncosCS","DiMouncosCS", 30, -3.2, 3.2);
 
                 // -----  Muon Plots  -----
 				hMuon1pt = new TH1F("Muon1pt", "Muon1pt", 50, 0, 200);
@@ -31,7 +31,7 @@ namespace analysis
 				hMuon1eta = new TH1F("Muon1eta", "Muon1eta", 50, -2.5, 2.5);
 				hMuon2eta = new TH1F("Muon2eta", "Muon2eta", 50, -2.5, 2.5);
 				hMuon1PTdDM = new TH1F("Muon1PTdDM", "Muon1PTdDM", 30, 0, 1.5);
-                hMuon2PTdDM = new TH1F("Muon2PTdDM", "Muon2PTdDM", 30, 0, 1.5;
+                hMuon2PTdDM = new TH1F("Muon2PTdDM", "Muon2PTdDM", 30, 0, 1.5);
                 
                 parentDir->cd();
 			}
@@ -45,8 +45,8 @@ namespace analysis
                 TH1F *hDiMuonpt;
                 TH1F *hDiMuoneta;
                 TH1F *hDiMuonrapidity;
-                TH1F *hDiMuonCS;
-                TH1F *hDiMuoncosCS;
+                //TH1F *hDiMuonCS;
+                //TH1F *hDiMuoncosCS;
                 
                 // -----  Muon  -----
                 TH1F *hMuon1pt;
@@ -76,7 +76,7 @@ namespace analysis
                 hJet2pt = new TH1F("Jet2Pt", "Jet2Pt", 50, 0, 200);
                 hJet1eta = new TH1F("Jet1eta", "Jet1eta", 60, -5, 5);
                 hJet2eta = new TH1F("Jet2eta", "Jet2eta", 60, -5, 5);
-                hnJets = new TH1F("nJets", "nJets", 8, 0, 8);
+                //hnJets = new TH1F("nJets", "nJets", 8, 0, 8);
                 
                 parentDir->cd();
             }
@@ -97,7 +97,7 @@ namespace analysis
                 TH1F *hJet2pt;   
                 TH1F *hJet1eta;
                 TH1F *hJet2eta;
-                TH1F *hnJets;
+                //TH1F *hnJets;
 		};        
 
         struct FsrSet
@@ -297,7 +297,8 @@ namespace analysis
             //Pre-Selection blocks
             analysis::processing::MuonSet& setDM_PreSelection;
             analysis::processing::MuonSet& corr_setDM_PreSelection;
-            analysis::processing::JetSet& setJet_PreSelection;
+            analysis::processing::JetSet&  setJet_PreSelection;
+            analysis::processing::JetSet&  corr_setJet_PreSelection;
 
             /*analysis::processing::MuonSet& setDM_PreSelection_BB;
             analysis::processing::MuonSet& corr_setDM_PreSelection_BB;
@@ -325,11 +326,13 @@ namespace analysis
 
             // pre-dijet
             analysis::processing::JetSet& setJet_PreDiJet_VBF;
+            analysis::processing::JetSet& corr_setJet_PreDiJet_VBF;
 
             // VBF blocks
             analysis::processing::MuonSet& setDM_VBF;
             analysis::processing::MuonSet& corr_setDM_VBF;
-            analysis::processing::JetSet& setJet_VBF;
+            analysis::processing::JetSet&  setJet_VBF;
+            analysis::processing::JetSet&  corr_setJet_VBF;
 
             /*analysis::processing::MuonSet& setDM_VBF_BB;
             analysis::processing::MuonSet& corr_setDM_VBF_BB;

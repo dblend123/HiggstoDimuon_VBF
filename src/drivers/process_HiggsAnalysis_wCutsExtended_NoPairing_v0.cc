@@ -37,6 +37,7 @@
 #include "memory"
 #include <map>
 #include <set>
+#include "TVector2.h"
 
 // Reading Weights
 #include <fstream>
@@ -49,37 +50,40 @@
 //                   HISTOGRAM MACROS
 //*******************************************************************
 
-// DiMuon set  
-#define FILL_DIMUON_HIST(set, weight) \
-    set.hDiMuonpt->Fill(corr_p4dimuon.Pt(), weight); \
+// -------------------------------------
+//             MUONS 
+// -------------------------------------
+
+#define FILL_MUON_HIST(set, weight) \
     set.hDiMuonMass->Fill(corr_p4dimuon.M(), weight); \
+    set.hDiMuonpt->Fill(corr_p4dimuon.Pt(), weight); \
     set.hDiMuoneta->Fill(corr_p4dimuon.Eta(), weight); \
-    set.hDiMuondphi->Fill(dphi, weight); \
+    set.hDiMuonrapidity->Fill(corr_p4dimuon.Rapidity(), weight); \
     set.hMuon1pt->Fill(corr_p4m1.Pt(), weight); \
     set.hMuon2pt->Fill(corr_p4m2.Pt(), weight); \
-    set.hDimuonpt_vs_DimuonMass->Fill(corr_p4dimuon.M(), corr_p4dimuon.Pt(), weight); 
+    set.hMuon1eta->Fill(corr_p4m1.Eta(), weight); \
+    set.hMuon2eta->Fill(corr_p4m2.Eta(), weight); \
+    set.hMuon1PTdDM->Fill(PTdDM1, weight); \
+    set.hMuon2PTdDM->Fill(PTdDM2, weight); \
 
-#define FILL_CORR_DIMUON_HIST(set, weight) FILL_DIMUON_HIST(set, weight)
+#define FILL_CORR_MUON_HIST(set, weight) FILL_MUON_HIST(set, weight)
 
-#define FILL_PREFSR_DIMUON_HIST(set, weight) \
-    set.hDiMuonpt->Fill(corr_prefsr_p4.Pt(), weight); \
-    set.hDiMuonMass->Fill(corr_prefsr_p4.M(), weight); \
-    set.hDiMuoneta->Fill(corr_prefsr_p4.Eta(), weight); \
-    set.hDiMuondphi->Fill(dphi, weight); \
-    set.hMuon1pt->Fill(corr_p4m1.Pt(), weight); \
-    set.hMuon1pt->Fill(corr_p4m2.Pt(), weight); \
-    set.hDimuonpt_vs_DimuonMass->Fill(corr_prefsr_p4.M(), corr_prefsr_p4.Pt(), weight); 
+// -------------------------------------
+//             JETS 
+// -------------------------------------
 
-
-// DiJet set  
-#define FILL_DIJET_HIST(set, weight) \
+#define FILL_JET_HIST(set, weight) \
+    set.hDiJetMass->Fill(dijetmass, weight); \
     set.hDiJetpt->Fill(dijetpt, weight); \
+    set.hDiJetdeta->Fill(dijetdeta, weight); \
+    set.hDiJetdphi->Fill(dijetdphi, weight); \
     set.hJet1pt->Fill(jet1pt, weight); \
     set.hJet2pt->Fill(jet2pt, weight); \
-    set.hDiJetdeta->Fill(dijetdeta, weight); \
     set.hJet1eta->Fill(jet1eta, weight); \
     set.hJet2eta->Fill(jet2eta, weight); \
-    set.hDiJetMass->Fill(dijetmass, weight);
+
+#define FILL_CORR_JET_HIST(set, weight) FILL_JET_HIST(set, weight)
+
 
 //*******************************************************************
 //                     CONSTANTS
@@ -418,9 +422,6 @@ void loadPileupCorrections() {
   }
 }
 
-
-TH1D *hEventWeights = NULL;
-
 //*******************************************************************
 //                      MOMENTUM CORRECTIONS
 //*******************************************************************
@@ -483,7 +484,7 @@ float getMuonRochester(const Muon& mu, bool isMC)
 //             JETS 
 // -------------------------------------
 
-float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet) {
+float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run) {
     if (!jetCorrections) {
         std::cerr << "[ERROR] Jet corrections not loaded!\n";
         return jet._pt;
@@ -577,55 +578,87 @@ auto dataKeyCandidates = [&](const std::string& step) -> std::vector<std::string
 // Some DATA JSONs expose a compound correction key:
 //   <prefixBase>_DATA_L1L2L3Res_AK4PFPuppi
 // Inputs can be (area,eta,pt,rho,phi) OR (area,eta,pt,rho,phi,run).
-auto evalDataCompoundL1L2L3Res = [&](float area_, float eta_, float pt_, float rho_, float phi_) -> std::optional<float> {
-  // Build candidate keys for your eras (matches your lists)
+// Try (A,eta,pt,rho,run) first (12023), then other common forms.
+// Prefer known signatures per era, then fall back broadly.
+auto evalDataCompoundL1L2L3Res = [&](float area_, float eta_, float pt_, float rho_, float phi_, int run_)
+    -> std::optional<float>
+{
   std::vector<std::string> keys;
-  if (g_era == "12022") {
-    // Summer22_22Sep2023_RunCD_V2_DATA_L1L2L3Res_AK4PFPuppi  (exists)
-    auto k = insertRunBeforeVersion(cfg.prefixBase, "RunCD") + "_DATA_L1L2L3Res_AK4PFPuppi";
-    keys.push_back(k);
-  } else if (g_era == "22022") {
-    // Summer22EE_22Sep2023_RunE/F/G_V2_DATA_L1L2L3Res_AK4PFPuppi  (exists per run)
-    auto k = insertRunBeforeVersion(cfg.prefixBase, cfg.dataRunTag) + "_DATA_L1L2L3Res_AK4PFPuppi";
-    keys.push_back(k);
-  } else if (g_era == "12023") {
-    // Summer23Prompt23_V2_DATA_L1L2L3Res_AK4PFPuppi  (exists)
-    keys.push_back(cfg.prefixBase + "_DATA_L1L2L3Res_AK4PFPuppi");
-  } else if (g_era == "22023") {
-    // Summer23BPixPrompt23_V3_DATA_L1L2L3Res_AK4PFPuppi  (exists)
-    keys.push_back(cfg.prefixBase + "_DATA_L1L2L3Res_AK4PFPuppi");
-  } else {
-    keys.push_back(cfg.prefixBase + "_DATA_L1L2L3Res_AK4PFPuppi");
+  auto addBothSpellings = [&](const std::string& base) {
+    keys.push_back(base + "_DATA_L1L2L3Res_AK4PFPuppi");
+    keys.push_back(base + "_DATA_L1L2L3Residual_AK4PFPuppi");
+  };
+
+  if (g_era == "12022")      addBothSpellings(insertRunBeforeVersion(cfg.prefixBase, "RunCD"));
+  else if (g_era == "22022") addBothSpellings(insertRunBeforeVersion(cfg.prefixBase, cfg.dataRunTag));
+  else                       addBothSpellings(cfg.prefixBase); // 2023: no run tag in key name
+
+  auto printOnce = [](const std::string& msg) {
+    static std::set<std::string> seen;
+    if (!seen.count(msg)) { std::cerr << msg << "\n"; seen.insert(msg); }
+  };
+
+  for (const auto& key : keys) {
+    // --- Era-specific priorities ---
+    if (g_era == "22023") {
+      // 6-arg (A,eta,pt,rho,phi,run)
+      try {
+        double v = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, phi_, (double)run_});
+        printOnce("[JEC] Using DATA compound key (A,eta,pt,rho,phi,run): " + key);
+        return (float)v;
+      } catch (...) {}
+    }
+    if (g_era == "12023") {
+      // 5-arg (A,eta,pt,rho,run)
+      try {
+        double v = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, (double)run_});
+        printOnce("[JEC] Using DATA compound key (A,eta,pt,rho,run): " + key);
+        return (float)v;
+      } catch (...) {}
+    }
+
+    // --- Generic fallbacks (cover any payload flavor) ---
+    // 6-arg (A,eta,pt,rho,phi,run)
+    try {
+      double v = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, phi_, (double)run_});
+      printOnce("[JEC] Using DATA compound key (A,eta,pt,rho,phi,run): " + key);
+      return (float)v;
+    } catch (...) {}
+
+    // 5-arg (A,eta,pt,rho,run)
+    try {
+      double v = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, (double)run_});
+      printOnce("[JEC] Using DATA compound key (A,eta,pt,rho,run): " + key);
+      return (float)v;
+    } catch (...) {}
+
+    // 5-arg (A,eta,pt,rho,phi)
+    try {
+      double v = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, phi_});
+      printOnce("[JEC] Using DATA compound key (A,eta,pt,rho,phi): " + key);
+      return (float)v;
+    } catch (...) {}
+
+    // 4-arg (A,eta,pt,rho)
+    try {
+      double v = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_});
+      printOnce("[JEC] Using DATA compound key (A,eta,pt,rho): " + key);
+      return (float)v;
+    } catch (...) {}
   }
 
-  // Try each candidate with 5-arg first, then (if it fails) with a synthetic run number (e.g. 0)
-  for (const auto& key : keys) {
-    try {
-      double v5 = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, phi_});
-      static std::set<std::string> printed;
-      if (!printed.count(key)) {
-        std::cerr << "[JEC] Using DATA compound key (5-arg): " << key << "\n";
-        printed.insert(key);
-      }
-      return (float)v5;
-    } catch (...) {
-      // try 6-arg form with 'run' if the node expects it
-      try {
-        // If you have an event run number available, replace 0 with it.
-        double v6 = jetCorrections->at(key)->evaluate({area_, eta_, pt_, rho_, phi_, (double)0});
-        static std::set<std::string> printed;
-        if (!printed.count(key)) {
-          std::cerr << "[JEC] Using DATA compound key (6-arg with run): " << key << "\n";
-          printed.insert(key);
-        }
-        return (float)v6;
-      } catch (...) {
-        // keep trying next candidate
-      }
+  return std::nullopt;
+};
+
+auto evalDataResidual = [&](float eta, float pt, int run) -> float {
+  for (const auto& step : {"L2L3Residual_AK4PFPuppi", "L2L3Res_AK4PFPuppi"}) {
+    for (const auto& k : dataKeyCandidates(step)) {
+      try { return (float)jetCorrections->at(k)->evaluate({(double)run, eta, pt}); } catch (...) {}
     }
   }
-
-  return std::nullopt; // no compound available
+  static bool warned=false;
+  if (!warned) { std::cerr << "[JEC WARN] No DATA residual matched (expected (run,eta,pt)). Using 1.0.\n"; warned = true; }
+  return 1.0f;
 };
 
 // Evaluate a DATA JEC step with fallbacks (handles (eta,phi,pt) vs (eta,pt) internally via your evalEtaPhiPtOrEtaPt)
@@ -668,15 +701,13 @@ static bool warned = false;
 float jecFactor = 1.0f;
 
 if (!isMC) {
-  // Prefer compound for DATA if present
-  if (auto comp = evalDataCompoundL1L2L3Res(area, eta, pt, rho, phi); comp.has_value()) {
+  if (auto comp = evalDataCompoundL1L2L3Res(area, eta, pt, rho, phi, run); comp.has_value()) {
     jecFactor = comp.value();
   } else {
-    // Fall back to the piecewise product (your existing logic)
-    float l1  = evalDataL1(area, eta, pt, rho);
-    float l2  = evalDataStep("L2Relative_AK4PFPuppi",  eta, phi, pt);
-    float l3  = evalDataStep("L3Absolute_AK4PFPuppi",  eta, phi, pt);
-    float res = evalDataStep("L2L3Residual_AK4PFPuppi", eta, phi, pt); // may be 1.0 if missing
+    float l1  = evalDataL1(area, eta, pt, rho);                                // (A,eta,pt,rho)
+    float l2  = evalDataStep("L2Relative_AK4PFPuppi",  eta, phi, pt);          // (eta,phi,pt) or (eta,pt)
+    float l3  = evalDataStep("L3Absolute_AK4PFPuppi",  eta, phi, pt);          // (eta,phi,pt) or (eta,pt)
+    float res = evalDataResidual(eta, pt, run);                                 // <-- (run,eta,pt)
     jecFactor = l1 * l2 * l3 * res;
   }
 } else {
@@ -1080,9 +1111,6 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     TLorentzVector corr_p4m2 = p4m2 * roch_sf2;
     TLorentzVector corr_prefsr_p4 = corr_p4m1 + corr_p4m2;
     
-    //PRE-FSR
-    //FILL_DIMUON_HIST(hists.setDM_PreFsr, 1.0);   
-
     // -------------------------------------
     //             FSR PHOTONS 
     // -------------------------------------
@@ -1160,7 +1188,9 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
             hasGenJet = true;
         }
 
-        float corr_pt   = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet);
+        int runNum = __isMC ? 0 : static_cast<int>(event._run);
+        float corr_pt = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet, runNum);
+        //float corr_pt   = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet);
         float corr_mass = j._mass * (corr_pt / std::max(1e-6f, j._pt));
 
         if (corr_pt <= 25.f) continue;
@@ -1213,78 +1243,85 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
 
     TLorentzVector dijet = p4lead + p4sub;
     
-    float dijetdeta = TMath::Abs(p4lead.Eta() - p4sub.Eta());
-    float jet1eta = p4lead.Eta();
-    float jet2eta = p4sub.Eta();
+    float dijetdeta      = TMath::Abs(p4lead.Eta() - p4sub.Eta());
+    float jet1eta        = p4lead.Eta();
+    float jet2eta        = p4sub.Eta();
     
-    float dijetmass = dijet.M();
+    float dijetmass      = dijet.M();
     
-    float dijetpt = dijet.Pt();
-    float jet1pt = p4lead.Pt();
-    float jet2pt = p4sub.Pt();
+    float dijetpt        = dijet.Pt();
+    float jet1pt         = p4lead.Pt();
+    float jet2pt         = p4sub.Pt();
+   
+    float dphi_signed    = p4lead.DeltaPhi(p4sub);   
+    float dijetdphi      = std::fabs(dphi_signed); 
     
+    float PTdDM1         = (corr_p4m1.Pt())/(dijet.M());
+    float PTdDM2         = (corr_p4m2.Pt())/(dijet.M());
+
     // -------------------------------------
     //          SF && WEIGHTS  
     // -------------------------------------
    
-    float mu1_SF = getMuonSF(mu1, __isMC);
-    float mu2_SF = getMuonSF(mu2, __isMC);
-    float totalWeight = Dataweight * mu1_SF * mu2_SF;
-    float noWeight = 1.0;
+    float mu1_SF         = getMuonSF(mu1, __isMC);
+    float mu2_SF         = getMuonSF(mu2, __isMC);
+    float totalWeight    = Dataweight * mu1_SF * mu2_SF;
+    float noWeight       = 1.0;
     
     // -------------------------------------
     //        PRE-SELECTION HISTOGRAMS  
     // -------------------------------------
    
     //RIGHT NOW THIS INCLUDES THE 1 VBF SELECTION: EXLUDING ADDITINOAL MUONS/ELECTRONS 
-    FILL_DIMUON_HIST(hists.setDM_PreSelection, noWeight);   
-    FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection, totalWeight); 
-    FILL_DIJET_HIST(hists.setJet_PreSelection, totalWeight); 
+    FILL_MUON_HIST(hists.setDM_PreSelection, noWeight);   
+    FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection, totalWeight); 
+    FILL_JET_HIST(hists.setJet_PreSelection, noWeight); 
+    FILL_CORR_JET_HIST(hists.corr_setJet_PreSelection, totalWeight); 
 
     /*if (isBarrel(mu1) && isBarrel(mu2))
     {
         //	BB
-        FILL_DIMUON_HIST(hists.setDM_PreSelection_BB, noWeight);
-        FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_BB, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_BB, totalWeight); 
+        FILL_MUON_HIST(hists.setDM_PreSelection_BB, noWeight);
+        FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_BB, totalWeight);
+        FILL_JET_HIST(hists.setJet_PreSelection_BB, totalWeight); 
     }
     else if ((isBarrel(mu1) && isOverlap(mu2)) ||
         (isBarrel(mu2) && isOverlap(mu1)))
     {
         //	BO
-        FILL_DIMUON_HIST(hists.setDM_PreSelection_BO, noWeight);
-        FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_BO, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_BO, totalWeight); 
+        FILL_MUON_HIST(hists.setDM_PreSelection_BO, noWeight);
+        FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_BO, totalWeight);
+        FILL_JET_HIST(hists.setJet_PreSelection_BO, totalWeight); 
     }
     else if ((isBarrel(mu1) & isEndcap(mu2)) || 
         (isBarrel(mu2) && isEndcap(mu1)))
     {
         //	BE
-        FILL_DIMUON_HIST(hists.setDM_PreSelection_BE, noWeight);
-        FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_BE, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_BE, totalWeight); 
+        FILL_MUON_HIST(hists.setDM_PreSelection_BE, noWeight);
+        FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_BE, totalWeight);
+        FILL_JET_HIST(hists.setJet_PreSelection_BE, totalWeight); 
     }
     else if (isOverlap(mu1) && isOverlap(mu2))
     {
         //	OO
-        FILL_DIMUON_HIST(hists.setDM_PreSelection_OO, noWeight);
-        FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_OO, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_OO, totalWeight); 
+        FILL_MUON_HIST(hists.setDM_PreSelection_OO, noWeight);
+        FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_OO, totalWeight);
+        FILL_JET_HIST(hists.setJet_PreSelection_OO, totalWeight); 
     }
     else if ((isOverlap(mu1) && isEndcap(mu2)) ||
         (isOverlap(mu2) && isEndcap(mu1)))
     {
         //	OE
-        FILL_DIMUON_HIST(hists.setDM_PreSelection_OE, noWeight);
-        FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_OE, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_OE, totalWeight); 
+        FILL_MUON_HIST(hists.setDM_PreSelection_OE, noWeight);
+        FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_OE, totalWeight);
+        FILL_JET_HIST(hists.setJet_PreSelection_OE, totalWeight); 
     }
     else if (isEndcap(mu1) && isEndcap(mu2))
     {
         //	EE
-        FILL_DIMUON_HIST(hists.setDM_PreSelection_EE, noWeight);
-        FILL_CORR_DIMUON_HIST(hists.corr_setDM_PreSelection_EE, totalWeight);
-        FILL_DIJET_HIST(hists.setJet_PreSelection_EE, totalWeight); 
+        FILL_MUON_HIST(hists.setDM_PreSelection_EE, noWeight);
+        FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_EE, totalWeight);
+        FILL_JET_HIST(hists.setJet_PreSelection_EE, totalWeight); 
     }*/
 
     if (p4lead.Pt() < _leadJetPt) return;      // leading threshold
@@ -1331,60 +1368,62 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     
     if (pass_bjet_veto) {
 
-        //  PRE-DIJET CUTS 
-        FILL_DIJET_HIST(hists.setJet_PreDiJet_VBF, totalWeight); 
+        //  PRE-JET CUTS 
+        FILL_JET_HIST(hists.setJet_PreDiJet_VBF, noWeight); 
+        FILL_CORR_JET_HIST(hists.corr_setJet_PreDiJet_VBF, totalWeight); 
 
         if (dijetmass > _dijetMass_VBF && TMath::Abs(dijetdeta) > _dijetdEta_VBF) {
             
             //	VBF SELECTION CRITERIA
-            FILL_DIMUON_HIST(hists.setDM_VBF, noWeight)
-            FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF, totalWeight)
-            FILL_DIJET_HIST(hists.setJet_VBF, totalWeight); 
+            FILL_MUON_HIST(hists.setDM_VBF, noWeight)
+            FILL_CORR_MUON_HIST(hists.corr_setDM_VBF, totalWeight)
+            FILL_JET_HIST(hists.setJet_VBF, noWeight); 
+            FILL_CORR_JET_HIST(hists.corr_setJet_VBF, totalWeight); 
 
             /*if (isBarrel(mu1) && isBarrel(mu2))
             {
                 //	BB
-                FILL_DIMUON_HIST(hists.setDM_VBF_BB, noWeight);
-                FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_BB, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_BB, totalWeight); 
+                FILL_MUON_HIST(hists.setDM_VBF_BB, noWeight);
+                FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_BB, totalWeight)
+                FILL_JET_HIST(hists.setJet_VBF_BB, totalWeight); 
             }
             else if ((isBarrel(mu1) && isOverlap(mu2)) ||
                 (isBarrel(mu2) && isOverlap(mu1)))
             {
                 //	BO
-                FILL_DIMUON_HIST(hists.setDM_VBF_BO, noWeight);
-                FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_BO, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_BO, totalWeight); 
+                FILL_MUON_HIST(hists.setDM_VBF_BO, noWeight);
+                FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_BO, totalWeight)
+                FILL_JET_HIST(hists.setJet_VBF_BO, totalWeight); 
             }
             else if ((isBarrel(mu1) & isEndcap(mu2)) || 
                 (isBarrel(mu2) && isEndcap(mu1)))
             {
                 //	BE
-                FILL_DIMUON_HIST(hists.setDM_VBF_BE, noWeight);
-                FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_BE, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_BE, totalWeight); 
+                FILL_MUON_HIST(hists.setDM_VBF_BE, noWeight);
+                FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_BE, totalWeight)
+                FILL_JET_HIST(hists.setJet_VBF_BE, totalWeight); 
             }
             else if (isOverlap(mu1) && isOverlap(mu2))
             {
                 //	OO
-                FILL_DIMUON_HIST(hists.setDM_VBF_OO, noWeight);
-                FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_OO, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_OO, totalWeight); 
+                FILL_MUON_HIST(hists.setDM_VBF_OO, noWeight);
+                FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_OO, totalWeight)
+                FILL_JET_HIST(hists.setJet_VBF_OO, totalWeight); 
             }
             else if ((isOverlap(mu1) && isEndcap(mu2)) ||
                 (isOverlap(mu2) && isEndcap(mu1)))
             {
                 //	OE
-                FILL_DIMUON_HIST(hists.setDM_VBF_OE, noWeight);
-                FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_OE, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_OE, totalWeight); 
+                FILL_MUON_HIST(hists.setDM_VBF_OE, noWeight);
+                FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_OE, totalWeight)
+                FILL_JET_HIST(hists.setJet_VBF_OE, totalWeight); 
             }
             else if (isEndcap(mu1) && isEndcap(mu2))
             {
                 //	EE
-                FILL_DIMUON_HIST(hists.setDM_VBF_EE, noWeight);
-                FILL_CORR_DIMUON_HIST(hists.corr_setDM_VBF_EE, totalWeight)
-                FILL_DIJET_HIST(hists.setJet_VBF_EE, totalWeight); 
+                FILL_MUON_HIST(hists.setDM_VBF_EE, noWeight);
+                FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_EE, totalWeight)
+                FILL_JET_HIST(hists.setJet_VBF_EE, totalWeight); 
             }*/
 		}
     }
@@ -1563,68 +1602,63 @@ void process()
 {
     //	Output Root File
     TFile *outroot = new TFile(__outputfilename.c_str(), "recreate");
-    hEventWeights = new TH1D("eventWeights", "eventWeights", 1, 0, 1);
 
-    // Fsr blocks
-    //DimuonSet setDM_PreFsr(outroot, "DM_PreFsr");
-    //DimuonSet setDM_PostFsr(outroot, "DM_PostFsr");
-    
     // Pre-Selection blocks
-    DimuonSet setDM_PreSelection(outroot, "DM_Pre-Selection");
-    DimuonSet corr_setDM_PreSelection(outroot, "corr_DM_Pre-Selection");
-    JetSet setJet_PreSelection(outroot, "Jet_Pre-Selection");
-    /*DimuonSet setDM_PreSelection_BB(outroot, "DM_Pre-Selection_BB");
-    DimuonSet corr_setDM_PreSelection_BB(outroot, "corr_DM_Pre-Selection_BB");
+    MuonSet     setDM_PreSelection(outroot, "DM_Pre-Selection");
+    MuonSet     corr_setDM_PreSelection(outroot, "corr_DM_Pre-Selection");
+    JetSet      setJet_PreSelection(outroot, "Jet_Pre-Selection");
+    JetSet      corr_setJet_PreSelection(outroot, "corr_Jet_Pre-Selection");
+    /*MuonSet setDM_PreSelection_BB(outroot, "DM_Pre-Selection_BB");
+    MuonSet corr_setDM_PreSelection_BB(outroot, "corr_DM_Pre-Selection_BB");
     JetSet setJet_PreSelection_BB(outroot, "Jet_Pre-Selection_BB");
-    DimuonSet setDM_PreSelection_BO(outroot, "DM_Pre-Selection_BO");
-    DimuonSet corr_setDM_PreSelection_BO(outroot, "corr_DM_Pre-Selection_BO");
+    MuonSet setDM_PreSelection_BO(outroot, "DM_Pre-Selection_BO");
+    MuonSet corr_setDM_PreSelection_BO(outroot, "corr_DM_Pre-Selection_BO");
     JetSet setJet_PreSelection_BO(outroot, "Jet_Pre-Selection_BO");
-    DimuonSet setDM_PreSelection_BE(outroot, "DM_Pre-Selection_BE");
-    DimuonSet corr_setDM_PreSelection_BE(outroot, "corr_DM_Pre-Selection_BE");
+    MuonSet setDM_PreSelection_BE(outroot, "DM_Pre-Selection_BE");
+    MuonSet corr_setDM_PreSelection_BE(outroot, "corr_DM_Pre-Selection_BE");
     JetSet setJet_PreSelection_BE(outroot, "Jet_Pre-Selection_BE");
-    DimuonSet setDM_PreSelection_OO(outroot, "DM_Pre-Selection_OO");
-    DimuonSet corr_setDM_PreSelection_OO(outroot, "corr_DM_Pre-Selection_OO");
+    MuonSet setDM_PreSelection_OO(outroot, "DM_Pre-Selection_OO");
+    MuonSet corr_setDM_PreSelection_OO(outroot, "corr_DM_Pre-Selection_OO");
     JetSet setJet_PreSelection_OO(outroot, "Jet_Pre-Selection_OO");
-    DimuonSet setDM_PreSelection_OE(outroot, "DM_Pre-Selection_OE");
-    DimuonSet corr_setDM_PreSelection_OE(outroot, "corr_DM_Pre-Selection_OE");
+    MuonSet setDM_PreSelection_OE(outroot, "DM_Pre-Selection_OE");
+    MuonSet corr_setDM_PreSelection_OE(outroot, "corr_DM_Pre-Selection_OE");
     JetSet setJet_PreSelection_OE(outroot, "Jet_Pre-Selection_OE");
-    DimuonSet setDM_PreSelection_EE(outroot, "DM_Pre-Selection_EE");
-    DimuonSet corr_setDM_PreSelection_EE(outroot, "corr_DM_Pre-Selection_EE");
+    MuonSet setDM_PreSelection_EE(outroot, "DM_Pre-Selection_EE");
+    MuonSet corr_setDM_PreSelection_EE(outroot, "corr_DM_Pre-Selection_EE");
     JetSet setJet_PreSelection_EE(outroot, "Jet_Pre-Selection_EE");*/
     
     // Pre dijet cuts 
     JetSet setJet_PreDiJet_VBF(outroot, "Jet_PreDiJet_VBF");
+    JetSet corr_setJet_PreDiJet_VBF(outroot, "corr_Jet_PreDiJet_VBF");
     
     // VBF blocks
-    DimuonSet setDM_VBF(outroot, "DM_VBF");
-    DimuonSet corr_setDM_VBF(outroot, "corr_DM_VBF");
-    JetSet setJet_VBF(outroot, "Jet_VBF");
-    /*DimuonSet setDM_VBF_BB(outroot, "DM_VBF_BB");
-    DimuonSet corr_setDM_VBF_BB(outroot, "corr_DM_VBF_BB");
+    MuonSet     setDM_VBF(outroot, "DM_VBF");
+    MuonSet     corr_setDM_VBF(outroot, "corr_DM_VBF");
+    JetSet      setJet_VBF(outroot, "Jet_VBF");
+    JetSet      corr_setJet_VBF(outroot, "corr_Jet_VBF");
+    /*MuonSet setDM_VBF_BB(outroot, "DM_VBF_BB");
+    MuonSet corr_setDM_VBF_BB(outroot, "corr_DM_VBF_BB");
     JetSet setJet_VBF_BB(outroot, "Jet_VBF_BB");
-    DimuonSet setDM_VBF_BO(outroot, "DM_VBF_BO");
-    DimuonSet corr_setDM_VBF_BO(outroot, "corr_DM_VBF_BO");
+    MuonSet setDM_VBF_BO(outroot, "DM_VBF_BO");
+    MuonSet corr_setDM_VBF_BO(outroot, "corr_DM_VBF_BO");
     JetSet setJet_VBF_BO(outroot, "Jet_VBF_BO");
-    DimuonSet setDM_VBF_BE(outroot, "DM_VBF_BE");
-    DimuonSet corr_setDM_VBF_BE(outroot, "corr_DM_VBF_BE");
+    MuonSet setDM_VBF_BE(outroot, "DM_VBF_BE");
+    MuonSet corr_setDM_VBF_BE(outroot, "corr_DM_VBF_BE");
     JetSet setJet_VBF_BE(outroot, "Jet_VBF_BE");
-    DimuonSet setDM_VBF_OO(outroot, "DM_VBF_OO");
-    DimuonSet corr_setDM_VBF_OO(outroot, "corr_DM_VBF_OO");
+    MuonSet setDM_VBF_OO(outroot, "DM_VBF_OO");
+    MuonSet corr_setDM_VBF_OO(outroot, "corr_DM_VBF_OO");
     JetSet setJet_VBF_OO(outroot, "Jet_VBF_OO");
-    DimuonSet setDM_VBF_OE(outroot, "DM_VBF_OE");
-    DimuonSet corr_setDM_VBF_OE(outroot, "corr_DM_VBF_OE");
+    MuonSet setDM_VBF_OE(outroot, "DM_VBF_OE");
+    MuonSet corr_setDM_VBF_OE(outroot, "corr_DM_VBF_OE");
     JetSet setJet_VBF_OE(outroot, "Jet_VBF_OE");
-    DimuonSet setDM_VBF_EE(outroot, "DM_VBF_EE");
-    DimuonSet corr_setDM_VBF_EE(outroot, "corr_DM_VBF_EE");
+    MuonSet setDM_VBF_EE(outroot, "DM_VBF_EE");
+    MuonSet corr_setDM_VBF_EE(outroot, "corr_DM_VBF_EE");
     JetSet setJet_VBF_EE(outroot, "Jet_VBF_EE");*/
     
     HistSetCollection hists = {
     
-    // Fsr blocks
-    //setDM_PreFsr, setDM_PostFsr,
-
     // Pre-Selection blocks
-    setDM_PreSelection,    corr_setDM_PreSelection,    setJet_PreSelection,
+    setDM_PreSelection,    corr_setDM_PreSelection,    setJet_PreSelection, corr_setJet_PreSelection,
     /*setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB,
     setDM_PreSelection_BO, corr_setDM_PreSelection_BO, setJet_PreSelection_BO,
     setDM_PreSelection_BE, corr_setDM_PreSelection_BE, setJet_PreSelection_BE,
@@ -1633,10 +1667,10 @@ void process()
     setDM_PreSelection_EE, corr_setDM_PreSelection_EE, setJet_PreSelection_EE,*/
     
     // Pre di-jet
-    setJet_PreDiJet_VBF,
+    setJet_PreDiJet_VBF, corr_setJet_PreDiJet_VBF,
 
     // VBF blocks
-    setDM_VBF,    corr_setDM_VBF,    setJet_VBF
+    setDM_VBF,    corr_setDM_VBF,    setJet_VBF, corr_setJet_VBF
     /*setDM_VBF_BB, corr_setDM_VBF_BB, setJet_VBF_BB,
     setDM_VBF_BO, corr_setDM_VBF_BO, setJet_VBF_BO,
     setDM_VBF_BE, corr_setDM_VBF_BE, setJet_VBF_BE,
@@ -1647,9 +1681,6 @@ void process()
 
 	Streamer streamer(__inputfilename, "Events");
 	streamer.chainup();
-	
-    auto numEventsWeighted = 100;
-    hEventWeights->Fill(0.5, numEventsWeighted);
    
     //MVA Branch outputs 
     gMvaTree = new TTree("mva", "Training features for VBF discriminator");
@@ -1689,6 +1720,10 @@ void process()
 
 #define ROOT_CHAIN streamer._chain
     
+    //Setting Branch Array for LuminosityBlocks Contents
+    SET_BRANCH_UINT(run);
+    SET_BRANCH_UINT(luminosityBlock);
+
     //Setting Branch Array for Muon Properties
     SET_BRANCH_UINT(nMuon);
     SET_BRANCH_FLOAT_ARRAY(Muon_pt);
@@ -1830,6 +1865,7 @@ void process()
     trigobjs = new std::vector<TrigObj>();
     electrons = new std::vector<Electron>();
     rhos = new std::vector<Rho>();
+    event = new Event();
 
 
 	//	Main Event Loop
@@ -1853,6 +1889,10 @@ void process()
         trigobjs->clear();
         electrons->clear();
         rhos->clear();
+
+        ROOT_CHAIN->GetEntry(i);
+        event->_run  = run;                
+        event->_lumi = luminosityBlock;    
 
         for (size_t i=0; i<nMuon; i++) {
             Muon mu;
@@ -1987,7 +2027,6 @@ void process()
 
         
         //	Selections
-        //if (!FsrPhoton(fsrphotons)) continue; HAVEN'T SET THIS UP YET
 		//if (!passVertex(vertices))continue;
         if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
 

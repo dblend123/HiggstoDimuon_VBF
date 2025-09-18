@@ -1,3 +1,4 @@
+
 #include "TFile.h"
 #include "TH1.h"
 #include "TCanvas.h"
@@ -7,12 +8,19 @@
 #include "TLatex.h"
 #include "TString.h"
 #include "TStyle.h"
+#include "TSystem.h"
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <iostream>
 
-void Overlay_JetVars_WithRatio(TString era = "12022") {
+static TH1* getHist(TFile* f, const std::string& path) {
+    if (!f) return nullptr;
+    auto* h = dynamic_cast<TH1*>(f->Get(path.c_str()));
+    return h ? (TH1*)h->Clone() : nullptr;
+}
+
+void Jet_Overlay(TString era = "12022") {
     gStyle->SetOptStat(0);
 
     const TString base = "/eos/user/d/dblend/Analyzed_SkimmedFiles/" + era + "/";
@@ -46,40 +54,34 @@ void Overlay_JetVars_WithRatio(TString era = "12022") {
         return;
     }
 
-    // ---------- Helper ----------
-    auto get = [](TFile* f, const std::string& path) -> TH1* {
-        auto* h = dynamic_cast<TH1*>(f->Get(path.c_str()));
-        return h ? (TH1*)h->Clone() : nullptr;
-    };
-
     // ---------- Vars to overlay ----------
     std::vector<std::string> vars = {
         "DiJetPt", "Jet1Pt", "Jet2Pt",
-        "DiJetdeta", "Jet1eta", "Jet2eta", "DiJetMass"
+        "DiJetdeta", "DiJetdphi", "Jet1eta", "Jet2eta", "DiJetMass"
     };
-    const std::string dir = "Jet_PreDiJet_VBF/";
+    const std::string dir = "corr_Jet_PreDiJet_VBF/";
 
     for (const auto& var : vars) {
         // Pull histograms
-        TH1* h_data   = get(f_data,   dir + var);
-        TH1* h_DY     = get(f_DY,     dir + var);
-        TH1* h_TT     = get(f_TT,     dir + var);
+        TH1* h_data   = getHist(f_data,   dir + var);
+        TH1* h_DY     = getHist(f_DY,     dir + var);
+        TH1* h_TT     = getHist(f_TT,     dir + var);
 
         // Diboson
-        TH1* h_WZ2L2Q = get(f_WZto2L2Q,  dir + var);
-        TH1* h_WZ3L   = get(f_WZto3LNu,  dir + var);
-        TH1* h_ZZ2L2Q = get(f_ZZto2L2Q,  dir + var);
-        TH1* h_ZZ2L2N = get(f_ZZto2L2Nu, dir + var);
-        TH1* h_ZZ4L   = get(f_ZZto4L,    dir + var);
+        TH1* h_WZ2L2Q = getHist(f_WZto2L2Q,  dir + var);
+        TH1* h_WZ3L   = getHist(f_WZto3LNu,  dir + var);
+        TH1* h_ZZ2L2Q = getHist(f_ZZto2L2Q,  dir + var);
+        TH1* h_ZZ2L2N = getHist(f_ZZto2L2Nu, dir + var);
+        TH1* h_ZZ4L   = getHist(f_ZZto4L,    dir + var);
 
         // Triboson
-        TH1* h_WWW    = get(f_WWW,       dir + var);
-        TH1* h_WWZ    = get(f_WWZ,       dir + var);
-        TH1* h_WZZ    = get(f_WZZ,       dir + var);
-        TH1* h_ZZZ    = get(f_ZZZ,       dir + var);
+        TH1* h_WWW    = getHist(f_WWW,       dir + var);
+        TH1* h_WWZ    = getHist(f_WWZ,       dir + var);
+        TH1* h_WZZ    = getHist(f_WZZ,       dir + var);
+        TH1* h_ZZZ    = getHist(f_ZZZ,       dir + var);
 
         // Signal
-        TH1* h_signal = get(f_signal, dir + var);
+        TH1* h_signal = getHist(f_signal, dir + var);
 
         if (!h_data || !h_DY || !h_TT ||
             !h_WZ2L2Q || !h_WZ3L || !h_ZZ2L2Q || !h_ZZ2L2N || !h_ZZ4L ||
@@ -146,14 +148,12 @@ void Overlay_JetVars_WithRatio(TString era = "12022") {
         h_data->SetMinimum(0.1);
         h_data->Draw("E1");
 
-        // Draw MC back-to-front (VVV back, then VV, DY, TT, signal)
+        // Draw MC
         h_DY->Draw("HIST SAME");
         h_TT->Draw("HIST SAME");
         h_VV->Draw("HIST SAME");
         h_VVV->Draw("HIST SAME");
         h_signal->Draw("HIST SAME");
-
-        // Re-draw data points on top
         h_data->Draw("E1 SAME");
 
         // Legend
@@ -221,6 +221,8 @@ void Overlay_JetVars_WithRatio(TString era = "12022") {
         TString baseName = "OverlayRatio_" + TString(var.c_str());
         c->SaveAs(outdir + baseName + ".pdf");
         c->SaveAs(outdir + baseName + ".png");
+
+        delete c;
     }
 
     // ---------- Cleanup ----------
@@ -228,4 +230,3 @@ void Overlay_JetVars_WithRatio(TString era = "12022") {
     f_WZto2L2Q->Close(); f_WZto3LNu->Close(); f_ZZto2L2Q->Close(); f_ZZto2L2Nu->Close(); f_ZZto4L->Close();
     f_WWW->Close(); f_WWZ->Close(); f_WZZ->Close(); f_ZZZ->Close();
 }
-

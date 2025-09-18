@@ -1,5 +1,10 @@
 #pragma once
 
+#define SET_BRANCH_ULONG64(NAME) \
+    ULong64_t NAME; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    static_assert(true, "")
+
 #define SET_BRANCH_UINT(NAME) \
     UInt_t NAME; \
     (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
