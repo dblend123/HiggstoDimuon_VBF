@@ -11,10 +11,10 @@ from xgboost import XGBClassifier
 
 # --- Edit branch names here to match your ntuples ---
 BRANCHES = dict(
-    y_mumu="y_mumu",   # rapidity of dimuon system
-    y_j1  ="y_j1",     # rapidity of leading jet
-    y_j2  ="y_j2",     # rapidity of subleading jet
-    pt_mumu="pt_mumu", phi_mumu="phi_mumu",
+    y_mumu      = "y_mumu",   
+    y_j1        = "y_j1",     
+    y_j2        = "y_j2",     
+    pt_mumu     = "pt_mumu", phi_mumu="phi_mumu",
     pt_j1  ="pt_j1",   phi_j1  ="phi_j1",
     pt_j2  ="pt_j2",   phi_j2  ="phi_j2",
     # Optional per-event weight branch; set to None to use 1.0

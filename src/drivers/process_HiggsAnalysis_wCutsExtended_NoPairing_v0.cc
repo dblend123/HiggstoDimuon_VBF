@@ -38,6 +38,7 @@
 #include <map>
 #include <set>
 #include "TVector2.h"
+#include <cmath> 
 
 // Reading Weights
 #include <fstream>
@@ -100,13 +101,30 @@ bool __isMC;
 bool __genPUMC;
 std::atomic<bool> __continueRunning = true;
 
-// MVA tree 
+// MVA tree
 TTree* gMvaTree = nullptr;
-float g_z = -99.f;
-float g_ptBalance = -99.f;
-float g_y_mumu = 0.f, g_y_j1 = 0.f, g_y_j2 = 0.f;
-float g_pt_mumu = 0.f, g_pt_j1 = 0.f, g_pt_j2 = 0.f;
-float g_weight = 1.f;
+
+float g_z             = -99.f;
+float g_ptBalance     = -99.f;
+
+float g_mu1_pt_over_m = -99.f;
+float g_mu2_pt_over_m = -99.f;
+float g_mu1_eta       = -99.f;
+float g_mu2_eta       = -99.f;
+float g_jet1_eta      = -99.f;
+float g_m_mumu        = -99.f;
+float g_deta_jj       = -99.f;
+float g_dphi_jj       = -99.f;
+
+float g_y_mumu        = -99.f;
+float g_y_j1          = -99.f;
+float g_y_j2          = -99.f;
+
+float g_pt_mumu       = -99.f;
+float g_pt_j1         = -99.f;
+float g_pt_j2         = -99.f;   
+
+float g_weight        = 1.f;
 
 // Weights Config
 struct SampleConfig {
@@ -299,9 +317,7 @@ static JecEraConfig jecConfigForEra(const std::string& era, const std::string& i
       runTag, // "RunE" or "RunF" or "RunG"
       "Summer22EE_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",
       "Summer22EE_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",
-      // veto map keys in your dump are per-run; you can point to the matching one:
-      // "Summer22EE_23Sep2023_RunE_V1", "Summer22EE_23Sep2023_RunF_V1", "Summer22EE_23Sep2023_RunG_V1"
-      "Summer22EE_23Sep2023_" + runTag + "_V1"
+      "Summer22EE_23Sep2023_RunEFG_V1"
     };
   }
   if (era == "12023") {
@@ -650,15 +666,57 @@ auto evalDataCompoundL1L2L3Res = [&](float area_, float eta_, float pt_, float r
   return std::nullopt;
 };
 
-auto evalDataResidual = [&](float eta, float pt, int run) -> float {
-  for (const auto& step : {"L2L3Residual_AK4PFPuppi", "L2L3Res_AK4PFPuppi"}) {
-    for (const auto& k : dataKeyCandidates(step)) {
-      try { return (float)jetCorrections->at(k)->evaluate({(double)run, eta, pt}); } catch (...) {}
+// 2022 residuals: usually (eta,pt) or (eta,phi,pt)
+// 2023 residuals: (run,eta,pt)
+auto evalDataResidual = [&](float eta_, float phi_, float pt_, int run_) -> float {
+  const std::vector<std::string> steps = {
+    "L2L3Residual_AK4PFPuppi",
+    "L2L3Res_AK4PFPuppi" // alias, just in case
+  };
+
+  auto printOnce = [](const std::string& msg) {
+    static std::set<std::string> seen;
+    if (!seen.count(msg)) { std::cerr << msg << "\n"; seen.insert(msg); }
+  };
+
+  // Helper that tries a list of step names with a given evaluator lambda
+  auto tryWith = [&](auto&& evalOne) -> std::optional<float> {
+    for (const auto& step : steps) {
+      for (const auto& k : dataKeyCandidates(step)) {
+        try {
+          float v = (float)evalOne(k);
+          printOnce("[JEC] Residual matched key: " + k);
+          return v;
+        } catch (...) {
+          // try next candidate
+        }
+      }
     }
+    return std::nullopt;
+  };
+
+  if (g_era == "12022" || g_era == "22022") {
+    // Prefer (eta,pt)
+    if (auto v = tryWith([&](const std::string& k){ return jetCorrections->at(k)->evaluate({eta_, pt_}); }); v) return *v;
+    // Fallback (eta,phi,pt)
+    if (auto v = tryWith([&](const std::string& k){ return jetCorrections->at(k)->evaluate({eta_, phi_, pt_}); }); v) return *v;
+    // Last resort (run,eta,pt) — rarely needed in 2022
+    if (auto v = tryWith([&](const std::string& k){ return jetCorrections->at(k)->evaluate({(double)run_, eta_, pt_}); }); v) return *v;
+
+    static bool warned22 = false;
+    if (!warned22) { std::cerr << "[JEC WARN] No 2022 DATA residual matched (tried (eta,pt),(eta,phi,pt),(run,eta,pt)). Using 1.0.\n"; warned22 = true; }
+    return 1.0f;
+  } else {
+    // 2023+: prefer (run,eta,pt)
+    if (auto v = tryWith([&](const std::string& k){ return jetCorrections->at(k)->evaluate({(double)run_, eta_, pt_}); }); v) return *v;
+    // Fallbacks
+    if (auto v = tryWith([&](const std::string& k){ return jetCorrections->at(k)->evaluate({eta_, pt_}); }); v) return *v;
+    if (auto v = tryWith([&](const std::string& k){ return jetCorrections->at(k)->evaluate({eta_, phi_, pt_}); }); v) return *v;
+
+    static bool warned23 = false;
+    if (!warned23) { std::cerr << "[JEC WARN] No 2023 DATA residual matched (tried (run,eta,pt),(eta,pt),(eta,phi,pt)). Using 1.0.\n"; warned23 = true; }
+    return 1.0f;
   }
-  static bool warned=false;
-  if (!warned) { std::cerr << "[JEC WARN] No DATA residual matched (expected (run,eta,pt)). Using 1.0.\n"; warned = true; }
-  return 1.0f;
 };
 
 // Evaluate a DATA JEC step with fallbacks (handles (eta,phi,pt) vs (eta,pt) internally via your evalEtaPhiPtOrEtaPt)
@@ -707,7 +765,7 @@ if (!isMC) {
     float l1  = evalDataL1(area, eta, pt, rho);                                // (A,eta,pt,rho)
     float l2  = evalDataStep("L2Relative_AK4PFPuppi",  eta, phi, pt);          // (eta,phi,pt) or (eta,pt)
     float l3  = evalDataStep("L3Absolute_AK4PFPuppi",  eta, phi, pt);          // (eta,phi,pt) or (eta,pt)
-    float res = evalDataResidual(eta, pt, run);                                 // <-- (run,eta,pt)
+    float res = evalDataResidual(eta, phi, pt, run);  // 2022 → (eta,pt), 2023 → (run,eta,pt)
     jecFactor = l1 * l2 * l3 * res;
   }
 } else {
@@ -1326,38 +1384,6 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
 
     if (p4lead.Pt() < _leadJetPt) return;      // leading threshold
     if (p4sub.Pt() < _subleadJetPt) return;   // subleading threshold
-
-    // -------------------------------------
-    //  ZEPPENFELD && PT-BALANCE VARIABLES  
-    // -------------------------------------
-   
-    // 1) rapidities 
-    g_y_mumu = static_cast<float>(corr_p4dimuon.Rapidity());
-    g_y_j1   = static_cast<float>(p4lead.Rapidity());
-    g_y_j2   = static_cast<float>(p4sub.Rapidity());
-
-    // Zeppenfeld variable
-    g_z = std::fabs(g_y_mumu - 0.5f*(g_y_j1 + g_y_j2));
-
-    // 2) pT-balance ratio
-    const double px_sum =
-        corr_p4dimuon.Px() + p4lead.Px() + p4sub.Px();
-    const double py_sum =
-        corr_p4dimuon.Py() + p4lead.Py() + p4sub.Py();
-    const double vec_sum = std::sqrt(px_sum*px_sum + py_sum*py_sum);
-
-    g_pt_mumu = static_cast<float>(corr_p4dimuon.Pt());
-    g_pt_j1   = static_cast<float>(p4lead.Pt());
-    g_pt_j2   = static_cast<float>(p4sub.Pt());
-
-    const double scalar_sum = static_cast<double>(g_pt_mumu + g_pt_j1 + g_pt_j2);
-    g_ptBalance = (scalar_sum > 0.0) ? static_cast<float>(vec_sum / scalar_sum) : 0.f;
-
-    // 3) weight (your existing total per-event weight)
-    g_weight = totalWeight;
-
-    // 4) fill exactly once per selected dimuon+2jet pair
-    if (gMvaTree) gMvaTree->Fill();
     
     // -------------------------------------
     //          VBF HISTOGRAMS  
@@ -1374,6 +1400,48 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
 
         if (dijetmass > _dijetMass_VBF && TMath::Abs(dijetdeta) > _dijetdEta_VBF) {
             
+            // -------------------------------------
+            //         BDT INPUT VARIABLES  
+            // -------------------------------------
+            
+            const double m_mumu = corr_p4dimuon.M();
+
+            // muon-level vars
+            g_m_mumu        = static_cast<float>(m_mumu);
+            g_mu1_eta       = static_cast<float>(corr_p4m1.Eta());
+            g_mu2_eta       = static_cast<float>(corr_p4m2.Eta());
+            g_mu1_pt_over_m = (m_mumu > 0.0) ? static_cast<float>(corr_p4m1.Pt() / m_mumu) : 0.f;
+            g_mu2_pt_over_m = (m_mumu > 0.0) ? static_cast<float>(corr_p4m2.Pt() / m_mumu) : 0.f;
+            g_y_mumu        = static_cast<float>(corr_p4dimuon.Rapidity());
+
+            // jet-level vars
+            g_jet1_eta      = static_cast<float>(p4lead.Eta());
+            g_deta_jj       = std::fabs(p4lead.Eta() - p4sub.Eta());
+            g_dphi_jj       = std::fabs(TVector2::Phi_mpi_pi(p4lead.Phi() - p4sub.Phi()));
+            g_y_j1          = static_cast<float>(p4lead.Rapidity());
+            g_y_j2          = static_cast<float>(p4sub.Rapidity());
+
+            // Zeppenfeld variable
+            g_z             = std::fabs(g_y_mumu - 0.5f*(g_y_j1 + g_y_j2));
+
+            // pT-balance ratio
+            const double px_sum     =  corr_p4dimuon.Px() + p4lead.Px() + p4sub.Px();
+            const double py_sum     =  corr_p4dimuon.Py() + p4lead.Py() + p4sub.Py();
+            const double vec_sum    = std::sqrt(px_sum*px_sum + py_sum*py_sum);
+
+            g_pt_mumu       = static_cast<float>(corr_p4dimuon.Pt());
+            g_pt_j1         = static_cast<float>(p4lead.Pt());
+            g_pt_j2         = static_cast<float>(p4sub.Pt());
+
+            const double scalar_sum = static_cast<double>(g_pt_mumu + g_pt_j1 + g_pt_j2);
+            g_ptBalance     = (scalar_sum > 0.0) ? static_cast<float>(vec_sum / scalar_sum) : 0.f;
+
+            // weight (total per-event weight)
+            g_weight = totalWeight;
+
+            // fill exactly once per selected dimuon+2jet pair
+            if (gMvaTree) gMvaTree->Fill();
+
             //	VBF SELECTION CRITERIA
             FILL_MUON_HIST(hists.setDM_VBF, noWeight)
             FILL_CORR_MUON_HIST(hists.corr_setDM_VBF, totalWeight)
@@ -1684,16 +1752,23 @@ void process()
    
     //MVA Branch outputs 
     gMvaTree = new TTree("mva", "Training features for VBF discriminator");
-    gMvaTree->Branch("z",          &g_z);
-    gMvaTree->Branch("pt_balance", &g_ptBalance);
-
-    gMvaTree->Branch("y_mumu", &g_y_mumu);
-    gMvaTree->Branch("y_j1",   &g_y_j1);
-    gMvaTree->Branch("y_j2",   &g_y_j2);
-    gMvaTree->Branch("pt_mumu",&g_pt_mumu);
-    gMvaTree->Branch("pt_j1",  &g_pt_j1);
-    gMvaTree->Branch("pt_j2",  &g_pt_j2);
-    gMvaTree->Branch("weight", &g_weight);
+    gMvaTree->Branch("z",             &g_z);
+    gMvaTree->Branch("pt_balance",    &g_ptBalance);
+    gMvaTree->Branch("mu1_pt_over_m", &g_mu1_pt_over_m);
+    gMvaTree->Branch("mu2_pt_over_m", &g_mu2_pt_over_m);
+    gMvaTree->Branch("mu1_eta",       &g_mu1_eta);
+    gMvaTree->Branch("mu2_eta",       &g_mu2_eta);
+    gMvaTree->Branch("jet1_eta",      &g_jet1_eta);
+    gMvaTree->Branch("m_mumu",        &g_m_mumu);
+    gMvaTree->Branch("deta_jj",       &g_deta_jj);
+    gMvaTree->Branch("dphi_jj",       &g_dphi_jj);
+    gMvaTree->Branch("y_mumu",        &g_y_mumu);
+    gMvaTree->Branch("y_j1",          &g_y_j1);
+    gMvaTree->Branch("y_j2",          &g_y_j2);
+    gMvaTree->Branch("pt_mumu",       &g_pt_mumu);
+    gMvaTree->Branch("pt_j1",         &g_pt_j1);
+    gMvaTree->Branch("pt_j2",         &g_pt_j2);
+    gMvaTree->Branch("weight",        &g_weight);
  
 
     // Loading Muon SF Corrections
