@@ -1,8 +1,13 @@
 # XGBoost must be imported before ROOT
+# source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
 from xgboost import XGBClassifier
 
 import ROOT
 import numpy as np
+
+print(ROOT.gROOT.GetVersion())
+print(ROOT.gSystem.Getenv("ROOTSYS"))
+
 
 variables = [
     "z","pt_balance","mu1_pt_over_m","mu2_pt_over_m",
@@ -71,10 +76,10 @@ if __name__ == "__main__":
 
     bdt.fit(x, y, sample_weight=w)
 
-    # ensure TMVA symbols are loaded
+    # Ensure TMVA is loaded; no header includes needed
     ROOT.gSystem.Load("libTMVA")
-    ROOT.gInterpreter.Declare('#include "TMVA/Experimental/BDT/Model.hxx"')
 
     print("Training done on", x.shape[0], "events. Saving model in tmva101.root")
+    print("SaveXGBoost available? ", hasattr(ROOT.TMVA.Experimental, "SaveXGBoost"))
     ROOT.TMVA.Experimental.SaveXGBoost(bdt, "myBDT", "tmva101.root", num_inputs=x.shape[1])
 

@@ -1,4 +1,3 @@
-
 #include "TFile.h"
 #include "TH1.h"
 #include "THStack.h"
@@ -31,7 +30,7 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
                      TFile* f_data, TFile* f_DY, TFile* f_TT,
                      TFile* f_WZ2L2Q, TFile* f_WZ3LNu, TFile* f_ZZ2L2Nu, TFile* f_ZZ2L2Q, TFile* f_ZZ4L,
                      TFile* f_WWW, TFile* f_WWZ, TFile* f_WZZ, TFile* f_ZZZ,
-                     TFile* f_signal, const char* xTitle, bool doBlindMass)
+                     TFile* f_signal, const char* xTitle, bool doBlindMass, double eraLumiPb)
 {
     const std::string hpath = dir + var;
 
@@ -70,6 +69,9 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
     h_VVV->Add(h_WZZ);
     h_VVV->Add(h_ZZZ);
 
+    for (TH1* h : {h_data,h_DY,h_TT,h_VV,h_VVV,h_signal})
+        if (h && h->GetSumw2N()==0) h->Sumw2(kTRUE);
+
     // Style
     h_data->SetMarkerStyle(20); h_data->SetMarkerColor(kBlack); h_data->SetLineColor(kBlack); h_data->SetMarkerSize(1.2);
     h_DY->SetFillColor(kOrange-2); h_DY->SetLineColor(kOrange+3);
@@ -91,6 +93,53 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
     pad1->cd();
     pad1->SetLogy();
 
+    // Prepare blinded copy of data (top pad) if requested
+    TH1* h_data_draw = (TH1*)h_data->Clone(("h_data_draw_"+TString(var.c_str())).Data());
+    if (doBlindMass) {
+        int bin_min_top = h_data_draw->FindBin(110.0);
+        int bin_max_top = h_data_draw->FindBin(150.0);
+        for (int i = bin_min_top; i <= bin_max_top; ++i) {
+            h_data_draw->SetBinContent(i, 0);
+            h_data_draw->SetBinError(i, 0);
+        }
+    }
+    
+    // --- Debug integrals before drawing (MC excludes signal) ---
+    auto integralNoUF = [](TH1* h) -> double {
+        return h ? h->Integral(1, h->GetNbinsX()) : 0.0; // ignore under/overflow; use (0, nbins+1) if you prefer incl.
+    };
+
+    TH1* h_data_plot = doBlindMass ? h_data_draw : h_data;
+
+    double dy_int   = integralNoUF(h_DY);
+    double tt_int   = integralNoUF(h_TT);
+    double vv_int   = integralNoUF(h_VV);
+    double vvv_int  = integralNoUF(h_VVV);
+    double mc_int   = dy_int + tt_int + vv_int + vvv_int;   // exclude signal
+    double data_int = integralNoUF(h_data_plot);
+
+    std::cout << std::fixed
+              << "[PLOT] dir=" << dir
+              << " var=" << var
+              << " data=" << data_int
+              << " DY=" << dy_int
+              << " TT=" << tt_int
+              << " VV=" << vv_int
+              << " VVV=" << vvv_int
+              << " mc=" << mc_int
+              << " data/mc=" << (mc_int > 0.0 ? data_int / mc_int : 0.0)
+              << "\n";
+
+
+    // eraLumiPb: supply this as an extra argument to draw_one, e.g. 9693.130053 for 22023
+    double dataOverMc = (mc_int > 0.0 ? data_int / mc_int : 0.0);
+    double effLumiPb  = dataOverMc * eraLumiPb;
+
+    std::cout << "[PLOT] eff_data_lumi ≈ " << (effLumiPb/1000.0) << " fb^-1"
+              << " (using eraLumi=" << (eraLumiPb/1000.0) << " fb^-1)"
+              << std::endl;
+
+
     double ymax = std::max({
         h_data->GetMaximum(),
         h_DY->GetMaximum(),
@@ -100,15 +149,15 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
         h_signal->GetMaximum()
     }) * 1.8;
 
-    h_data->SetTitle("");
-    h_data->GetYaxis()->SetTitle("Events");
-    h_data->GetYaxis()->SetTitleSize(0.05);
-    h_data->GetYaxis()->SetLabelSize(0.04);
-    h_data->GetYaxis()->SetTitleOffset(1.2);
-    h_data->SetMaximum(ymax);
-    h_data->SetMinimum(0.1);
-    h_data->GetXaxis()->SetTitle(xTitle);
-    h_data->Draw("E1");
+    h_data_draw->SetTitle("");
+    h_data_draw->GetYaxis()->SetTitle("Events");
+    h_data_draw->GetYaxis()->SetTitleSize(0.05);
+    h_data_draw->GetYaxis()->SetLabelSize(0.04);
+    h_data_draw->GetYaxis()->SetTitleOffset(1.2);
+    h_data_draw->SetMaximum(ymax);
+    h_data_draw->SetMinimum(0.1);
+    h_data_draw->GetXaxis()->SetTitle(xTitle);
+    h_data_draw->Draw("E1");
 
     // Draw MC
     h_DY->Draw("HIST SAME");
@@ -116,7 +165,17 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
     h_VV->Draw("HIST SAME");
     h_VVV->Draw("HIST SAME");
     h_signal->Draw("HIST SAME");
-    h_data->Draw("E1 SAME");
+    h_data_draw->Draw("E1 SAME");
+
+    // Dashed vertical lines for blinding window on top pad
+    if (doBlindMass) {
+        TLine* v1_top = new TLine(110.0, 0.1, 110.0, ymax);
+        TLine* v2_top = new TLine(150.0, 0.1, 150.0, ymax);
+        v1_top->SetLineStyle(2); v2_top->SetLineStyle(2);
+        v1_top->SetLineWidth(2); v2_top->SetLineWidth(2);
+        v1_top->Draw("SAME"); v2_top->Draw("SAME");
+    }
+
 
     // Legend
     TLegend* leg = new TLegend(0.60, 0.50, 0.88, 0.88);
@@ -135,7 +194,8 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
     latex.SetTextFont(42);
     latex.SetTextSize(0.04);
     latex.DrawLatex(0.13, 0.93, "CMS #scale[0.8]{#it{Preliminary}}");
-    latex.DrawLatex(0.55, 0.93, "#sqrt{s} = 13 TeV, 7.98 fb^{-1}");
+    latex.DrawLatex(0.55, 0.93, Form("#sqrt{s} = 13 TeV, %.2f fb^{-1}", eraLumiPb/1000.0));
+
 
     // Bottom pad (ratio)
     pad2->cd();
@@ -185,6 +245,16 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
     line->SetLineStyle(2);
     line->Draw("SAME");
 
+    // Dashed vertical lines for blinding window on bottom pad
+    if (doBlindMass) {
+        TLine* v1_bot = new TLine(110.0, h_ratio->GetMinimum(), 110.0, h_ratio->GetMaximum());
+        TLine* v2_bot = new TLine(150.0, h_ratio->GetMinimum(), 150.0, h_ratio->GetMaximum());
+        v1_bot->SetLineStyle(2); v2_bot->SetLineStyle(2);
+        v1_bot->SetLineWidth(2); v2_bot->SetLineWidth(2);
+        v1_bot->Draw("SAME"); v2_bot->Draw("SAME");
+    }
+
+
     // Save
     gSystem->Exec("mkdir -p " + outdir);
     TString baseName = "OverlayRatio_" + TString(var.c_str());
@@ -195,6 +265,16 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
 }
 
 void Muon_Overlay(TString era = "12022") {
+    // Pick lumi (pb^-1) for the selected era
+    double eraLumiPb = 0.0;
+    if (era == "12022")      eraLumiPb = 7980.454145;   // 7.980 fb^-1
+    else if (era == "22022") eraLumiPb = 26671.60971;   // 26.672 fb^-1
+    else if (era == "12023") eraLumiPb = 18704.13341;   // 18.704 fb^-1
+    else if (era == "22023") eraLumiPb = 9693.130053;   // 9.693 fb^-1
+    else {
+        std::cerr << "[WARN] Unknown era \"" << era << "\"; eraLumiPb=0\n";
+    }
+
     // Base paths
     const TString base = "/eos/user/d/dblend/Analyzed_SkimmedFiles/" + era + "/";
 
@@ -264,7 +344,7 @@ void Muon_Overlay(TString era = "12022") {
                  f_data, f_DY, f_TT,
                  f_WZto2L2Q, f_WZto3LNu, f_ZZto2L2Nu, f_ZZto2L2Q, f_ZZto4L,
                  f_WWW, f_WWZ, f_WZZ, f_ZZZ,
-                 f_signal, xlab, doBlind);
+                 f_signal, xlab, doBlind, eraLumiPb);
     }
 
     // Cleanup

@@ -141,7 +141,7 @@ std::unordered_map<std::string, std::unordered_map<std::string, double>> g_secti
 std::unordered_map<std::string, std::unordered_map<std::string, SampleConfig>> g_sectionSamples;
 
 double g_selected_lumi = 0.0; 
-
+std::string g_selected_lumi_key = "unset";
 
 // Kinematic Cuts  
 enum MuonType {kLead=0, kSubLead=1};  // Muon Id --> lead = 0, sublead =1
@@ -1772,9 +1772,9 @@ void process()
  
 
     // Loading Muon SF Corrections
-    loadMuonCorrections();
+    /*loadMuonCorrections();
     loadJetCorrections();
-    loadPileupCorrections();
+    loadPileupCorrections();*/
 
     Muons *muons=NULL;
 	Muons muons1;
@@ -1898,7 +1898,6 @@ void process()
     SET_BRANCH_FLOAT(fixedGridRhoFastjetAll);
    
     // --- Event-level weights from NanoAOD ---
-    //float Generator_weight = 1.0f;   // falls back to 1 for DATA automatically
     float Pileup_nTrueInt  = 0.0f;
 
     float genWeight_branch = 1.0f;
@@ -1915,12 +1914,6 @@ void process()
         if (ROOT_CHAIN->GetBranch("Generator_weight")) return Generator_weight_branch; // fallback
         return 1.0f;
     };
-
-    // Prefer NanoAODv12 branch names; keep fallbacks for older ntuples
-    /*if (ROOT_CHAIN->GetBranch("Generator_weight"))
-        ROOT_CHAIN->SetBranchAddress("Generator_weight", &Generator_weight);
-    else if (ROOT_CHAIN->GetBranch("genWeight"))
-        ROOT_CHAIN->SetBranchAddress("genWeight", &Generator_weight);*/
 
     if (ROOT_CHAIN->GetBranch("Pileup_nTrueInt"))
         ROOT_CHAIN->SetBranchAddress("Pileup_nTrueInt", &Pileup_nTrueInt);
@@ -1947,6 +1940,11 @@ void process()
 	uint32_t numEntries = streamer._chain->GetEntries();
     uint32_t updateInterval = numEntries / 100; // Update every 1% of progress
     if (updateInterval == 0) updateInterval = 1; // Handle very small numbers of entries
+    
+    double sum_w_nominal = 0.0;      // base * genWeight
+    double sum_w_pu = 0.0;           // base * genWeight * PU
+    long long n_events = 0;
+    long long n_neg = 0;
 
     for (uint32_t i=0; i<numEntries && __continueRunning; i++)
 	{   
@@ -2084,21 +2082,25 @@ void process()
         double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);
         float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
         
-        // Generator weight straight from the branch
-        /*float genWeight = __isMC ? Generator_weight : 1.0f;
+        const double w_nom = base * genWeight;
+        const double w_pu  = w_nom * pileupWeight;
 
-        // Final per-event weight
-        double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);  // your function
-        float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;*/
+        sum_w_nominal += w_nom;
+        sum_w_pu      += w_pu;
+        n_events++;
+        if (genWeight < 0) n_neg++;
 
-          /*std::cout << std::setprecision(10) 
+
+          /*if (i < 10) {
+          std::cout << std::setprecision(10) 
           << " genWeight=" << genWeight
           //<< " Generator_weight=" << Generator_weight
           << " Generator_weight=" << Generator_weight_branch
           << " Pileup_nTrueInt=" << Pileup_nTrueInt
           << " pileupWeight=" << pileupWeight
           << " base=" << base
-          << " total=" << Dataweight << "\n";*/
+          << " total=" << Dataweight << "\n";
+          }*/
 
         
         //	Selections
@@ -2123,6 +2125,15 @@ void process()
         }
     }
 
+    std::cout << std::fixed;
+    std::cout << "[SUMMARY] events=" << n_events
+          << " neg_frac=" << (n_events ? double(n_neg)/n_events : 0.0)
+          << " <PU>=" << (sum_w_nominal ? (sum_w_pu / sum_w_nominal) : 0.0)
+          << " sum_w_nom(lumi*xsec≈)=" << sum_w_nominal
+          << " sum_w_pu=" << sum_w_pu
+          << std::endl;
+
+    
     std::cout << std::endl; // Move to the next line after the progress bar is complete
 
 	outroot->Write();
@@ -2300,28 +2311,38 @@ int main(int argc, char** argv)
     if (__isMC && g_weightsFile != "None") {
         loadWeightsFile(g_weightsFile);   // fills g_sectionLumis / g_sectionSamples
 
-        // Choose lumi from the section named by --era (e.g. 12022, 22022, 12023, 22023)
-        auto sec = g_sectionLumis.find(g_era);
-        if (sec != g_sectionLumis.end()) {
-            auto &lmap = sec->second;
-            // Prefer canonical "lumi" if present; otherwise fall back to any "luminosity_*" in that section
-            if (lmap.count("lumi")) {
-                g_selected_lumi = lmap.at("lumi");
-            } else {
-                // fallback: first luminosity_* key if user used specific names like luminosity_BCD/EFG/D
-                for (const auto &kv : lmap) {
-                    if (kv.first.rfind("luminosity", 0) == 0) { g_selected_lumi = kv.second; break; }
-                }
-            }
-            if (g_selected_lumi <= 0.0) {
-                std::cerr << "[weights] No valid lumi found in section [" << g_era
-                          << "]; using default " << g_selected_lumi << "\n";
-            }
+    // pick lumi and remember which key it came from
+    const auto& lmap = g_sectionLumis[g_era];
+    if (!lmap.empty()) {
+        // Prefer a specific "luminosity_*" entry if present, else fall back to the canonical "lumi",
+        // else just take the first available.
+        auto it_specific = std::find_if(lmap.begin(), lmap.end(),
+            [](const auto& kv){ return kv.first.rfind("luminosity", 0) == 0; });
+
+        if (it_specific != lmap.end()) {
+            g_selected_lumi_key = it_specific->first;
+            g_selected_lumi     = it_specific->second;
+        } else if (lmap.count("lumi")) {
+            g_selected_lumi_key = "lumi";
+            g_selected_lumi     = lmap.at("lumi");
         } else {
-            std::cerr << "[weights] Era section [" << g_era
-                      << "] not found in weights file; using default lumi = "
-                      << g_selected_lumi << "\n";
+            g_selected_lumi_key = lmap.begin()->first;
+            g_selected_lumi     = lmap.begin()->second;
         }
+    } else {
+        g_selected_lumi_key = "unset";
+        g_selected_lumi     = 0.0;
+    }
+
+        std::cout << std::fixed
+      << "[WEIGHTS] era=" << g_era
+      << " sample=" << g_sampleName
+      << " picked_lumi_key=" << g_selected_lumi_key
+      << " lumi=" << g_selected_lumi
+      << " xsec=" << g_sectionSamples[g_era][g_sampleName].xsec
+      << " sumw=" << g_sectionSamples[g_era][g_sampleName].sumw
+      << " base=" << sampleBaseWeight(g_sampleName)
+      << std::endl;
     }
 
     printCuts();
