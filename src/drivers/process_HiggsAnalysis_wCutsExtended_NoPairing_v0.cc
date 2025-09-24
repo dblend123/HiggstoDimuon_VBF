@@ -66,6 +66,8 @@
     set.hMuon2eta->Fill(corr_p4m2.Eta(), weight); \
     set.hMuon1PTdDM->Fill(PTdDM1, weight); \
     set.hMuon2PTdDM->Fill(PTdDM2, weight); \
+    set.hCollinsSoper->Fill(phiCS, weight); \
+    set.hcosCollinsSoper->Fill(cosThetaCS, weight); \
 
 #define FILL_CORR_MUON_HIST(set, weight) FILL_MUON_HIST(set, weight)
 
@@ -82,6 +84,9 @@
     set.hJet2pt->Fill(jet2pt, weight); \
     set.hJet1eta->Fill(jet1eta, weight); \
     set.hJet2eta->Fill(jet2eta, weight); \
+    set.hnJets->Fill(p4jets.size(), weight); \
+    set.hdphi_mumu_jj->Fill(g_dphi_mumu_jj, weight); \
+    set.hdeta_mumu_jj->Fill(g_deta_mumu_jj, weight); \
 
 #define FILL_CORR_JET_HIST(set, weight) FILL_JET_HIST(set, weight)
 
@@ -115,6 +120,11 @@ float g_jet1_eta      = -99.f;
 float g_m_mumu        = -99.f;
 float g_deta_jj       = -99.f;
 float g_dphi_jj       = -99.f;
+int   g_njets         = -99.f;
+float g_dphi_mumu_jj  = -99.f;
+float g_deta_mumu_jj  = -99.f;
+float g_phi_CS        = -99.f;
+float g_costheta_CS   = -99.f;
 
 float g_y_mumu        = -99.f;
 float g_y_j1          = -99.f;
@@ -1217,9 +1227,40 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
 
     // With applied FSR corrections 
     TLorentzVector p4dimuon = p4m1 + p4m2;    
-    TLorentzVector corr_p4dimuon = corr_p4m1 + corr_p4m2;    
-	double dphi = p4m1.DeltaPhi(p4m2);
-   
+    TLorentzVector corr_p4dimuon = corr_p4m1 + corr_p4m2;
+    
+    double dphi = p4m1.DeltaPhi(p4m2);
+
+    // Collins-Soper Angles
+    const bool mu1_is_minus = (mu1._charge < 0);
+    const TLorentzVector& muMinus = mu1_is_minus ? corr_p4m1 : corr_p4m2;
+    const TLorentzVector& muPlus  = mu1_is_minus ? corr_p4m1 : corr_p4m2;
+	
+    // ---> Boost everything to the dimuon rest frame
+    const TVector3 boostToQ = -corr_p4dimuon.BoostVector();
+    TLorentzVector lminus = muMinus; lminus.Boost(boostToQ);
+    TLorentzVector lplus  = muPlus;  lplus .Boost(boostToQ);
+
+    // ---> Massless beam four-vectors along ±z (only directions matter)
+    TLorentzVector pBeam1(0., 0., +1., 1.);  // +z
+    TLorentzVector pBeam2(0., 0., -1., 1.);  // -z
+    pBeam1.Boost(boostToQ);
+    pBeam2.Boost(boostToQ);
+
+    // Collins–Soper axes in the dilepton rest frame
+    const TVector3 b1 = pBeam1.Vect().Unit();
+    const TVector3 b2 = pBeam2.Vect().Unit();
+    const TVector3 zcs = (b1 - b2).Unit();
+    const TVector3 xcs = (b1 + b2).Unit();
+    const TVector3 ycs = zcs.Cross(xcs).Unit();
+
+    // Negative muon direction in that frame
+    const TVector3 lhat = lminus.Vect().Unit();
+
+    // Angles
+    const double cosThetaCS = lhat.Dot(zcs);
+    const double phiCS      = std::atan2(lhat.Dot(ycs), lhat.Dot(xcs)); // [-π, π]
+
     // -------------------------------------
     //              JETS  
     // -------------------------------------
@@ -1228,7 +1269,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     int n_loose_bjets = 0;
     int n_medium_bjets = 0;
     float rho = rhos->at(0)._fixedGridRhoFastjetAll;
-    
+
     std::vector<TLorentzVector> p4jets;
     p4jets.reserve(jets->size());
 
@@ -1407,19 +1448,24 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
             const double m_mumu = corr_p4dimuon.M();
 
             // muon-level vars
-            g_m_mumu        = static_cast<float>(m_mumu);
-            g_mu1_eta       = static_cast<float>(corr_p4m1.Eta());
-            g_mu2_eta       = static_cast<float>(corr_p4m2.Eta());
-            g_mu1_pt_over_m = (m_mumu > 0.0) ? static_cast<float>(corr_p4m1.Pt() / m_mumu) : 0.f;
-            g_mu2_pt_over_m = (m_mumu > 0.0) ? static_cast<float>(corr_p4m2.Pt() / m_mumu) : 0.f;
-            g_y_mumu        = static_cast<float>(corr_p4dimuon.Rapidity());
+            g_m_mumu             = static_cast<float>(m_mumu);
+            g_mu1_eta            = static_cast<float>(corr_p4m1.Eta());
+            g_mu2_eta            = static_cast<float>(corr_p4m2.Eta());
+            g_mu1_pt_over_m      = (m_mumu > 0.0) ? static_cast<float>(corr_p4m1.Pt() / m_mumu) : 0.f;
+            g_mu2_pt_over_m      = (m_mumu > 0.0) ? static_cast<float>(corr_p4m2.Pt() / m_mumu) : 0.f;
+            g_y_mumu             = static_cast<float>(corr_p4dimuon.Rapidity());
+            g_costheta_CS        = static_cast<float>(cosThetaCS);
+            g_phi_CS             = static_cast<float>(TVector2::Phi_mpi_pi(phiCS));
 
             // jet-level vars
-            g_jet1_eta      = static_cast<float>(p4lead.Eta());
-            g_deta_jj       = std::fabs(p4lead.Eta() - p4sub.Eta());
-            g_dphi_jj       = std::fabs(TVector2::Phi_mpi_pi(p4lead.Phi() - p4sub.Phi()));
-            g_y_j1          = static_cast<float>(p4lead.Rapidity());
-            g_y_j2          = static_cast<float>(p4sub.Rapidity());
+            g_jet1_eta           = static_cast<float>(p4lead.Eta());
+            g_deta_jj            = std::fabs(p4lead.Eta() - p4sub.Eta());
+            g_dphi_jj            = std::fabs(TVector2::Phi_mpi_pi(p4lead.Phi() - p4sub.Phi()));
+            g_y_j1               = static_cast<float>(p4lead.Rapidity());
+            g_y_j2               = static_cast<float>(p4sub.Rapidity());
+            g_njets              = static_cast<int>(p4jets.size());
+            g_dphi_mumu_jj       = std::fabs(TVector2::Phi_mpi_pi(corr_p4dimuon.Phi() - dijet.Phi()));
+            g_deta_mumu_jj       = std::fabs(corr_p4dimuon.Eta() - dijet.Eta());
 
             // Zeppenfeld variable
             g_z             = std::fabs(g_y_mumu - 0.5f*(g_y_j1 + g_y_j2));
@@ -1752,23 +1798,30 @@ void process()
    
     //MVA Branch outputs 
     gMvaTree = new TTree("mva", "Training features for VBF discriminator");
-    gMvaTree->Branch("z",             &g_z);
-    gMvaTree->Branch("pt_balance",    &g_ptBalance);
-    gMvaTree->Branch("mu1_pt_over_m", &g_mu1_pt_over_m);
-    gMvaTree->Branch("mu2_pt_over_m", &g_mu2_pt_over_m);
-    gMvaTree->Branch("mu1_eta",       &g_mu1_eta);
-    gMvaTree->Branch("mu2_eta",       &g_mu2_eta);
-    gMvaTree->Branch("jet1_eta",      &g_jet1_eta);
-    gMvaTree->Branch("m_mumu",        &g_m_mumu);
-    gMvaTree->Branch("deta_jj",       &g_deta_jj);
-    gMvaTree->Branch("dphi_jj",       &g_dphi_jj);
-    gMvaTree->Branch("y_mumu",        &g_y_mumu);
-    gMvaTree->Branch("y_j1",          &g_y_j1);
-    gMvaTree->Branch("y_j2",          &g_y_j2);
-    gMvaTree->Branch("pt_mumu",       &g_pt_mumu);
-    gMvaTree->Branch("pt_j1",         &g_pt_j1);
-    gMvaTree->Branch("pt_j2",         &g_pt_j2);
-    gMvaTree->Branch("weight",        &g_weight);
+    gMvaTree->Branch("z",               &g_z);
+    gMvaTree->Branch("pt_balance",      &g_ptBalance);
+    gMvaTree->Branch("mu1_pt_over_m",   &g_mu1_pt_over_m);
+    gMvaTree->Branch("mu2_pt_over_m",   &g_mu2_pt_over_m);
+    gMvaTree->Branch("mu1_eta",         &g_mu1_eta);
+    gMvaTree->Branch("mu2_eta",         &g_mu2_eta);
+    gMvaTree->Branch("m_mumu",          &g_m_mumu);
+    gMvaTree->Branch("y_mumu",          &g_y_mumu);
+    gMvaTree->Branch("pt_mumu",         &g_pt_mumu);
+    
+    gMvaTree->Branch("jet1_eta",        &g_jet1_eta);
+    gMvaTree->Branch("deta_jj",         &g_deta_jj);
+    gMvaTree->Branch("dphi_jj",         &g_dphi_jj);
+    gMvaTree->Branch("y_j1",            &g_y_j1);
+    gMvaTree->Branch("y_j2",            &g_y_j2);
+    gMvaTree->Branch("njets",           &g_njets);
+    gMvaTree->Branch("pt_j1",           &g_pt_j1);
+    gMvaTree->Branch("pt_j2",           &g_pt_j2);
+    gMvaTree->Branch("dphi_mumu_jj",    &g_dphi_mumu_jj, "dphi_mumu_jj/F");
+    gMvaTree->Branch("deta_mumu_jj",    &g_deta_mumu_jj, "deta_mumu_jj/F");
+    gMvaTree->Branch("phi_CS",          &g_phi_CS,      "phi_CS/F");
+    gMvaTree->Branch("costheta_CS",     &g_costheta_CS, "costheta_CS/F");
+    
+    gMvaTree->Branch("weight",          &g_weight);
  
 
     // Loading Muon SF Corrections
