@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # tmva103_Application.py
 # Usage examples:
-#   python3 tmva103_Application.py --input test_signal.root --output scored_signal.root
-#   python3 tmva103_Application.py --input test_background.root --output scored_bkg.root
-#   python3 tmva103_Application.py --input train_signal.root train_background.root --output scored_train.root
 
 import argparse, array
 import numpy as np

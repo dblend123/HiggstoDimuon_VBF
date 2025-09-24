@@ -2,12 +2,28 @@
 
 import numpy as np
 import ROOT
+import os
 
 # Reuse the same variable order + loader you trained with
 from tmva101_Training import load_data, TREENAME, WEIGHT_BRANCH
 
-# --- 1) Load test data ---
-x, y_true, w = load_data("test_signal.root", "test_background.root")
+DIR = "DataPreparation_Files"
+eras = [
+    (os.path.join(DIR, "12022_test_signal.root"), os.path.join(DIR, "12022_test_background.root")),
+    (os.path.join(DIR, "22022_test_signal.root"), os.path.join(DIR, "22022_test_background.root")),
+    (os.path.join(DIR, "12023_test_signal.root"), os.path.join(DIR, "12023_test_background.root")),
+    (os.path.join(DIR, "22023_test_signal.root"), os.path.join(DIR, "22023_test_background.root")),
+]
+
+xs, ys, ws = [], [], []
+for sig, bkg in eras:
+    print(f"[tmva102] loading test files: {sig}, {bkg}")
+    x_, y_, w_ = load_data(sig, bkg)
+    xs.append(x_); ys.append(y_); ws.append(w_)
+
+x = np.vstack(xs)
+y_true = np.hstack(ys)
+w = np.hstack(ws)
 
 # xgboost isn't required here (we use TMVA reader), but TMVA must be loaded
 ROOT.gSystem.Load("libTMVA")

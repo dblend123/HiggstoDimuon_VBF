@@ -1,4 +1,3 @@
-
 #include "TFile.h"
 #include "TH1.h"
 #include "TCanvas.h"
@@ -13,6 +12,9 @@
 #include <string>
 #include <algorithm>
 #include <iostream>
+#include <fstream>
+
+static std::ofstream plotLog;
 
 static TH1* getHist(TFile* f, const std::string& path) {
     if (!f) return nullptr;
@@ -20,8 +22,24 @@ static TH1* getHist(TFile* f, const std::string& path) {
     return h ? (TH1*)h->Clone() : nullptr;
 }
 
+static double getEraLumi_pb(const TString& era) {
+    // Values you provided (pb^-1)
+    static const std::map<std::string,double> L = {
+        {"12022", 7.980454145e3},  // luminosity_BCD
+        {"22022", 26.67160971e3},  // luminosity_BC
+        {"12023", 17.794e3},       // luminosity_BC
+        {"22023", 9.451e3}         // luminosity_D
+    };
+    auto it = L.find(era.Data());
+    return (it != L.end()) ? it->second : 0.0;
+}
+
 void Jet_Overlay(TString era = "12022") {
     gStyle->SetOptStat(0);
+
+    // ----- Era Lumi (pb^-1 and fb^-1) -----
+    const double eraLumi_pb = getEraLumi_pb(era);
+    const double eraLumi_fb = eraLumi_pb / 1000.0; // convert pb^-1 -> fb^-1
 
     const TString base = "/eos/user/d/dblend/Analyzed_SkimmedFiles/" + era + "/";
 
@@ -59,7 +77,8 @@ void Jet_Overlay(TString era = "12022") {
         "DiJetPt", "Jet1Pt", "Jet2Pt",
         "DiJetdeta", "DiJetdphi", "Jet1eta", "Jet2eta", "DiJetMass"
     };
-    const std::string dir = "corr_Jet_PreDiJet_VBF/";
+    //const std::string dir = "corr_Jet_PreDiJet_VBF/";
+    const std::string dir = "corr_Jet_VBF/";
 
     for (const auto& var : vars) {
         // Pull histograms
@@ -103,6 +122,53 @@ void Jet_Overlay(TString era = "12022") {
         h_VVV->Add(h_WWZ);
         h_VVV->Add(h_WZZ);
         h_VVV->Add(h_ZZZ);
+
+        // ---------- Totals for logging ----------
+        const double y_data = h_data->Integral();
+        const double y_DY   = h_DY->Integral();
+        const double y_TT   = h_TT->Integral();
+        const double y_VV   = h_VV->Integral();
+        const double y_VVV  = h_VVV->Integral();
+        const double y_mc   = y_DY + y_TT + y_VV + y_VVV; // (signal excluded, same as ratio)
+
+        const double r_data_mc = (y_mc > 0.0 ? y_data / y_mc : 0.0);
+        const double eff_data_lumi_fb = r_data_mc * eraLumi_fb;
+
+        // Emit summary lines like your example
+        std::cout << std::fixed << std::setprecision(6);
+        std::cout << "[PLOT] dir=" << dir
+                  << " var=" << var
+                  << " data=" << y_data
+                  << " DY="   << y_DY
+                  << " TT="   << y_TT
+                  << " VV="   << y_VV
+                  << " VVV="  << y_VVV
+                  << " mc="   << y_mc
+                  << " data/mc=" << r_data_mc
+                  << std::endl;
+
+        std::cout << "[PLOT] eff_data_lumi \xE2\x89\x88 "  // "≈" in UTF-8
+                  << eff_data_lumi_fb << " fb^-1 (using eraLumi="
+                  << eraLumi_fb << " fb^-1)"
+                  << std::endl;
+        
+        // Also write the same info into the log file
+        plotLog << std::fixed << std::setprecision(6);
+        plotLog << "[PLOT] dir=" << dir
+                << " var=" << var
+                << " data=" << y_data
+                << " DY="   << y_DY
+                << " TT="   << y_TT
+                << " VV="   << y_VV
+                << " VVV="  << y_VVV
+                << " mc="   << y_mc
+                << " data/mc=" << r_data_mc
+                << std::endl;
+
+        plotLog << "[PLOT] eff_data_lumi ≈ "
+                << eff_data_lumi_fb << " fb^-1 (using eraLumi="
+                << eraLumi_fb << " fb^-1)"
+                << std::endl;
 
         // ---------- Style ----------
         h_data->SetMarkerStyle(20);
@@ -176,7 +242,7 @@ void Jet_Overlay(TString era = "12022") {
         latex.SetTextFont(42);
         latex.SetTextSize(0.04);
         latex.DrawLatex(0.13, 0.93, "CMS #scale[0.8]{#it{Preliminary}}");
-        latex.DrawLatex(0.55, 0.93, "#sqrt{s} = 13 TeV, 7.98 fb^{-1}");
+        latex.DrawLatex(0.55, 0.93, Form("#sqrt{s} = 13 TeV, %.3f fb^{-1}", eraLumi_fb));
 
         // ---------- Bottom pad: ratio ----------
         pad2->cd();
@@ -217,6 +283,13 @@ void Jet_Overlay(TString era = "12022") {
 
         // ---------- Save ----------
         TString outdir = "/eos/user/d/dblend/StackedPlots/" + era + "/Jets/";
+        
+        // Open log file in the same directory as the plots (only once per run)
+        if (!plotLog.is_open()) {
+            TString logFile = outdir + "plot_summary.txt";
+            plotLog.open(logFile.Data(), std::ios::app);
+        }
+        
         gSystem->Exec("mkdir -p " + outdir);
         TString baseName = "OverlayRatio_" + TString(var.c_str());
         c->SaveAs(outdir + baseName + ".pdf");

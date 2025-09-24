@@ -13,7 +13,7 @@ def parse_args():
     p.add_argument("--era", required=True, help="Era string, e.g. 12022")
     p.add_argument("--base", default="/eos/user/d/dblend/Analyzed_SkimmedFiles/{era}/MC/",
                    help="Base path pattern with {era} placeholder (default: %(default)s)")
-    p.add_argument("--signal-name", default="VBF_MCRun{era}.root",
+    p.add_argument("--signal-name", default="VBF_all.root",
                    help="Signal ROOT file name pattern (default: %(default)s)")
     p.add_argument("--signal-subdir", default="VBF",
                    help="Subdirectory under base where signal file lives (default: %(default)s)")
@@ -89,7 +89,7 @@ def collect_root_files(base_dir, subdirs):
     files = []
     for sd in subdirs:
         d = os.path.join(base_dir, sd)
-        files.extend(sorted(glob.glob(os.path.join(d, "*.root"))))
+        files.extend(sorted(glob.glob(os.path.join(d, "*_all.root"))))
     return files
 
 def build_df(files, treename_in):
@@ -135,7 +135,8 @@ if __name__ == "__main__":
     args = parse_args()
 
     base_dir = args.base.format(era=args.era)
-    os.makedirs(args.outdir, exist_ok=True)
+    outdir = "DataPreparation_Files"
+    os.makedirs(outdir, exist_ok=True)
 
     # ----- SIGNAL -----
     signal_file = os.path.join(base_dir, args.signal_subdir, args.signal_name.format(era=args.era))
@@ -147,8 +148,8 @@ if __name__ == "__main__":
     df_sig = add_split_flags(df_sig)
     rep_sig = df_sig.Report()
 
-    train_sig_out = os.path.join(args.outdir, "train_signal.root")
-    test_sig_out  = os.path.join(args.outdir, "test_signal.root")
+    train_sig_out = os.path.join(outdir, f"{args.era}_train_signal.root")
+    test_sig_out  = os.path.join(outdir, f"{args.era}_test_signal.root")
 
     snapshot(df_sig.Filter("is_train"), train_sig_out, args.treename_out, args.weight_branch)
     snapshot(df_sig.Filter("!is_train"), test_sig_out,  args.treename_out, args.weight_branch)
@@ -165,8 +166,8 @@ if __name__ == "__main__":
     df_bkg = add_split_flags(df_bkg)
     rep_bkg = df_bkg.Report()
 
-    train_bkg_out = os.path.join(args.outdir, "train_background.root")
-    test_bkg_out  = os.path.join(args.outdir, "test_background.root")
+    train_bkg_out = os.path.join(outdir, f"{args.era}_train_background.root")
+    test_bkg_out  = os.path.join(outdir, f"{args.era}_test_background.root")
 
     snapshot(df_bkg.Filter("is_train"), train_bkg_out, args.treename_out, args.weight_branch)
     snapshot(df_bkg.Filter("!is_train"), test_bkg_out,  args.treename_out, args.weight_branch)

@@ -1,109 +1,153 @@
 #!/usr/bin/env python3
-import argparse, numpy as np, ROOT
+# Auto-plot BDT score shapes and significance per era + combined.
+# Discovers test files in DataPreparation_Files/, computes scores on the fly.
 
-ROOT.gStyle.SetOptStat(0)
+import os, glob, numpy as np, ROOT
 
-def parse():
-    p = argparse.ArgumentParser(description="Plot bdt_score for signal/background and find an optimal cut.")
-    g = p.add_mutually_exclusive_group(required=True)
-    g.add_argument("--combined", nargs=3, metavar=("SCORED_ALL.root","TEST_SIG.root","TEST_BKG.root"),
-                   help="Use one scored file created from [test_signal, test_background] in that order, "
-                        "plus the original test files to determine the split point.")
-    g.add_argument("--separate", nargs=2, metavar=("SCORED_SIG.root","SCORED_BKG.root"),
-                   help="Use two scored files (signal and background) produced separately.")
-    p.add_argument("--treename", default="mva")
-    p.add_argument("--score", default="bdt_score")
-    p.add_argument("--weight", default="weight")
-    p.add_argument("--bins", type=int, default=60)
-    p.add_argument("--out", default="tmva104_bdt_score")
-    return p.parse_args()
+# ----------------- CONFIG (match training) -----------------
+variables = [
+    "z","pt_balance","mu1_pt_over_m","mu2_pt_over_m",
+    "mu1_eta","mu2_eta","jet1_eta","m_mumu","deta_jj","dphi_jj",
+    "y_mumu","pt_j1","pt_j2",
+]
+TREENAME = "mva"
+WEIGHT_BRANCH = "weight"
+
+PREP_DIR = "DataPreparation_Files"   # where test_*.root live
+MODEL_FILE = "tmva101.root"
+MODEL_NAME = "myBDT"
+
+NBINS = 60
+XRANGE = (0.0, 1.0)
+OUT_TAG = "tmva104"  # base label in file names
+# -----------------------------------------------------------
+def load_test_pairs(prep_dir):
+    import glob, os
+    pairs = []
+    for sig in sorted(glob.glob(os.path.join(prep_dir, "*_test_signal.root"))):
+        era = os.path.basename(sig).replace("_test_signal.root", "")
+        bkg = os.path.join(prep_dir, f"{era}_test_background.root")
+        if os.path.isfile(bkg):
+            pairs.append((era, sig, bkg))
+    if not pairs:
+        raise FileNotFoundError(f"No test pairs found in {prep_dir}")
+    return pairs
 
 def arrays_from_file(fname, treename, branches):
     df = ROOT.RDataFrame(treename, fname)
     cols = df.AsNumpy(branches)
     return [np.asarray(cols[b]) for b in branches]
 
-def get_sig_bkg_arrays(args):
-    b = [args.score, args.weight]
-    if args.combined:
-        scored_all, test_sig, test_bkg = args.combined
-        nsig = int(ROOT.TChain(args.treename).Add(test_sig) or ROOT.TChain(args.treename).GetEntries())
-        # A trick to get entries without rebuilding chains twice
-        ch_s = ROOT.TChain(args.treename); ch_s.Add(test_sig); nsig = ch_s.GetEntries()
-        ch_b = ROOT.TChain(args.treename); ch_b.Add(test_bkg); nbkg = ch_b.GetEntries()
+def sanitize_weights(w):
+    w = np.asarray(w, dtype=np.float64)
+    w[~np.isfinite(w)] = 0.0
+    w = np.abs(w)  # for plotting & quick significance
+    w[w <= 1e-9] = 1e-9
+    return w
 
-        s_all, w_all = arrays_from_file(scored_all, args.treename, b)
-        assert s_all.size == nsig + nbkg, "Entry mismatch with combined file."
-
-        s_sig, w_sig = s_all[:nsig], w_all[:nsig]
-        s_bkg, w_bkg = s_all[nsig:], w_all[nsig:]
-        return (s_sig, w_sig), (s_bkg, w_bkg)
-
-    else:
-        scored_sig, scored_bkg = args.separate
-        s_sig, w_sig = arrays_from_file(scored_sig, args.treename, b)
-        s_bkg, w_bkg = arrays_from_file(scored_bkg, args.treename, b)
-        return (s_sig, w_sig), (s_bkg, w_bkg)
+def compute_scores(model, xs):
+    X = np.vstack(xs).T.astype(np.float32, copy=False)
+    return np.ravel(model.Compute(X).astype(np.float64, copy=False))
 
 def effs_vs_cut(scores, weights, cuts):
-    # Efficiency for scores >= cut
+    # efficiency for score >= cut
     order = np.argsort(scores)
     s = scores[order]; w = weights[order]
-    csum = np.cumsum(w)                        # increasing with score
+    csum = np.cumsum(w)                  # cumulative sum from low to high
     total = csum[-1] if csum.size else 1.0
-    # map each cut to index where score >= cut
     idx = np.searchsorted(s, cuts, side="left")
-    kept = (total - np.concatenate(([0.0], csum)))[idx] if idx.size else np.array([])
-    return kept / max(total, 1e-9)
+    kept = total - np.concatenate(([0.0], csum))[idx]
+    return kept / max(total, 1e-12)
 
-if __name__ == "__main__":
-    args = parse()
-    (s_sig, w_sig), (s_bkg, w_bkg) = get_sig_bkg_arrays(args)
+def ZA_asymptotic(S, B):
+    if S <= 0.0 or B <= 0.0: return 0.0
+    return float(np.sqrt(2.0 * ((S+B) * np.log(1.0 + S/max(B,1e-12)) - S)))
 
-    # --- histograms (normalized shapes) ---
-    xmin = 0.0; xmax = 1.0
-    nb   = args.bins
-    hS = ROOT.TH1F("hS",";BDT score;Normalized entries", nb, xmin, xmax)
-    hB = ROOT.TH1F("hB",";BDT score;Normalized entries", nb, xmin, xmax)
-    for x, w in zip(s_sig, w_sig): hS.Fill(float(x), float(abs(w)))
-    for x, w in zip(s_bkg, w_bkg): hB.Fill(float(x), float(abs(w)))
+def plot_shapes(sig_scores, sig_w, bkg_scores, bkg_w, outprefix):
+    xmin, xmax = XRANGE
+    hS = ROOT.TH1F("hS",";BDT score;Normalized entries", NBINS, xmin, xmax)
+    hB = ROOT.TH1F("hB",";BDT score;Normalized entries", NBINS, xmin, xmax)
+    for x, w in zip(sig_scores, sig_w): hS.Fill(float(x), float(w))
+    for x, w in zip(bkg_scores, bkg_w): hB.Fill(float(x), float(w))
     if hS.Integral()>0: hS.Scale(1.0/hS.Integral())
     if hB.Integral()>0: hB.Scale(1.0/hB.Integral())
-
     hS.SetLineColor(ROOT.kRed);   hS.SetLineWidth(3)
     hB.SetLineColor(ROOT.kBlue);  hB.SetLineWidth(3)
-
-    c1 = ROOT.TCanvas("c1","",750,650)
+    c = ROOT.TCanvas("c_shapes","",750,650)
     hS.Draw("hist"); hB.Draw("hist same")
     leg = ROOT.TLegend(0.15,0.78,0.45,0.90); leg.SetBorderSize(0)
     leg.AddEntry(hS,"Signal (shape)","l")
     leg.AddEntry(hB,"Background (shape)","l")
     leg.Draw()
-    c1.Update(); c1.SaveAs(args.out+"_shapes.pdf"); c1.SaveAs(args.out+"_shapes.png")
+    c.SaveAs(outprefix + "_shapes.pdf"); c.SaveAs(outprefix + "_shapes.png")
 
-    # --- find optimal cut on test set (maximize S/sqrt(S+B)) ---
-    # Use absolute weights for training-style figure of merit
+def plot_significance(sig_scores, sig_w, bkg_scores, bkg_w, outprefix):
+    xmin, xmax = XRANGE
     cuts = np.linspace(xmin, xmax, 400)
-    epsS = effs_vs_cut(s_sig, np.abs(w_sig), cuts)
-    epsB = effs_vs_cut(s_bkg, np.abs(w_bkg), cuts)
-    S0 = np.sum(np.abs(w_sig)); B0 = np.sum(np.abs(w_bkg))
+    epsS = effs_vs_cut(sig_scores, sig_w, cuts)
+    epsB = effs_vs_cut(bkg_scores, bkg_w, cuts)
+    S0 = float(sig_w.sum()); B0 = float(bkg_w.sum())
     S = S0 * epsS; B = B0 * epsB
-    Z = S / np.sqrt(S + B + 1e-9)
-    iopt = int(np.argmax(Z))
-    best_cut = float(cuts[iopt]); best_Z = float(Z[iopt])
-    print(f"[tmva104] Best cut (maximize S/sqrt(S+B)) = {best_cut:.4f}  →  Z = {best_Z:.3f}")
-    print(f"[tmva104] Efficiencies at best cut:  epsS = {epsS[iopt]:.3f},  epsB = {epsB[iopt]:.3f}")
+    Z  = np.where(S+B>0, S/np.sqrt(S+B), 0.0)
+    ZA = np.array([ZA_asymptotic(s, b) for s, b in zip(S, B)], dtype="f8")
 
-    # Plot Z(cut)
-    c2 = ROOT.TCanvas("c2","",750,650)
-    grZ = ROOT.TGraph(len(cuts), np.array(cuts, dtype="f8"), np.array(Z, dtype="f8"))
-    grZ.SetTitle(";BDT score cut; S / #sqrt{S+B}")
-    grZ.SetLineWidth(3); grZ.SetLineColor(ROOT.kBlack)
-    grZ.Draw("AL")
-    line = ROOT.TLine(best_cut, 0.0, best_cut, best_Z); line.SetLineColor(ROOT.kRed); line.SetLineStyle(2); line.Draw()
-    lab  = ROOT.TLatex(); lab.SetNDC(True); lab.SetTextSize(0.035)
-    lab.DrawLatex(0.15,0.92, f"Best cut = {best_cut:.3f},  Z = {best_Z:.2f}")
-    c2.Update(); c2.SaveAs(args.out+"_significance.pdf"); c2.SaveAs(args.out+"_significance.png")
+    iZ  = int(np.argmax(Z));  cZ  = cuts[iZ];  Zbest  = Z[iZ]
+    iZA = int(np.argmax(ZA)); cZA = cuts[iZA]; ZAbest = ZA[iZA]
 
-    print(f"[tmva104] Wrote {args.out}_shapes.(pdf|png) and {args.out}_significance.(pdf|png)")
+    # Z plot
+    c1 = ROOT.TCanvas("cZ","",750,650)
+    gZ = ROOT.TGraph(len(cuts), cuts.astype("f8"), Z.astype("f8"))
+    gZ.SetTitle(";BDT score cut; S / #sqrt{S+B}")
+    gZ.SetLineWidth(3); gZ.Draw("AL")
+    l1 = ROOT.TLine(float(cZ), 0.0, float(cZ), float(Zbest)); l1.SetLineColor(ROOT.kRed); l1.SetLineStyle(2); l1.Draw()
+    lab = ROOT.TLatex(); lab.SetNDC(True); lab.SetTextSize(0.035)
+    lab.DrawLatex(0.15,0.92, f"Best Z cut = {cZ:.3f}, Z = {Zbest:.2f}")
+    c1.SaveAs(outprefix + "_Z.pdf"); c1.SaveAs(outprefix + "_Z.png")
+
+    # ZA plot
+    c2 = ROOT.TCanvas("cZA","",750,650)
+    gZA = ROOT.TGraph(len(cuts), cuts.astype("f8"), ZA.astype("f8"))
+    gZA.SetTitle(";BDT score cut; Z_{A}")
+    gZA.SetLineWidth(3); gZA.Draw("AL")
+    l2 = ROOT.TLine(float(cZA), 0.0, float(cZA), float(ZAbest)); l2.SetLineColor(ROOT.kRed); l2.SetLineStyle(2); l2.Draw()
+    lab.DrawLatex(0.15,0.92, f"Best ZA cut = {cZA:.3f}, ZA = {ZAbest:.2f}")
+    c2.SaveAs(outprefix + "_ZA.pdf"); c2.SaveAs(outprefix + "_ZA.png")
+
+    print(f"[{outprefix}] S0={S0:.2f}, B0={B0:.2f} | best Z: cut={cZ:.3f}, Z={Zbest:.2f} | best ZA: cut={cZA:.3f}, ZA={ZAbest:.2f}")
+
+if __name__ == "__main__":
+    ROOT.gSystem.Load("libTMVA")
+    if ROOT.gSystem.AccessPathName(MODEL_FILE, ROOT.kReadPermission):
+        raise SystemExit(f"Model file not readable: {MODEL_FILE}")
+    bdt = ROOT.TMVA.Experimental.RBDT[""](MODEL_NAME, MODEL_FILE)
+
+    pairs = load_test_pairs(PREP_DIR)  # [(era, sig, bkg), ...]
+
+    # Accumulate ALL eras
+    all_sig_scores, all_sig_w = [], []
+    all_bkg_scores, all_bkg_w = [], []
+
+    for era, sig, bkg in pairs:
+        # pull arrays (vars + weight)
+        sig_arrays = arrays_from_file(sig, TREENAME, variables + [WEIGHT_BRANCH])
+        bkg_arrays = arrays_from_file(bkg, TREENAME, variables + [WEIGHT_BRANCH])
+
+        xs_sig, w_sig = sig_arrays[:-1], sanitize_weights(sig_arrays[-1])
+        xs_bkg, w_bkg = bkg_arrays[:-1], sanitize_weights(bkg_arrays[-1])
+
+        s_sig = compute_scores(bdt, xs_sig)
+        s_bkg = compute_scores(bdt, xs_bkg)
+
+        all_sig_scores.append(s_sig); all_sig_w.append(w_sig)
+        all_bkg_scores.append(s_bkg); all_bkg_w.append(w_bkg)
+
+    # Single combined arrays
+    sS = np.concatenate(all_sig_scores); wS = np.concatenate(all_sig_w)
+    sB = np.concatenate(all_bkg_scores); wB = np.concatenate(all_bkg_w)
+
+    outprefix = "ALL_tmva104"
+    plot_shapes(sS, wS, sB, wB, outprefix)
+    plot_significance(sS, wS, sB, wB, outprefix)
+
+    print("[done] Wrote ALL_tmva104_shapes.(pdf|png) and ALL_tmva104_{Z,ZA}.(pdf|png)")
 
