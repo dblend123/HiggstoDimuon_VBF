@@ -1447,6 +1447,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
             
             const double m_mumu = corr_p4dimuon.M();
 
+            if(m_mumu > 115 && m_mumu < 135) {
             // muon-level vars
             g_m_mumu             = static_cast<float>(m_mumu);
             g_mu1_eta            = static_cast<float>(corr_p4m1.Eta());
@@ -1487,6 +1488,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
 
             // fill exactly once per selected dimuon+2jet pair
             if (gMvaTree) gMvaTree->Fill();
+            }
 
             //	VBF SELECTION CRITERIA
             FILL_MUON_HIST(hists.setDM_VBF, noWeight)

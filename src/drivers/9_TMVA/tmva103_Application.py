@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # tmva103_Application.py
-# Usage examples:
+# python3 tmva103_Application.py --input DataPreparation_Files/12022_test_signal.root DataPreparation_Files/12022_test_background.root --output scored_all.root --treename mva --model-file tmva101.root --model-name myBDT
 
 import argparse, array
 import numpy as np

@@ -1,86 +1,114 @@
 #!/usr/bin/env python3
+# python3 tmva102_Testing.py --era 12022
 
+import os
+import argparse
 import numpy as np
 import ROOT
-import os
-
-# Reuse the same variable order + loader you trained with
-from tmva101_Training import load_data, TREENAME, WEIGHT_BRANCH
-
-DIR = "DataPreparation_Files"
-eras = [
-    (os.path.join(DIR, "12022_test_signal.root"), os.path.join(DIR, "12022_test_background.root")),
-    (os.path.join(DIR, "22022_test_signal.root"), os.path.join(DIR, "22022_test_background.root")),
-    (os.path.join(DIR, "12023_test_signal.root"), os.path.join(DIR, "12023_test_background.root")),
-    (os.path.join(DIR, "22023_test_signal.root"), os.path.join(DIR, "22023_test_background.root")),
-]
-
-xs, ys, ws = [], [], []
-for sig, bkg in eras:
-    print(f"[tmva102] loading test files: {sig}, {bkg}")
-    x_, y_, w_ = load_data(sig, bkg)
-    xs.append(x_); ys.append(y_); ws.append(w_)
-
-x = np.vstack(xs)
-y_true = np.hstack(ys)
-w = np.hstack(ws)
-
-# xgboost isn't required here (we use TMVA reader), but TMVA must be loaded
-ROOT.gSystem.Load("libTMVA")
-
-# --- 2) Load the trained model (TMVA format) ---
-MODEL_FILE = "tmva101.root"
-MODEL_NAME = "myBDT"
-
-if ROOT.gSystem.AccessPathName(MODEL_FILE, ROOT.kReadPermission):
-    ROOT.Error("tmva102_Testing.py", f"{MODEL_FILE} does not exist or is not readable")
-    raise SystemExit(1)
-
-# RBDT is the TMVA runtime model
-bdt = ROOT.TMVA.Experimental.RBDT[""](MODEL_NAME, MODEL_FILE)
-
-# --- 3) Predict scores on the test set ---
-# Ensure float32 for fastest path
-x = np.asarray(x, dtype=np.float32)
-y_pred = bdt.Compute(x)  # returns numpy array of scores
-
-# --- 4) Weighted ROC / AUC (scikit-learn) ---
 from sklearn.metrics import roc_curve, auc
 
-fpr, tpr, _ = roc_curve(y_true, y_pred, sample_weight=w)
-auc_score = auc(fpr, tpr)
-print(f"[tmva102] Weighted AUC: {auc_score:.5f}")
+# Reuse the same tree name and loader you trained with
+from tmva101_Training import load_folds, TREENAME  # no load_data here
 
-# Optional: a couple of operating points
-# (TPR at 1% FPR and Youden’s J)
-def interp_tpr_at_fpr(target_fpr):
-    if target_fpr <= fpr[0]: return tpr[0]
-    if target_fpr >= fpr[-1]: return tpr[-1]
-    return np.interp(target_fpr, fpr, tpr)
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dir", default="DataPreparation_Files", help="Directory with prepared ROOT files")
+    ap.add_argument("--era", required=True, help="Era, e.g. 12022")
+    ap.add_argument("--model", default="tmva101.root", help="TMVA model file")
+    ap.add_argument("--name",  default="myBDT", help="Model name inside TMVA file")
+    args = ap.parse_args()
 
-tpr_at_1pct = interp_tpr_at_fpr(0.01)
-youden_idx = np.argmax(tpr - fpr)
-print(f"[tmva102] TPR @ 1% FPR: {tpr_at_1pct:.3f}")
-print(f"[tmva102] Best threshold (Youden J): idx={youden_idx}, TPR={tpr[youden_idx]:.3f}, FPR={fpr[youden_idx]:.3f}")
+    DIR = args.dir
+    ERA = args.era
+    OUTDIR = "Outputs"
+    
+    sig_all = os.path.join(DIR, f"{ERA}_all_signal.root")
+    bkg_all = os.path.join(DIR, f"{ERA}_all_background.root")
+    sig_test = os.path.join(DIR, f"{ERA}_test_signal.root")
+    bkg_test = os.path.join(DIR, f"{ERA}_test_background.root")
 
-# --- 5) Plot and save ROC curve ---
-c = ROOT.TCanvas("roc", "", 700, 650)
-gr = ROOT.TGraph(len(fpr), np.array(fpr, dtype="f8"), np.array(tpr, dtype="f8"))
-gr.SetTitle(f"ROC;False-positive rate;True-positive rate")
-gr.SetLineWidth(3)
-gr.SetLineColor(ROOT.kRed)
-gr.Draw("AL")
-gr.GetXaxis().SetRangeUser(0.0, 1.0)
-gr.GetYaxis().SetRangeUser(0.0, 1.0)
+    # Prefer the unified _all_ files (contain 'fold'); fallback to _test_ files
+    sig_files = [sig_all] if os.path.exists(sig_all) else [sig_test]
+    bkg_files = [bkg_all] if os.path.exists(bkg_all) else [bkg_test]
 
-# AUC label
-latex = ROOT.TLatex()
-latex.SetNDC(True)
-latex.SetTextSize(0.04)
-latex.DrawLatex(0.15, 0.92, f"AUC = {auc_score:.4f}")
+    print("[tmva102] using files:")
+    print("  signal:", sig_files)
+    print("  bkg   :", bkg_files)
 
-c.Update()
-c.SaveAs("tmva102_roc.pdf")
-c.SaveAs("tmva102_roc.png")
-print("[tmva102] Wrote tmva102_roc.pdf and tmva102_roc.png")
+    # We only need the test split. No extra signal reweighting at test time.
+    (_,_,_), (_,_,_), (x_te, y_te, w_te) = load_folds(
+        sig_files, bkg_files,
+        folds_train=(), folds_valid=(), folds_test=(3,),
+        sig_extra_weight_branch=None
+    )
+
+    if x_te.shape[0] == 0:
+        print("[tmva102][WARN] test split is empty. Does your input have a non-constant 'fold' column?")
+        return
+
+    # --- Load TMVA and the runtime model ---
+    # Load libs explicitly to avoid unresolved symbols on some builds
+    ROOT.gSystem.Load("libRIO")
+    ROOT.gSystem.Load("libTree")
+    ROOT.gSystem.Load("libTreePlayer")
+    ROOT.gSystem.Load("libTMVA")
+    try:
+        ROOT.gSystem.Load("libTreeInference")
+    except:
+        pass
+
+    model_path = args.model
+    if ROOT.gSystem.AccessPathName(model_path, ROOT.kReadPermission):
+        ROOT.Error("tmva102_Testing.py", f"{model_path} does not exist or is not readable")
+        raise SystemExit(1)
+
+    MODEL_NAME = args.name
+    bdt = ROOT.TMVA.Experimental.RBDT[""](MODEL_NAME, model_path)
+
+    # --- Predict and evaluate ---
+    x = np.asarray(x_te, dtype=np.float32)
+    y_pred = bdt.Compute(x)
+
+    print("[tmva102] y_pred mean/std/min/max:",
+          float(np.mean(y_pred)), float(np.std(y_pred)),
+          float(np.min(y_pred)), float(np.max(y_pred)))
+
+    fpr, tpr, _ = roc_curve(y_te, y_pred, sample_weight=w_te)
+    auc_score = auc(fpr, tpr)
+    print(f"[tmva102] Weighted AUC: {auc_score:.5f}")
+
+    # Operating points
+    def interp_tpr_at_fpr(target_fpr):
+        if target_fpr <= fpr[0]: return tpr[0]
+        if target_fpr >= fpr[-1]: return tpr[-1]
+        return np.interp(target_fpr, fpr, tpr)
+
+    tpr_at_1pct = interp_tpr_at_fpr(0.01)
+    youden_idx = int(np.argmax(tpr - fpr))
+    print(f"[tmva102] TPR @ 1% FPR: {tpr_at_1pct:.3f}")
+    print(f"[tmva102] Best threshold (Youden J): idx={youden_idx}, "
+          f"TPR={tpr[youden_idx]:.3f}, FPR={fpr[youden_idx]:.3f}")
+
+    # --- Plot ROC ---
+    c = ROOT.TCanvas("roc", "", 700, 650)
+    gr = ROOT.TGraph(len(fpr), np.asarray(fpr, dtype="f8"), np.asarray(tpr, dtype="f8"))
+    gr.SetTitle("ROC;False-positive rate;True-positive rate")
+    gr.SetLineWidth(3)
+    gr.SetLineColor(ROOT.kRed)
+    gr.Draw("AL")
+    gr.GetXaxis().SetRangeUser(0.0, 1.0)
+    gr.GetYaxis().SetRangeUser(0.0, 1.0)
+
+    latex = ROOT.TLatex()
+    latex.SetNDC(True)
+    latex.SetTextSize(0.04)
+    latex.DrawLatex(0.15, 0.92, f"AUC = {auc_score:.4f}")
+
+    c.Update()
+    c.SaveAs("tmva102_roc.pdf")
+    c.SaveAs("tmva102_roc.png")
+    print("[tmva102] Wrote tmva102_roc.pdf and tmva102_roc.png")
+
+if __name__ == "__main__":
+    main()
 

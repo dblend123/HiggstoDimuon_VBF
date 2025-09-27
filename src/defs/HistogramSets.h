@@ -45,8 +45,8 @@ namespace analysis
                 TH1F *hDiMuonpt;
                 TH1F *hDiMuoneta;
                 TH1F *hDiMuonrapidity;
-                //TH1F *hDiMuonCS;
-                //TH1F *hDiMuoncosCS;
+                TH1F *hCollinsSoper;
+                TH1F *hcosCollinsSoper;
                 
                 // -----  Muon  -----
                 TH1F *hMuon1pt;
@@ -70,13 +70,15 @@ namespace analysis
                 hDiJetpt   = new TH1F("DiJetPt", "DiJetPt", 50, 0, 400);
                 hDiJetdeta = new TH1F("DiJetdeta", "DiJetdeta", 30, 0, 9);
                 hDiJetdphi = new TH1F("DiJetdphi", "DiJetdphi", 30, 0, 3.2);
-                
+                hdphi_mumu_jj = new TH1F("hdphi_mumu_jj", "hdphi_mumu_jj", 40, 0, 3.2);
+                hdeta_mumu_jj = new TH1F("hdeta_mumu_jj", "hdeta_mumu_jj", 40, 0, 8);
+
                 // -----  Jet Plots  -----
                 hJet1pt = new TH1F("Jet1Pt", "Jet1Pt", 50, 0, 200);
                 hJet2pt = new TH1F("Jet2Pt", "Jet2Pt", 50, 0, 200);
                 hJet1eta = new TH1F("Jet1eta", "Jet1eta", 60, -5, 5);
                 hJet2eta = new TH1F("Jet2eta", "Jet2eta", 60, -5, 5);
-                //hnJets = new TH1F("nJets", "nJets", 8, 0, 8);
+                hnJets = new TH1F("nJets", "nJets", 8, 0, 8);
                 
                 parentDir->cd();
             }
@@ -91,13 +93,15 @@ namespace analysis
                 TH1F *hDiJetpt;   
                 TH1F *hDiJetdeta;
                 TH1F *hDiJetdphi;
+                TH1F *hdphi_mumu_jj;
+                TH1F *hdeta_mumu_jj;
                 
                 // -----  Jet  -----
                 TH1F *hJet1pt;   
                 TH1F *hJet2pt;   
                 TH1F *hJet1eta;
                 TH1F *hJet2eta;
-                //TH1F *hnJets;
+                TH1F *hnJets;
 		};        
 
         struct FsrSet

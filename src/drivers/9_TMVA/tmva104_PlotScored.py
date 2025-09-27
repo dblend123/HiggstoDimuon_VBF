@@ -5,11 +5,8 @@
 import os, glob, numpy as np, ROOT
 
 # ----------------- CONFIG (match training) -----------------
-variables = [
-    "z","pt_balance","mu1_pt_over_m","mu2_pt_over_m",
-    "mu1_eta","mu2_eta","jet1_eta","m_mumu","deta_jj","dphi_jj",
-    "y_mumu","pt_j1","pt_j2",
-]
+from tmva100_DataPreparation import VARIABLES
+
 TREENAME = "mva"
 WEIGHT_BRANCH = "weight"
 
@@ -129,8 +126,8 @@ if __name__ == "__main__":
 
     for era, sig, bkg in pairs:
         # pull arrays (vars + weight)
-        sig_arrays = arrays_from_file(sig, TREENAME, variables + [WEIGHT_BRANCH])
-        bkg_arrays = arrays_from_file(bkg, TREENAME, variables + [WEIGHT_BRANCH])
+        sig_arrays = arrays_from_file(sig, TREENAME, VARIABLES + [WEIGHT_BRANCH])
+        bkg_arrays = arrays_from_file(bkg, TREENAME, VARIABLES + [WEIGHT_BRANCH])
 
         xs_sig, w_sig = sig_arrays[:-1], sanitize_weights(sig_arrays[-1])
         xs_bkg, w_bkg = bkg_arrays[:-1], sanitize_weights(bkg_arrays[-1])

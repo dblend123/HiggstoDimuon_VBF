@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # tmva100_DataPreparation.py
-# python3 tmva100_DataPreparation.py   --era 12023   --treename-in mva   --signal-subdir VBF   --weight-branch weight
+# python3 tmva100_DataPreparation.py   --era 12022   --treename-in mva   --signal-subdir VBF   --weight-branch weight   --make-all
 
 import os, glob, argparse
 import ROOT
@@ -10,35 +10,37 @@ import ROOT
 # --------------------------
 def parse_args():
     p = argparse.ArgumentParser(description="Prepare train/test ROOT files (mva tree) for TMVA/XGBoost.")
-    p.add_argument("--era", required=True, help="Era string, e.g. 12022")
+    p.add_argument("--era", required=True, 
+                   help="Era string, e.g. 12022")
     p.add_argument("--base", default="/eos/user/d/dblend/Analyzed_SkimmedFiles/{era}/MC/",
                    help="Base path pattern with {era} placeholder (default: %(default)s)")
     p.add_argument("--signal-name", default="VBF_all.root",
                    help="Signal ROOT file name pattern (default: %(default)s)")
     p.add_argument("--signal-subdir", default="VBF",
                    help="Subdirectory under base where signal file lives (default: %(default)s)")
-    p.add_argument("--bg-subdirs", nargs="*", default=[
-        "DY","EWK","TT","WWW","WWZ","WZto2L2Q","WZto3LNu",
-        "WZZ","ZZto2L2Nu","ZZto2L2Q","ZZto4L","ZZZ"
-    ], help="Background subdirectory names under the base path.")
-    p.add_argument("--treename-in", default="Events", help="Input tree name (default: %(default)s)")
-    p.add_argument("--treename-out", default="mva", help="Output tiny tree name (default: %(default)s)")
+    p.add_argument("--bg-subdirs", nargs="*", default=["DY","EWK","TT","WWW","WWZ","WZto2L2Q","WZto3LNu","WZZ","ZZto2L2Nu","ZZto2L2Q","ZZto4L","ZZZ"], 
+                   help="Background subdirectory names under the base path.")
+    p.add_argument("--treename-in", default="Events", 
+                   help="Input tree name (default: %(default)s)")
+    p.add_argument("--treename-out", default="mva", 
+                   help="Output tiny tree name (default: %(default)s)")
     p.add_argument("--weight-branch", default="weight",
                    help="Column name to write the per-event weight as. Use 'None' to skip. (default: %(default)s)")
-    p.add_argument("--outdir", default=".", help="Output directory (default: current dir)")
+    p.add_argument("--outdir", default=".", 
+                   help="Output directory (default: current dir)")
+    p.add_argument("--force-define", action="store_true",
+                   help="Force recomputation of VARIABLES even if present")
+    p.add_argument("--make-all", action="store_true",
+                   help="Also snapshot *_all_signal/background.root that include all folds")
     return p.parse_args()
 
 # --------------------------
 # Variables for the BDT
 # --------------------------
 VARIABLES = [
-    "z",
-    "pt_balance",
-    "mu1_pt_over_m", "mu2_pt_over_m",
-    "mu1_eta", "mu2_eta", "jet1_eta",
-    "m_mumu", "deta_jj", "dphi_jj",
-    "y_mumu", "pt_j1", "pt_j2",
-]
+    "z", "pt_balance", "mu1_pt_over_m", "mu2_pt_over_m", "mu1_eta", "mu2_eta", "y_mumu", "pt_mumu", 
+    "jet1_eta", "deta_jj", "dphi_jj", "njets", "pt_j1", "pt_j2", "dphi_mumu_jj", "deta_mumu_jj", "phi_CS", "costheta_CS",
+    ]
 
 # --------------------------
 # Selection & feature defs
@@ -46,6 +48,8 @@ VARIABLES = [
 def filter_events(df):
     # Put any baseline selection here if needed; otherwise leave as no-op.
     return df
+
+ROOT.gInterpreter.Declare('#include "TVector2.h"')
 
 def define_variables(df):
     # If TVector2 header isn't autoloaded on your setup, uncomment:
@@ -71,6 +75,8 @@ def define_variables(df):
             .Define("deta_jj", "fabs(eta_j1 - eta_j2)")
             .Define("dphi_jj", "fabs(TVector2::Phi_mpi_pi(phi_j1 - phi_j2))")
             .Define("y_mumu",  "float(y_mumu)")
+            .Define("dphi_jj", "fabs(TVector2::Phi_mpi_pi(phi_j1 - phi_j2))")
+            .Define("y_mumu",  "float(y_mumu)")
             .Define("pt_j1",   "float(pt_j1)")
             .Define("pt_j2",   "float(pt_j2)"))
 
@@ -85,6 +91,20 @@ def define_variables(df):
 # --------------------------
 # Helpers
 # --------------------------
+# --- after you build df_sig/df_bkg and before snapshotting, define a fold ---
+def add_fold(df):
+    cols = set(df.GetColumnNames())
+    if {"run","luminosityBlock","event"}.issubset(cols):
+        return df.Define(
+            "fold",
+            "( ( ( (int)run * 1315423911 + (int)luminosityBlock * 2654435761u + (int)event ) & 0x7fffffff ) % 4 )"
+        )
+    elif "event" in cols:
+        return df.Define("fold", "((int)event % 4)")
+    else:
+        # SAFE FALLBACK for mva-only trees (no run/lumi/event):
+        return df.Define("fold", "int(rdfentry_ % 4)")
+
 def collect_root_files(base_dir, subdirs):
     files = []
     for sd in subdirs:
@@ -92,14 +112,14 @@ def collect_root_files(base_dir, subdirs):
         files.extend(sorted(glob.glob(os.path.join(d, "*_all.root"))))
     return files
 
-def build_df(files, treename_in):
+def build_df(files, treename_in, force_define=False):
     flist = ROOT.std.vector("string")()
     for f in files: flist.push_back(f)
     df = ROOT.RDataFrame(treename_in, flist)
 
     # If the input tree already has all VARIABLES, don’t redefine them.
     cols = set(df.GetColumnNames())
-    if set(VARIABLES).issubset(cols):
+    if (not force_define) and set(VARIABLES).issubset(cols):
         return df
 
     # Otherwise compute them (original behavior)
@@ -125,7 +145,9 @@ def snapshot(df, outname, treename_out, weight_branch):
     if weight_branch and (weight_branch in df.GetColumnNames()):
         cols_out.push_back(weight_branch)
     elif weight_branch and weight_branch != "None":
-        print("[WARN] requested weight branch '{}' not present; writing without it.".format(weight_branch))
+        print(f"[WARN] requested weight branch '{weight_branch}' not present; writing without it.")
+    if "fold" in df.GetColumnNames():      # <- add this
+        cols_out.push_back("fold")         # <- add this
     df.Snapshot(treename_out, outname, cols_out)
 
 # --------------------------
@@ -144,7 +166,7 @@ if __name__ == "__main__":
     if not os.path.isfile(signal_file):
         raise FileNotFoundError("Signal file not found: {}".format(signal_file))
 
-    df_sig = build_df([signal_file], args.treename_in)
+    df_sig = build_df([signal_file], args.treename_in, force_define=args.force_define)
     df_sig = add_split_flags(df_sig)
     rep_sig = df_sig.Report()
 
@@ -162,15 +184,40 @@ if __name__ == "__main__":
     if not bg_files:
         raise RuntimeError("No background ROOT files found under {} subdirs {}".format(base_dir, args.bg_subdirs))
 
-    df_bkg = build_df(bg_files, args.treename_in)
+    df_bkg = build_df(bg_files, args.treename_in, force_define=args.force_define)
     df_bkg = add_split_flags(df_bkg)
     rep_bkg = df_bkg.Report()
+
+    df_sig = add_fold(df_sig)
+    df_bkg = add_fold(df_bkg)
+
+    for v in VARIABLES:
+        in_sig = v in df_sig.GetColumnNames()
+        in_bkg = v in df_bkg.GetColumnNames()
+        if in_sig and in_bkg:
+            ms = float(df_sig.Mean(v).GetValue())
+            ss = float(df_sig.StdDev(v).GetValue())
+            mb = float(df_bkg.Mean(v).GetValue())
+            sb = float(df_bkg.StdDev(v).GetValue())
+            print("[SIG]", v, "mean=", ms, "std=", ss)
+            print("[BKG]", v, "mean=", mb, "std=", sb)
+        else:
+            print(f"[WARN] variable '{v}' is missing in SIG or BKG")
 
     train_bkg_out = os.path.join(outdir, f"{args.era}_train_background.root")
     test_bkg_out  = os.path.join(outdir, f"{args.era}_test_background.root")
 
     snapshot(df_bkg.Filter("is_train"), train_bkg_out, args.treename_out, args.weight_branch)
     snapshot(df_bkg.Filter("!is_train"), test_bkg_out,  args.treename_out, args.weight_branch)
+
+    # After writing train/test for SIG + BKG...
+    if args.make_all:
+        all_sig_out = os.path.join(outdir, f"{args.era}_all_signal.root")
+        all_bkg_out = os.path.join(outdir, f"{args.era}_all_background.root")
+        snapshot(df_sig, all_sig_out, args.treename_out, args.weight_branch)
+        snapshot(df_bkg, all_bkg_out, args.treename_out, args.weight_branch)
+        print("  ", all_sig_out)
+        print("  ", all_bkg_out)
 
     rep_bkg.Print()
 

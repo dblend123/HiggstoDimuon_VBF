@@ -1,98 +1,240 @@
 # XGBoost must be imported before ROOT
-# source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
-# python3 tmva101_Training.py
+# source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh && python3 tmva101_Training.py
 
-import os
-import ROOT
-import numpy as np
 from xgboost import XGBClassifier
+import argparse, os, numpy as np, ROOT
+import matplotlib.pyplot as plt
 
 from tmva100_DataPreparation import VARIABLES
 
-print(ROOT.gROOT.GetVersion())
-print(ROOT.gSystem.Getenv("ROOTSYS"))
-
 TREENAME = "mva"
-WEIGHT_BRANCH = "weight"   # branch in your mva tree
+WEIGHT_BRANCH = "weight"
+OUTDIR = "Outputs"
 
 def _sanitize_weights(w):
     w = np.asarray(w, dtype=np.float64)
-    # replace NaN/±Inf with 0
     w[~np.isfinite(w)] = 0.0
-    # use absolute value (NLO negatives -> positive for training)
     w = np.abs(w)
-    # clip to strictly positive (xgboost disallows 0)
-    eps = 1e-6
-    w = np.where(w > eps, w, eps)
+    w = np.where(w > 1e-9, w, 1e-9)
     return w
 
-def load_data(signal_filename, background_filename):
-    ds = ROOT.RDataFrame(TREENAME, signal_filename).AsNumpy()
-    db = ROOT.RDataFrame(TREENAME, background_filename).AsNumpy()
+def _annihilate_signed_weights(w_signed):
+    """
+    Pair negative with positive weights within a class and annihilate them.
+    Returns non-negative effective weights (float64) of same shape.
+    Strategy: cancel total negative mass against positives proportionally.
+    """
+    w_signed = np.asarray(w_signed, dtype=np.float64)
+    pos = np.clip(w_signed, 0.0, None)
+    neg = -np.clip(w_signed, None, 0.0)
 
-    x_sig = np.vstack([ds[v] for v in VARIABLES]).T
-    x_bkg = np.vstack([db[v] for v in VARIABLES]).T
-    x = np.vstack([x_sig, x_bkg])
+    sum_pos = pos.sum()
+    sum_neg = neg.sum()
+    if sum_neg <= 0 or sum_pos <= 0:
+        # nothing to do; also handles all-positive or all-negative edge cases
+        return np.clip(w_signed, 0.0, None)
 
-    ns, nb = x_sig.shape[0], x_bkg.shape[0]
-    y = np.hstack([np.ones(ns), np.zeros(nb)])
-
-    # event weights (sanitized) × class balancing
-    if WEIGHT_BRANCH in ds and WEIGHT_BRANCH in db:
-        ws_raw, wb_raw = ds[WEIGHT_BRANCH], db[WEIGHT_BRANCH]
+    # cancel min(sum_pos, sum_neg) proportionally from the positive side
+    cancel_from_pos = min(sum_pos, sum_neg)
+    if sum_pos > 0:
+        pos_scaled = pos * (1.0 - cancel_from_pos / sum_pos)
     else:
-        ws_raw, wb_raw = np.ones(ns), np.ones(nb)
+        pos_scaled = pos
 
-    ws = _sanitize_weights(ws_raw)
-    wb = _sanitize_weights(wb_raw)
+    # If negatives exceed positives, residual negatives can't be used -> set to 0
+    # (this is standard "annihilation": we do not keep negative effective weights)
+    eff = pos_scaled  # residual positives after annihilation
+    return eff
 
-    scale_s = (ns + nb) / max(ns, 1)
-    scale_b = (ns + nb) / max(nb, 1)
-    w = np.hstack([ws * scale_s, wb * scale_b])
+def _normalize_class_weights(w_sig, w_bkg):
+    """Scale so that sum(w_sig) == sum(w_bkg)."""
+    sw_s = w_sig.sum()
+    sw_b = w_bkg.sum()
+    if sw_s <= 0 or sw_b <= 0:
+        return w_sig, w_bkg
+    scale = np.sqrt(sw_s * sw_b)
+    return w_sig * (scale / sw_s), w_bkg * (scale / sw_b)
 
-    # (optional) quick diagnostics
-    neg_s = np.sum(np.asarray(ws_raw) < 0)
-    neg_b = np.sum(np.asarray(wb_raw) < 0)
-    print(f"[info] weights: ns={ns} (neg={neg_s}), nb={nb} (neg={neg_b})")
+def _load_numpy(filelist, treename, vars_list, folds_allowed=None, extra_weight_branch=None, is_signal=False):
+    """
+    Load arrays from ROOT, select folds, build X matrix and weight vector.
+    For signal, multiply by extra weight branch if provided.
+    """
+    # Support multiple files
+    if isinstance(filelist, (list, tuple)):
+        rdf = ROOT.RDataFrame(treename, ROOT.std.vector("string")(list(filelist)))
+    else:
+        rdf = ROOT.RDataFrame(treename, filelist)
 
-    return x, y, w
+    cols = set(rdf.GetColumnNames())
+    if folds_allowed is not None and "fold" in cols:
+        # Filter on allowed folds
+        fold_expr = " || ".join([f"fold=={int(f)}" for f in sorted(folds_allowed)])
+        rdf = rdf.Filter(f"({fold_expr})", "select folds")
+
+    # pull variables
+    arrs = rdf.AsNumpy(vars_list + ([WEIGHT_BRANCH] if WEIGHT_BRANCH in cols else []) + (["fold"] if "fold" in cols else []) + ([extra_weight_branch] if (is_signal and extra_weight_branch and extra_weight_branch in cols) else []))
+
+    x = np.vstack([arrs[v] for v in vars_list]).T
+    # base weights
+    if WEIGHT_BRANCH in arrs:
+        w_signed = np.asarray(arrs[WEIGHT_BRANCH], dtype=np.float64)
+    else:
+        w_signed = np.ones(x.shape[0], dtype=np.float64)
+
+    # For signal: multiply by mass-resolution (or any extra) branch if requested
+    if is_signal and extra_weight_branch and extra_weight_branch in arrs:
+        sig_extra = np.asarray(arrs[extra_weight_branch], dtype=np.float64)
+        # sanitize multiplicative factor (non-negative, finite)
+        sig_extra[~np.isfinite(sig_extra)] = 0.0
+        sig_extra = np.clip(sig_extra, 0.0, None)
+        w_signed = w_signed * sig_extra
+
+    return x, w_signed
+
+def load_folds(sig_files, bkg_files, folds_train=(0,1), folds_valid=(2,), folds_test=(3,), sig_extra_weight_branch=None):
+    # Load signal/background for train+valid+test, then slice by folds
+    xS, wS_signed = _load_numpy(sig_files, TREENAME, VARIABLES, folds_allowed=None, extra_weight_branch=sig_extra_weight_branch, is_signal=True)
+    xB, wB_signed = _load_numpy(bkg_files, TREENAME, VARIABLES, folds_allowed=None, extra_weight_branch=None, is_signal=False)
+
+    # Also fetch folds to split (re-load only fold column to avoid big memory hit)
+    def get_folds(files):
+        rdf = ROOT.RDataFrame(TREENAME, ROOT.std.vector("string")(list(files)) if isinstance(files, (list,tuple)) else files)
+        cols = set(rdf.GetColumnNames())
+        if "fold" in cols:
+            return np.asarray(rdf.AsNumpy(["fold"])["fold"], dtype=np.int32)
+        else:
+            # fallback: 0 for all -> all go to 'train' if folds not present
+            return np.zeros(len(xS if files is sig_files else xB), dtype=np.int32)
+    fS = get_folds(sig_files)
+    fB = get_folds(bkg_files)
+
+    def _slice(x, w_signed, f, allowed):
+        m = np.isin(f, np.array(allowed, dtype=np.int32))
+        return x[m], w_signed[m]
+
+    # sanitize & annihilate within each split separately to keep consistency
+    def _prep_split(xS, wS_signed, xB, wB_signed):
+        # sanitize (finite, abs, eps)
+        wS_san = _sanitize_weights(wS_signed) * np.sign(wS_signed)  # keep sign for annihilation
+        wB_san = _sanitize_weights(wB_signed) * np.sign(wB_signed)
+
+        # annihilate (per class)
+        wS_eff = _annihilate_signed_weights(wS_san)
+        wB_eff = _annihilate_signed_weights(wB_san)
+
+        # after annihilation, sanitize to strictly positive eps
+        wS_eff = _sanitize_weights(wS_eff)
+        wB_eff = _sanitize_weights(wB_eff)
+
+        # class-balance by weight sum (not counts)
+        wS_bal, wB_bal = _normalize_class_weights(wS_eff, wB_eff)
+
+        # labels
+        y = np.hstack([np.ones(xS.shape[0]), np.zeros(xB.shape[0])])
+        x = np.vstack([xS, xB])
+        w = np.hstack([wS_bal, wB_bal])
+        return x, y, w
+
+    # Train
+    xS_tr, wS_tr = _slice(xS, wS_signed, fS, folds_train)
+    xB_tr, wB_tr = _slice(xB, wB_signed, fB, folds_train)
+    x_tr, y_tr, w_tr = _prep_split(xS_tr, wS_tr, xB_tr, wB_tr)
+
+    # Valid
+    xS_va, wS_va = _slice(xS, wS_signed, fS, folds_valid)
+    xB_va, wB_va = _slice(xB, wB_signed, fB, folds_valid)
+    x_va, y_va, w_va = _prep_split(xS_va, wS_va, xB_va, wB_va)
+
+    # Test
+    xS_te, wS_te = _slice(xS, wS_signed, fS, folds_test)
+    xB_te, wB_te = _slice(xB, wB_signed, fB, folds_test)
+    x_te, y_te, w_te = _prep_split(xS_te, wS_te, xB_te, wB_te)
+
+    # quick diagnostics
+    print(f"[info] train sizes: S={xS_tr.shape[0]} B={xB_tr.shape[0]} | sums(w): S={w_tr[y_tr==1].sum():.3e} B={w_tr[y_tr==0].sum():.3e}")
+    print(f"[info] valid sizes: S={xS_va.shape[0]} B={xB_va.shape[0]}")
+    print(f"[info] test  sizes: S={xS_te.shape[0]} B={xB_te.shape[0]}")
+    return (x_tr, y_tr, w_tr), (x_va, y_va, w_va), (x_te, y_te, w_te)
 
 if __name__ == "__main__":
-    # list of (signal, background) files for all eras
-    DIR = "DataPreparation_Files"
-    eras = [
-        (os.path.join(DIR, "12022_train_signal.root"), os.path.join(DIR, "12022_train_background.root")),
-        (os.path.join(DIR, "22022_train_signal.root"), os.path.join(DIR, "22022_train_background.root")),
-        (os.path.join(DIR, "12023_train_signal.root"), os.path.join(DIR, "12023_train_background.root")),
-        (os.path.join(DIR, "22023_train_signal.root"), os.path.join(DIR, "22023_train_background.root")),
-    ]
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dir", default="DataPreparation_Files")
+    ap.add_argument("--era", default="12022")
+    ap.add_argument("--sig-extra-weight-branch", default=None, help="Extra multiplicative weight for SIGNAL only (e.g. mass resolution)")
+    args = ap.parse_args()
 
-    xs, ys, ws = [], [], []
-    for sig, bkg in eras:
-        x, y, w = load_data(sig, bkg)
-        xs.append(x)
-        ys.append(y)
-        ws.append(w)
+    sig_files = [os.path.join(args.dir, f"{args.era}_all_signal.root")] if os.path.exists(os.path.join(args.dir, f"{args.era}_all_signal.root")) else [os.path.join(args.dir, f"{args.era}_train_signal.root"), os.path.join(args.dir, f"{args.era}_test_signal.root")]
+    bkg_files = [os.path.join(args.dir, f"{args.era}_all_background.root")] if os.path.exists(os.path.join(args.dir, f"{args.era}_all_background.root")) else [os.path.join(args.dir, f"{args.era}_train_background.root"), os.path.join(args.dir, f"{args.era}_test_background.root")]
 
-    # concatenate across eras
-    x_all = np.vstack(xs)
-    y_all = np.hstack(ys)
-    w_all = np.hstack(ws)
+    print("[debug] sig_files:", sig_files)
+    print("[debug] bkg_files:", bkg_files)
+    for p in sig_files + bkg_files:
+        rdf = ROOT.RDataFrame(TREENAME, p)
+        print(f"[debug] {p} has fold? {'fold' in set(rdf.GetColumnNames())}")
 
-    bdt = XGBClassifier(
-        n_estimators=500,
-        max_depth=3,
-        learning_rate=0.05,
-        subsample=0.5,
-        colsample_bytree=0.9,
-        tree_method="hist",
-        random_state=42,
-        n_jobs=4,
+
+    # Load folds (train {0,1}, valid {2}, test {3}); apply annihilation and class-sum normalization
+    (x_tr, y_tr, w_tr), (x_va, y_va, w_va), (x_te, y_te, w_te) = load_folds(
+        sig_files, bkg_files,
+        folds_train=(0,1), folds_valid=(2,), folds_test=(3,),
+        sig_extra_weight_branch=args.sig_extra_weight_branch
     )
+    
+    # loud guard if folds are missing (everything went to train)
+    if x_va.shape[0] == 0 and x_te.shape[0] == 0:
+        print("[WARN] validation/test are empty. Did your snapshots include a 'fold' column?")
 
-    bdt.fit(x_all, y_all, sample_weight=w_all)
+    # Train with validation monitoring (optional early stopping if you like)
+    bdt = XGBClassifier(
+        tree_method="hist",
+        max_bin=30, 
+        max_depth=4,
+        learning_rate=0.1,
+        n_estimators=1000,
+        eval_metric="logloss", 
+        booster="gbtree",
+        n_jobs=30,
+        nthread=None, 
+        gamma=0, 
+        min_child_weight=0.03, 
+        max_delta_step=0, 
+        subsample=0.5,
+        colsample_bytree=1,
+        colsample_bylevel=1, 
+        reg_alpha=0,
+        reg_lambda=1, 
+        scale_pos_weight=0.7, 
+        base_score=0.5, 
+        random_state=0, 
+        seed=None, 
+        missing=None
+    )
+    bdt.fit(x_tr, y_tr, sample_weight=w_tr,
+            eval_set=[(x_va, y_va)],
+            sample_weight_eval_set=[w_va],
+            verbose=False)
+
+    # --- Feature importance (gain) printout (sorted, highest→lowest) ---
+    importance = bdt.get_booster().get_score(importance_type="gain")
+    feat_importance = {var: importance.get(f"f{i}", 0.0) for i, var in enumerate(VARIABLES)}
+    sorted_feats = sorted(feat_importance.items(), key=lambda x: x[1], reverse=True)
+
+    # Print to screen
+    print("\n[info] Feature importance (gain, sorted):")
+    for var, score in sorted_feats:
+     print(f"  {var:20s} : {score:.4f}")
+
+    # Write to txt file in OUTDIR
+    out_txt = os.path.join(OUTDIR, "feature_importance.txt")
+    with open(out_txt, "w") as f:
+     f.write("Feature importance (gain, sorted high→low)\n")
+     for var, score in sorted_feats:
+         f.write(f"{var:20s} : {score:.4f}\n")
+
+    print(f"[info] Feature importance written to {out_txt}")
 
     ROOT.gSystem.Load("libTMVA")
-    print("Training done on", x_all.shape[0], "events. Saving model in tmva101.root")
-    ROOT.TMVA.Experimental.SaveXGBoost(bdt, "myBDT", "tmva101.root", num_inputs=x_all.shape[1])
+    print("Training done on", x_tr.shape[0], "train events. Saving model in tmva101.root")
+    ROOT.TMVA.Experimental.SaveXGBoost(bdt, "myBDT", "tmva101.root", num_inputs=x_tr.shape[1])
 
