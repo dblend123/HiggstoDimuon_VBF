@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # tmva103_Application.py
-# python3 tmva103_Application.py --input DataPreparation_Files/12022_test_signal.root DataPreparation_Files/12022_test_background.root --output scored_all.root --treename mva --model-file tmva101.root --model-name myBDT
+
+'''
+For MC:
+python3 tmva103_Application.py --input DataPreparation_Files/12022_test_signal.root DataPreparation_Files/12022_test_background.root --output 12022_scored_all.root --treename mva --model-file 12022_tmva101.root --model-name myBDT
+
+For Data:
+python3 tmva103_Application.py --input /eos/user/d/dblend/Analyzed_SkimmedFiles/12022/MC/DATA/DATA_all.root --output Outputs/12022/12022_data_scored_all.root --treename mva --model-file 12022_tmva101.root --model-name myBDT
+'''
 
 import argparse, array
 import numpy as np

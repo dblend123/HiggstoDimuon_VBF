@@ -39,6 +39,7 @@
 #include <set>
 #include "TVector2.h"
 #include <cmath> 
+#include "TRandom3.h"
 
 // Reading Weights
 #include <fstream>
@@ -57,6 +58,7 @@
 
 #define FILL_MUON_HIST(set, weight) \
     set.hDiMuonMass->Fill(corr_p4dimuon.M(), weight); \
+    set.hDiMuonMass_Z->Fill(corr_p4dimuon.M(), weight); \
     set.hDiMuonpt->Fill(corr_p4dimuon.Pt(), weight); \
     set.hDiMuoneta->Fill(corr_p4dimuon.Eta(), weight); \
     set.hDiMuonrapidity->Fill(corr_p4dimuon.Rapidity(), weight); \
@@ -104,6 +106,8 @@ std::string const NTUPLEMAKER_NAME =  "";
 
 bool __isMC;
 bool __genPUMC;
+bool __useKIT;
+bool __noMuCorr;
 std::atomic<bool> __continueRunning = true;
 
 // MVA tree
@@ -186,10 +190,14 @@ using namespace correction;
 // Muon SF && Momentum Corrections 
 std::shared_ptr<correction::CorrectionSet> corrections = nullptr;     // muon SFs
 std::shared_ptr<correction::CorrectionSet> muoncorrections = nullptr; // Rochester
+// KIT
+std::shared_ptr<correction::CorrectionSet> kitCorrections = nullptr;
+
 
 // ---------- Era-aware config (edit defaults if your layout changes) ----------
 std::string g_muDir     = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/MUO";
 std::string g_muSFJSON  = "auto";   // "auto" => muon_Z<era>.json
+std::string g_kitJSON = "auto";
 std::string g_muSFKeyID = "NUM_TightID_DEN_TrackerMuons";
 std::string g_muSFKeyISO = "NUM_TightPFIso_DEN_TightID";
 std::string g_muSFKeyTRG = "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight";
@@ -208,6 +216,30 @@ static std::string rochFileForEra(const std::string& era) {
     if (g_rochJSON != "auto") return g_rochJSON;
     // Example naming: RoccoR12022.json, RoccoR22022.json, RoccoR12023.json, RoccoR22023.json
     return g_muDir + "/RoccoR" + era + ".json";
+}
+
+static std::string kitFileForEra(const std::string& era) {
+    if (g_kitJSON != "auto") return g_kitJSON;
+    // Example naming: KIT12022.json, KIT22022.json, KIT12023.json, KIT22023.json
+    return g_muDir + "/KIT" + era + ".json";
+}
+
+void loadKITCorrections() {
+    try {
+        const std::string kitPath = kitFileForEra(g_era);
+        
+        // Load (or reload if null). If you want forced reload per era, you can reset to nullptr first.
+        if (!kitCorrections)    kitCorrections = correction::CorrectionSet::from_file(kitPath);
+        
+        std::cerr << "[MUON] Loaded KIT params from " << kitPath << "\n";
+        
+        (void) kitCorrections->at("cb_params");
+        // optional: KIT sets also provide "poly_params" in 2023 and BPix jsons
+        // (void) kitCorrections->at("poly_params");
+    } catch (const std::exception& e) {
+        std::cerr << "[KIT load ERROR] " << e.what() << std::endl;
+        kitCorrections = nullptr;
+    }
 }
 
 void loadMuonCorrections() {
@@ -339,7 +371,7 @@ static JecEraConfig jecConfigForEra(const std::string& era, const std::string& i
       // JER MC keys available in your list (both combined and split exist; use combined set):
       "Summer23Prompt23_RunCv1234_JRV1_MC_ScaleFactor_AK4PFPuppi",
       "Summer23Prompt23_RunCv1234_JRV1_MC_PtResolution_AK4PFPuppi",
-      "" // veto maps not listed explicitly for 2023 in your dumps; leave blank to skip
+      "Summer23Prompt23_RunC_V1"
     };
   }
   if (era == "22023") {
@@ -349,7 +381,7 @@ static JecEraConfig jecConfigForEra(const std::string& era, const std::string& i
       "RunD",
       "Summer23BPixPrompt23_RunD_JRV1_MC_ScaleFactor_AK4PFPuppi",
       "Summer23BPixPrompt23_RunD_JRV1_MC_PtResolution_AK4PFPuppi",
-      "" // veto map not listed explicitly; leave blank to skip
+      "Summer23BPixPrompt23_RunD_V1" 
     };
   }
   // Fallback to 2022 BCD
@@ -505,6 +537,47 @@ float getMuonRochester(const Muon& mu, bool isMC)
         }
     }
 }
+
+static TRandom3 g_rng(42); // or seed per event if you prefer
+static float getNTrackerLayersOrDefault(const Muon& mu) {
+    // If you have a concrete member, use it; otherwise pick a reasonable default.
+    // e.g. return mu._nTrackerLayers; 
+    return 12.0f;
+}
+
+float getMuonKITSmear(const Muon& mu, bool isMC) {
+    if (!isMC) return 1.0f;                 // no smearing on data
+    if (!kitCorrections) return 1.0f;
+
+    const double abseta = std::abs(mu._eta);
+    const double nL     = getNTrackerLayersOrDefault(mu);
+    const double pt     = std::max(1e-3f, mu._pt);
+
+    // Prefer polynomial params if present (2023 & BPix jsons)
+    try {
+        auto poly = kitCorrections->at("poly_params");
+        const double p0 = poly->evaluate({abseta, nL, 0});
+        const double p1 = poly->evaluate({abseta, nL, 1});
+        const double p2 = poly->evaluate({abseta, nL, 2});
+        // a common, stable choice: sigma on relative pT
+        const double sigma2 = std::max(0.0, p0*p0 + p1*p1/pt + p2*p2/(pt*pt));
+        const double sigma  = std::sqrt(sigma2);
+        const double smear  = g_rng.Gaus(1.0, sigma);
+        return smear > 0.0 ? (float)smear : 1.0f;
+    } catch (...) {
+        // Fall back to a light Gaussian using CB width (if you want to use CB tails, see below)
+        try {
+            auto cb = kitCorrections->at("cb_params");
+            const double m     = cb->evaluate({abseta, nL, 0}); // mean shift
+            const double width = cb->evaluate({abseta, nL, 1}); // effective width proxy
+            const double smear = g_rng.Gaus(1.0 + m*1e-3, std::abs(width)*1e-3); // scaled conservatively
+            return smear > 0.0 ? (float)smear : 1.0f;
+        } catch (...) {
+            return 1.0f;
+        }
+    }
+}
+
 
 // -------------------------------------
 //             JETS 
@@ -888,20 +961,9 @@ float jetMuondR(float jeta,float jphi, float meta, float mphi)
 //              MUON LOCATIONS
 // -------------------------------------
 
-bool isBarrel(Muon const& m)
-{
-	return TMath::Abs(m._eta)<0.9;
-}
-
-bool isOverlap(Muon const& m)
-{
-	return TMath::Abs(m._eta)>=0.9 && TMath::Abs(m._eta)<1.6;
-}
-
-bool isEndcap(Muon const& m)
-{
-	return TMath::Abs(m._eta)>=1.6 && TMath::Abs(m._eta)<2.4;
-}
+bool isBarrel(const Muon& m)  { return std::abs(m._eta) < 0.9; }
+bool isOverlap(const Muon& m) { return std::abs(m._eta) >= 0.9 && std::abs(m._eta) < 1.6; }
+bool isEndcap(const Muon& m)  { return std::abs(m._eta) >= 1.6 && std::abs(m._eta) < 2.4; }
 
 // -------------------------------------
 //LEPTON CRITERIA 
@@ -1166,17 +1228,24 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     // -------------------------------------
     //             MUONS 
     // -------------------------------------
+    
+    // --- choose correction set ---
+    const float sf1 = __noMuCorr ? 1.0f
+                             : (__useKIT ? getMuonKITSmear(mu1, __isMC)
+                                         : getMuonRochester(mu1, __isMC));
+    const float sf2 = __noMuCorr ? 1.0f
+                             : (__useKIT ? getMuonKITSmear(mu2, __isMC)
+                                         : getMuonRochester(mu2, __isMC));
 
-    // TLorentz Vectors for Muons 1 & 2
-    float roch_sf1 = getMuonRochester(mu1, __isMC);
-    float roch_sf2 = getMuonRochester(mu2, __isMC);
-
+    // --- raw TLVs ---
     TLorentzVector p4m1, p4m2;
     p4m1.SetPtEtaPhiM(mu1._pt, mu1._eta, mu1._phi, PDG_MASS_Mu);
-	p4m2.SetPtEtaPhiM(mu2._pt, mu2._eta, mu2._phi, PDG_MASS_Mu);
-    
-    TLorentzVector corr_p4m1 = p4m1 * roch_sf1;
-    TLorentzVector corr_p4m2 = p4m2 * roch_sf2;
+    p4m2.SetPtEtaPhiM(mu2._pt, mu2._eta, mu2._phi, PDG_MASS_Mu);
+
+    // --- corrected TLVs  ---
+    TLorentzVector corr_p4m1 = p4m1 * sf1;
+    TLorentzVector corr_p4m2 = p4m2 * sf2;
+
     TLorentzVector corr_prefsr_p4 = corr_p4m1 + corr_p4m2;
     
     // -------------------------------------
@@ -1377,7 +1446,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     FILL_JET_HIST(hists.setJet_PreSelection, noWeight); 
     FILL_CORR_JET_HIST(hists.corr_setJet_PreSelection, totalWeight); 
 
-    /*if (isBarrel(mu1) && isBarrel(mu2))
+    if (isBarrel(mu1) && isBarrel(mu2))
     {
         //	BB
         FILL_MUON_HIST(hists.setDM_PreSelection_BB, noWeight);
@@ -1421,7 +1490,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         FILL_MUON_HIST(hists.setDM_PreSelection_EE, noWeight);
         FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_EE, totalWeight);
         FILL_JET_HIST(hists.setJet_PreSelection_EE, totalWeight); 
-    }*/
+    }
 
     if (p4lead.Pt() < _leadJetPt) return;      // leading threshold
     if (p4sub.Pt() < _subleadJetPt) return;   // subleading threshold
@@ -1447,7 +1516,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
             
             const double m_mumu = corr_p4dimuon.M();
 
-            if(m_mumu > 115 && m_mumu < 135) {
+            if(m_mumu > 110 && m_mumu < 150) {
             // muon-level vars
             g_m_mumu             = static_cast<float>(m_mumu);
             g_mu1_eta            = static_cast<float>(corr_p4m1.Eta());
@@ -1496,7 +1565,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
             FILL_JET_HIST(hists.setJet_VBF, noWeight); 
             FILL_CORR_JET_HIST(hists.corr_setJet_VBF, totalWeight); 
 
-            /*if (isBarrel(mu1) && isBarrel(mu2))
+            if (isBarrel(mu1) && isBarrel(mu2))
             {
                 //	BB
                 FILL_MUON_HIST(hists.setDM_VBF_BB, noWeight);
@@ -1540,7 +1609,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
                 FILL_MUON_HIST(hists.setDM_VBF_EE, noWeight);
                 FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_EE, totalWeight)
                 FILL_JET_HIST(hists.setJet_VBF_EE, totalWeight); 
-            }*/
+            }
 		}
     }
 }
@@ -1724,75 +1793,75 @@ void process()
     MuonSet     corr_setDM_PreSelection(outroot, "corr_DM_Pre-Selection");
     JetSet      setJet_PreSelection(outroot, "Jet_Pre-Selection");
     JetSet      corr_setJet_PreSelection(outroot, "corr_Jet_Pre-Selection");
-    /*MuonSet setDM_PreSelection_BB(outroot, "DM_Pre-Selection_BB");
-    MuonSet corr_setDM_PreSelection_BB(outroot, "corr_DM_Pre-Selection_BB");
-    JetSet setJet_PreSelection_BB(outroot, "Jet_Pre-Selection_BB");
-    MuonSet setDM_PreSelection_BO(outroot, "DM_Pre-Selection_BO");
-    MuonSet corr_setDM_PreSelection_BO(outroot, "corr_DM_Pre-Selection_BO");
-    JetSet setJet_PreSelection_BO(outroot, "Jet_Pre-Selection_BO");
-    MuonSet setDM_PreSelection_BE(outroot, "DM_Pre-Selection_BE");
-    MuonSet corr_setDM_PreSelection_BE(outroot, "corr_DM_Pre-Selection_BE");
-    JetSet setJet_PreSelection_BE(outroot, "Jet_Pre-Selection_BE");
-    MuonSet setDM_PreSelection_OO(outroot, "DM_Pre-Selection_OO");
-    MuonSet corr_setDM_PreSelection_OO(outroot, "corr_DM_Pre-Selection_OO");
-    JetSet setJet_PreSelection_OO(outroot, "Jet_Pre-Selection_OO");
-    MuonSet setDM_PreSelection_OE(outroot, "DM_Pre-Selection_OE");
-    MuonSet corr_setDM_PreSelection_OE(outroot, "corr_DM_Pre-Selection_OE");
-    JetSet setJet_PreSelection_OE(outroot, "Jet_Pre-Selection_OE");
-    MuonSet setDM_PreSelection_EE(outroot, "DM_Pre-Selection_EE");
-    MuonSet corr_setDM_PreSelection_EE(outroot, "corr_DM_Pre-Selection_EE");
-    JetSet setJet_PreSelection_EE(outroot, "Jet_Pre-Selection_EE");*/
+    MuonSet     setDM_PreSelection_BB(outroot, "DM_Pre-Selection_BB");
+    MuonSet     corr_setDM_PreSelection_BB(outroot, "corr_DM_Pre-Selection_BB");
+    JetSet      setJet_PreSelection_BB(outroot, "Jet_Pre-Selection_BB");
+    MuonSet     setDM_PreSelection_BO(outroot, "DM_Pre-Selection_BO");
+    MuonSet     corr_setDM_PreSelection_BO(outroot, "corr_DM_Pre-Selection_BO");
+    JetSet      setJet_PreSelection_BO(outroot, "Jet_Pre-Selection_BO");
+    MuonSet     setDM_PreSelection_BE(outroot, "DM_Pre-Selection_BE");
+    MuonSet     corr_setDM_PreSelection_BE(outroot, "corr_DM_Pre-Selection_BE");
+    JetSet      setJet_PreSelection_BE(outroot, "Jet_Pre-Selection_BE");
+    MuonSet     setDM_PreSelection_OO(outroot, "DM_Pre-Selection_OO");
+    MuonSet     corr_setDM_PreSelection_OO(outroot, "corr_DM_Pre-Selection_OO");
+    JetSet      setJet_PreSelection_OO(outroot, "Jet_Pre-Selection_OO");
+    MuonSet     setDM_PreSelection_OE(outroot, "DM_Pre-Selection_OE");
+    MuonSet     corr_setDM_PreSelection_OE(outroot, "corr_DM_Pre-Selection_OE");
+    JetSet      setJet_PreSelection_OE(outroot, "Jet_Pre-Selection_OE");
+    MuonSet     setDM_PreSelection_EE(outroot, "DM_Pre-Selection_EE");
+    MuonSet     corr_setDM_PreSelection_EE(outroot, "corr_DM_Pre-Selection_EE");
+    JetSet      setJet_PreSelection_EE(outroot, "Jet_Pre-Selection_EE");
     
     // Pre dijet cuts 
-    JetSet setJet_PreDiJet_VBF(outroot, "Jet_PreDiJet_VBF");
-    JetSet corr_setJet_PreDiJet_VBF(outroot, "corr_Jet_PreDiJet_VBF");
+    JetSet      setJet_PreDiJet_VBF(outroot, "Jet_PreDiJet_VBF");
+    JetSet      corr_setJet_PreDiJet_VBF(outroot, "corr_Jet_PreDiJet_VBF");
     
     // VBF blocks
     MuonSet     setDM_VBF(outroot, "DM_VBF");
     MuonSet     corr_setDM_VBF(outroot, "corr_DM_VBF");
     JetSet      setJet_VBF(outroot, "Jet_VBF");
     JetSet      corr_setJet_VBF(outroot, "corr_Jet_VBF");
-    /*MuonSet setDM_VBF_BB(outroot, "DM_VBF_BB");
-    MuonSet corr_setDM_VBF_BB(outroot, "corr_DM_VBF_BB");
-    JetSet setJet_VBF_BB(outroot, "Jet_VBF_BB");
-    MuonSet setDM_VBF_BO(outroot, "DM_VBF_BO");
-    MuonSet corr_setDM_VBF_BO(outroot, "corr_DM_VBF_BO");
-    JetSet setJet_VBF_BO(outroot, "Jet_VBF_BO");
-    MuonSet setDM_VBF_BE(outroot, "DM_VBF_BE");
-    MuonSet corr_setDM_VBF_BE(outroot, "corr_DM_VBF_BE");
-    JetSet setJet_VBF_BE(outroot, "Jet_VBF_BE");
-    MuonSet setDM_VBF_OO(outroot, "DM_VBF_OO");
-    MuonSet corr_setDM_VBF_OO(outroot, "corr_DM_VBF_OO");
-    JetSet setJet_VBF_OO(outroot, "Jet_VBF_OO");
-    MuonSet setDM_VBF_OE(outroot, "DM_VBF_OE");
-    MuonSet corr_setDM_VBF_OE(outroot, "corr_DM_VBF_OE");
-    JetSet setJet_VBF_OE(outroot, "Jet_VBF_OE");
-    MuonSet setDM_VBF_EE(outroot, "DM_VBF_EE");
-    MuonSet corr_setDM_VBF_EE(outroot, "corr_DM_VBF_EE");
-    JetSet setJet_VBF_EE(outroot, "Jet_VBF_EE");*/
+    MuonSet     setDM_VBF_BB(outroot, "DM_VBF_BB");
+    MuonSet     corr_setDM_VBF_BB(outroot, "corr_DM_VBF_BB");
+    JetSet      setJet_VBF_BB(outroot, "Jet_VBF_BB");
+    MuonSet     setDM_VBF_BO(outroot, "DM_VBF_BO");
+    MuonSet     corr_setDM_VBF_BO(outroot, "corr_DM_VBF_BO");
+    JetSet      setJet_VBF_BO(outroot, "Jet_VBF_BO");
+    MuonSet     setDM_VBF_BE(outroot, "DM_VBF_BE");
+    MuonSet     corr_setDM_VBF_BE(outroot, "corr_DM_VBF_BE");
+    JetSet      setJet_VBF_BE(outroot, "Jet_VBF_BE");
+    MuonSet     setDM_VBF_OO(outroot, "DM_VBF_OO");
+    MuonSet     corr_setDM_VBF_OO(outroot, "corr_DM_VBF_OO");
+    JetSet      setJet_VBF_OO(outroot, "Jet_VBF_OO");
+    MuonSet     setDM_VBF_OE(outroot, "DM_VBF_OE");
+    MuonSet     corr_setDM_VBF_OE(outroot, "corr_DM_VBF_OE");
+    JetSet      setJet_VBF_OE(outroot, "Jet_VBF_OE");
+    MuonSet     setDM_VBF_EE(outroot, "DM_VBF_EE");
+    MuonSet     corr_setDM_VBF_EE(outroot, "corr_DM_VBF_EE");
+    JetSet      setJet_VBF_EE(outroot, "Jet_VBF_EE");
     
     HistSetCollection hists = {
     
     // Pre-Selection blocks
     setDM_PreSelection,    corr_setDM_PreSelection,    setJet_PreSelection, corr_setJet_PreSelection,
-    /*setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB,
+    setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB,
     setDM_PreSelection_BO, corr_setDM_PreSelection_BO, setJet_PreSelection_BO,
     setDM_PreSelection_BE, corr_setDM_PreSelection_BE, setJet_PreSelection_BE,
     setDM_PreSelection_OO, corr_setDM_PreSelection_OO, setJet_PreSelection_OO,
     setDM_PreSelection_OE, corr_setDM_PreSelection_OE, setJet_PreSelection_OE,
-    setDM_PreSelection_EE, corr_setDM_PreSelection_EE, setJet_PreSelection_EE,*/
+    setDM_PreSelection_EE, corr_setDM_PreSelection_EE, setJet_PreSelection_EE,
     
     // Pre di-jet
     setJet_PreDiJet_VBF, corr_setJet_PreDiJet_VBF,
 
     // VBF blocks
-    setDM_VBF,    corr_setDM_VBF,    setJet_VBF, corr_setJet_VBF
-    /*setDM_VBF_BB, corr_setDM_VBF_BB, setJet_VBF_BB,
+    setDM_VBF,    corr_setDM_VBF,    setJet_VBF, corr_setJet_VBF,
+    setDM_VBF_BB, corr_setDM_VBF_BB, setJet_VBF_BB,
     setDM_VBF_BO, corr_setDM_VBF_BO, setJet_VBF_BO,
     setDM_VBF_BE, corr_setDM_VBF_BE, setJet_VBF_BE,
     setDM_VBF_OO, corr_setDM_VBF_OO, setJet_VBF_OO,
     setDM_VBF_OE, corr_setDM_VBF_OE, setJet_VBF_OE,
-    setDM_VBF_EE, corr_setDM_VBF_EE, setJet_VBF_EE*/
+    setDM_VBF_EE, corr_setDM_VBF_EE, setJet_VBF_EE
     };
 
 	Streamer streamer(__inputfilename, "Events");
@@ -1824,12 +1893,6 @@ void process()
     gMvaTree->Branch("costheta_CS",     &g_costheta_CS, "costheta_CS/F");
     
     gMvaTree->Branch("weight",          &g_weight);
- 
-
-    // Loading Muon SF Corrections
-    /*loadMuonCorrections();
-    loadJetCorrections();
-    loadPileupCorrections();*/
 
     Muons *muons=NULL;
 	Muons muons1;
@@ -2146,7 +2209,7 @@ void process()
         if (genWeight < 0) n_neg++;
 
 
-          /*if (i < 10) {
+          /*if (i < 50) {
           std::cout << std::setprecision(10) 
           << " genWeight=" << genWeight
           //<< " Generator_weight=" << Generator_weight
@@ -2220,7 +2283,6 @@ void printCuts()
         << "        pT > 25" << std::endl
         << "        Abs(Eta) < 4.7" << std::endl
         << "        tightId = true" << std::endl
-        << "        Loose PU ID or pT > 50 GeV" << std::endl
         << "        Isolated from selected muons by dR(µ, j) > 0.4" << std::endl
         << std::endl
         << "    Electrons:" << std::endl
@@ -2291,6 +2353,8 @@ int main(int argc, char** argv)
 		("help", "produce help messages")
 		("input", po::value<std::string>(), "a file specifying all the ROOT files to process")
 		("isMC", po::value<bool>(), "type of data: DATA vs MC")
+		("useKIT", po::value<bool>(), "KIT muon corrections")
+		("noMuCorr", po::value<bool>(), "Any muon corrections?")
 		("output", po::value<std::string>(), "output file name")
 		("genPUMC", po::value<bool>(&genPUMC)->default_value(false), "true if should generate the MC PU file")
 		("puMC", po::value<std::string>(&__puMCfilename)->default_value("None"), "MC PU Reweight file")
@@ -2343,24 +2407,26 @@ int main(int argc, char** argv)
     }
 	
 	//	Assign globals
-	__inputfilename = vm["input"].as<std::string>();
-	__isMC = vm["isMC"].as<bool>();
-	__outputfilename = vm["output"].as<std::string>();
-	__genPUMC = vm["genPUMC"].as<bool>();
-	__puMCfilename = vm["puMC"].as<std::string>();
-	__puDATAfilename = vm["puDATA"].as<std::string>();
-    _leadmuonPt = vm["leadmuonPt"].as<double>();
-    _subleadmuonPt = vm["subleadmuonPt"].as<double>();
-    _leadmuonEta = vm["leadmuonEta"].as<double>();
-    _subleadmuonEta = vm["subleadmuonEta"].as<double>();
-    _leadmuonIso = vm["leadmuonIso"].as<double>();
-    _subleadmuonIso = vm["subleadmuonIso"].as<double>();
-    _leadJetPt = vm["leadJetPt"].as<double>();
-    _subleadJetPt = vm["subleadJetPt"].as<double>();
-    _leadJetEta = vm["leadJetEta"].as<double>();
-    _subleadJetEta = vm["subleadJetEta"].as<double>();
-    _dijetMass_VBF = vm["dijetMass_VBF"].as<double>();
-    _dijetdEta_VBF = vm["dijetdEta_VBF"].as<double>();
+	__inputfilename     = vm["input"].as<std::string>();
+	__isMC              = vm["isMC"].as<bool>();
+	__useKIT            = vm["useKIT"].as<bool>();
+    __noMuCorr          = vm["noMuCorr"].as<bool>();
+    __outputfilename    = vm["output"].as<std::string>();
+	__genPUMC           = vm["genPUMC"].as<bool>();
+	__puMCfilename      = vm["puMC"].as<std::string>();
+	__puDATAfilename    = vm["puDATA"].as<std::string>();
+    _leadmuonPt         = vm["leadmuonPt"].as<double>();
+    _subleadmuonPt      = vm["subleadmuonPt"].as<double>();
+    _leadmuonEta        = vm["leadmuonEta"].as<double>();
+    _subleadmuonEta     = vm["subleadmuonEta"].as<double>();
+    _leadmuonIso        = vm["leadmuonIso"].as<double>();
+    _subleadmuonIso     = vm["subleadmuonIso"].as<double>();
+    _leadJetPt          = vm["leadJetPt"].as<double>();
+    _subleadJetPt       = vm["subleadJetPt"].as<double>();
+    _leadJetEta         = vm["leadJetEta"].as<double>();
+    _subleadJetEta      = vm["subleadJetEta"].as<double>();
+    _dijetMass_VBF      = vm["dijetMass_VBF"].as<double>();
+    _dijetdEta_VBF      = vm["dijetdEta_VBF"].as<double>();
     
     // --- Load weights & pick lumi for the chosen era (only for MC) ---
     if (__isMC && g_weightsFile != "None") {
@@ -2404,14 +2470,20 @@ int main(int argc, char** argv)
 
     
     // Start Main Loop Process 
-	loadMuonCorrections();
+	if (!__noMuCorr) {
+        loadMuonCorrections();
+        if (__useKIT) 
+            loadKITCorrections();
+        }
     if (__isMC) {
         loadJetCorrections();               // JEC/JER for MC
         loadPileupCorrections();            // PU weights for MC
     } else {
-        // Optional: loadJetCorrections() if you want DATA residuals via JSON.
-        loadJetCorrections();
+        loadJetCorrections();               // if you want DATA residuals
     }
     process();
+
+    std::cerr << "[CFG] isMC=" << std::boolalpha << __isMC << " useKIT=" << __useKIT << "\n";
+
 	return 0;
 }

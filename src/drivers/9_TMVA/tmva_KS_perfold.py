@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# python3 tmva5_KS_perfold.py --era 12022 --alpha 1e-3 --dthr-pct 0.20
+# python3 tmva_KS_perfold.py --era 12022 --alpha 1e-3 --dthr-pct 0.20
 #
 # 4-fold KS test between training-eval (signal) and validation (signal).
 # Produces: per-fold CDF plots, a 2x2 grid, and a PASS/FAIL table.
@@ -197,12 +197,12 @@ def main():
 
         rows.append((k, D_pct, n_vaS, args.alpha, args.dthr_pct, passed))
 
-        png = os.path.join(OUTDIR, f"tmva_KS_fold{k}.png")
-        pdf = os.path.join(OUTDIR, f"tmva_KS_fold{k}.pdf")
+        png = os.path.join(OUTDIR, f"{args.era}_tmva_KS_fold{k}.png")
+        pdf = os.path.join(OUTDIR, f"{args.era}_tmva_KS_fold{k}.pdf")
         draw_cdf_pair(yhat_trS, yhat_vaS,
-                f"BDT distribution of signal sample (fold {k})",png, pdf)
+                f"BDT distribution of signal sample {args.era}_(fold {k})",png, pdf)
        
-        grid_figs.append((yhat_trS, yhat_vaS, f"Fold {k}"))
+        grid_figs.append((yhat_trS, yhat_vaS, f"{args.era}_Fold {k}"))
 
         # Debug Checks 
         print(f"[debug] fold {k}: train S preds mean={yhat_trS.mean():.3f}, "
@@ -213,8 +213,8 @@ def main():
 
     # 2x2 grid
     draw_grid(grid_figs,
-              os.path.join(OUTDIR, "tmva_KS_grid.png"),
-              os.path.join(OUTDIR, "tmva_KS_grid.pdf"))
+              os.path.join(OUTDIR, f"{args.era}_tmva_KS_grid.png"),
+              os.path.join(OUTDIR, f"{args.era}_tmva_KS_grid.pdf"))
 
     # Print table like your example
     print("\nFold | KS statistic | N events | alpha | threshold | PASS")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# python3 tmva102_Testing.py --era 12022
+# python3 tmva102_Testing.py --model 12022_tmva101.root --era 12022
 
 import os
 import argparse
@@ -52,10 +52,6 @@ def main():
     ROOT.gSystem.Load("libTree")
     ROOT.gSystem.Load("libTreePlayer")
     ROOT.gSystem.Load("libTMVA")
-    try:
-        ROOT.gSystem.Load("libTreeInference")
-    except:
-        pass
 
     model_path = args.model
     if ROOT.gSystem.AccessPathName(model_path, ROOT.kReadPermission):
@@ -90,6 +86,9 @@ def main():
           f"TPR={tpr[youden_idx]:.3f}, FPR={fpr[youden_idx]:.3f}")
 
     # --- Plot ROC ---
+    OUTDIR = "Outputs"
+    os.makedirs(OUTDIR, exist_ok=True)
+    
     c = ROOT.TCanvas("roc", "", 700, 650)
     gr = ROOT.TGraph(len(fpr), np.asarray(fpr, dtype="f8"), np.asarray(tpr, dtype="f8"))
     gr.SetTitle("ROC;False-positive rate;True-positive rate")
@@ -105,9 +104,21 @@ def main():
     latex.DrawLatex(0.15, 0.92, f"AUC = {auc_score:.4f}")
 
     c.Update()
-    c.SaveAs("tmva102_roc.pdf")
-    c.SaveAs("tmva102_roc.png")
-    print("[tmva102] Wrote tmva102_roc.pdf and tmva102_roc.png")
+    c.SaveAs(os.path.join(OUTDIR, f"{ERA}_tmva102_roc.pdf"))
+    c.SaveAs(os.path.join(OUTDIR, f"{ERA}_tmva102_roc.png"))
+
+    with open(os.path.join(OUTDIR, "tmva102_metrics.txt"), "w") as f:
+        f.write(f"AUC {auc_score:.6f}\n")
+        f.write(f"TPR_at_FPR1pct {tpr_at_1pct:.6f}\n")
+        f.write(f"Youden_index {youden_idx}\n")
+        f.write(f"TPR_at_Youden {tpr[youden_idx]:.6f}\n")
+        f.write(f"FPR_at_Youden {fpr[youden_idx]:.6f}\n")
+    with open(os.path.join(OUTDIR, "tmva102_roc_points.csv"), "w") as f:
+        f.write("fpr,tpr\n")
+        for a,b in zip(fpr, tpr):
+            f.write(f"{a:.8f},{b:.8f}\n")
+
+    print(f"[tmva102] Wrote Outputs/{ERA}_tmva102_roc.(pdf|png), {ERA}_tmva102_metrics.txt, {ERA}_tmva102_roc_points.csv")
 
 if __name__ == "__main__":
     main()

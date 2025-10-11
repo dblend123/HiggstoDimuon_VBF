@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-# tmva100_DataPreparation.py
-# python3 tmva100_DataPreparation.py   --era 12022   --treename-in mva   --signal-subdir VBF   --weight-branch weight   --make-all
+# tmva100_DataPreparation.py  (split backgrounds)
+
+# Example:
+# python3 tmva100_DataPreparation.py  --era 12022 --treename-in mva --signal-subdir VBF --weight-branch weight --make-all --keep-branches m_mumu
 
 import os, glob, argparse
 import ROOT
@@ -9,38 +11,36 @@ import ROOT
 # Config / CLI
 # --------------------------
 def parse_args():
-    p = argparse.ArgumentParser(description="Prepare train/test ROOT files (mva tree) for TMVA/XGBoost.")
-    p.add_argument("--era", required=True, 
-                   help="Era string, e.g. 12022")
+    p = argparse.ArgumentParser(description="Prepare train/test ROOT files (mva tree) for TMVA/XGBoost. Backgrounds are written per-process: DY, TTbar, VV, VVV.")
+    p.add_argument("--era", required=True, help="Era string, e.g. 12022")
     p.add_argument("--base", default="/eos/user/d/dblend/Analyzed_SkimmedFiles/{era}/MC/",
                    help="Base path pattern with {era} placeholder (default: %(default)s)")
     p.add_argument("--signal-name", default="VBF_all.root",
                    help="Signal ROOT file name pattern (default: %(default)s)")
     p.add_argument("--signal-subdir", default="VBF",
                    help="Subdirectory under base where signal file lives (default: %(default)s)")
-    p.add_argument("--bg-subdirs", nargs="*", default=["DY","EWK","TT","WWW","WWZ","WZto2L2Q","WZto3LNu","WZZ","ZZto2L2Nu","ZZto2L2Q","ZZto4L","ZZZ"], 
-                   help="Background subdirectory names under the base path.")
-    p.add_argument("--treename-in", default="Events", 
-                   help="Input tree name (default: %(default)s)")
-    p.add_argument("--treename-out", default="mva", 
-                   help="Output tiny tree name (default: %(default)s)")
-    p.add_argument("--weight-branch", default="weight",
-                   help="Column name to write the per-event weight as. Use 'None' to skip. (default: %(default)s)")
-    p.add_argument("--outdir", default=".", 
-                   help="Output directory (default: current dir)")
-    p.add_argument("--force-define", action="store_true",
-                   help="Force recomputation of VARIABLES even if present")
-    p.add_argument("--make-all", action="store_true",
-                   help="Also snapshot *_all_signal/background.root that include all folds")
+    # We keep bg-subdirs for compatibility; we will partition them into DY/TTbar/VV/VVV.
+    p.add_argument("--bg-subdirs", nargs="*", default=[
+        "DY","TT",
+        "WWW","WWZ","WZto2L2Q","WZto3LNu","WZZ",
+        "ZZto2L2Nu","ZZto2L2Q","ZZto4L","ZZZ"
+    ], help="Background subdirectory names under the base path (will be split into DY/TTbar/VV/VVV).")
+    p.add_argument("--treename-in", default="Events", help="Input tree name (default: %(default)s)")
+    p.add_argument("--treename-out", default="mva", help="Output tiny tree name (default: %(default)s)")
+    p.add_argument("--weight-branch", default="weight", help="Column name to write as per-event weight. Use 'None' to skip. (default: %(default)s)")
+    p.add_argument("--outdir", default=".", help="Output directory (default: current dir)")
+    p.add_argument("--force-define", action="store_true", help="Force recomputation of VARIABLES even if present")
+    p.add_argument("--make-all", action="store_true", help="Also snapshot *_all_*.root that include all folds")
+    p.add_argument("--keep-branches", default="", help="Comma-separated extra branches to copy into snapshots (not used for training)")
     return p.parse_args()
 
 # --------------------------
 # Variables for the BDT
 # --------------------------
 VARIABLES = [
-    "z", "pt_balance", "mu1_pt_over_m", "mu2_pt_over_m", "mu1_eta", "mu2_eta", "y_mumu", "pt_mumu", 
+    "z", "pt_balance", "mu1_pt_over_m", "mu2_pt_over_m", "mu1_eta", "mu2_eta", "y_mumu", "pt_mumu",
     "jet1_eta", "deta_jj", "dphi_jj", "njets", "pt_j1", "pt_j2", "dphi_mumu_jj", "deta_mumu_jj", "phi_CS", "costheta_CS",
-    ]
+]
 
 # --------------------------
 # Selection & feature defs
@@ -52,9 +52,6 @@ def filter_events(df):
 ROOT.gInterpreter.Declare('#include "TVector2.h"')
 
 def define_variables(df):
-    # If TVector2 header isn't autoloaded on your setup, uncomment:
-    # ROOT.gInterpreter.Declare('#include "TVector2.h"')
-
     # Zeppenfeld: |y_mumu - 0.5*(y_j1 + y_j2)|
     df = df.Define("z", "fabs(y_mumu - 0.5f*(y_j1 + y_j2))")
 
@@ -75,8 +72,6 @@ def define_variables(df):
             .Define("deta_jj", "fabs(eta_j1 - eta_j2)")
             .Define("dphi_jj", "fabs(TVector2::Phi_mpi_pi(phi_j1 - phi_j2))")
             .Define("y_mumu",  "float(y_mumu)")
-            .Define("dphi_jj", "fabs(TVector2::Phi_mpi_pi(phi_j1 - phi_j2))")
-            .Define("y_mumu",  "float(y_mumu)")
             .Define("pt_j1",   "float(pt_j1)")
             .Define("pt_j2",   "float(pt_j2)"))
 
@@ -91,7 +86,6 @@ def define_variables(df):
 # --------------------------
 # Helpers
 # --------------------------
-# --- after you build df_sig/df_bkg and before snapshotting, define a fold ---
 def add_fold(df):
     cols = set(df.GetColumnNames())
     if {"run","luminosityBlock","event"}.issubset(cols):
@@ -102,7 +96,6 @@ def add_fold(df):
     elif "event" in cols:
         return df.Define("fold", "((int)event % 4)")
     else:
-        # SAFE FALLBACK for mva-only trees (no run/lumi/event):
         return df.Define("fold", "int(rdfentry_ % 4)")
 
 def collect_root_files(base_dir, subdirs):
@@ -116,13 +109,9 @@ def build_df(files, treename_in, force_define=False):
     flist = ROOT.std.vector("string")()
     for f in files: flist.push_back(f)
     df = ROOT.RDataFrame(treename_in, flist)
-
-    # If the input tree already has all VARIABLES, don’t redefine them.
     cols = set(df.GetColumnNames())
     if (not force_define) and set(VARIABLES).issubset(cols):
         return df
-
-    # Otherwise compute them (original behavior)
     df = filter_events(df)
     df = define_variables(df)
     return df
@@ -138,7 +127,7 @@ def add_split_flags(df):
         df = df.Define("is_train", "(rdfentry_ % 2) == 0")
     return df
 
-def snapshot(df, outname, treename_out, weight_branch):
+def snapshot(df, outname, treename_out, weight_branch, keep_extra):
     cols_out = ROOT.std.vector("string")()
     for v in VARIABLES:
         cols_out.push_back(v)
@@ -146,8 +135,11 @@ def snapshot(df, outname, treename_out, weight_branch):
         cols_out.push_back(weight_branch)
     elif weight_branch and weight_branch != "None":
         print(f"[WARN] requested weight branch '{weight_branch}' not present; writing without it.")
-    if "fold" in df.GetColumnNames():      # <- add this
-        cols_out.push_back("fold")         # <- add this
+    if "fold" in df.GetColumnNames():
+        cols_out.push_back("fold")
+    for b in keep_extra:
+        if b in df.GetColumnNames():
+            cols_out.push_back(b)
     df.Snapshot(treename_out, outname, cols_out)
 
 # --------------------------
@@ -155,9 +147,10 @@ def snapshot(df, outname, treename_out, weight_branch):
 # --------------------------
 if __name__ == "__main__":
     args = parse_args()
+    KEEP = [b.strip() for b in args.keep_branches.split(",") if b.strip()] 
 
     base_dir = args.base.format(era=args.era)
-    outdir = "DataPreparation_Files"
+    outdir = f"DataPreparation_Files/{args.era}"
     os.makedirs(outdir, exist_ok=True)
 
     # ----- SIGNAL -----
@@ -170,60 +163,69 @@ if __name__ == "__main__":
     df_sig = add_split_flags(df_sig)
     rep_sig = df_sig.Report()
 
+    # Write signal train/test (unchanged)
     train_sig_out = os.path.join(outdir, f"{args.era}_train_signal.root")
     test_sig_out  = os.path.join(outdir, f"{args.era}_test_signal.root")
-
-    snapshot(df_sig.Filter("is_train"), train_sig_out, args.treename_out, args.weight_branch)
-    snapshot(df_sig.Filter("!is_train"), test_sig_out,  args.treename_out, args.weight_branch)
-
+    snapshot(df_sig.Filter("is_train"), train_sig_out, args.treename_out, args.weight_branch, KEEP)
+    snapshot(df_sig.Filter("!is_train"), test_sig_out,  args.treename_out, args.weight_branch, KEEP)
     rep_sig.Print()
 
-    # ----- BACKGROUNDS -----
-    bg_files = collect_root_files(base_dir, args.bg_subdirs)
-    print(">>> Preparing BACKGROUND from {} files under {}".format(len(bg_files), base_dir))
-    if not bg_files:
-        raise RuntimeError("No background ROOT files found under {} subdirs {}".format(base_dir, args.bg_subdirs))
+    # Partition background subdirs into DY / TTbar / VV / VVV
+    all_bgs = list(dict.fromkeys(args.bg_subdirs))  # unique, preserve order
 
-    df_bkg = build_df(bg_files, args.treename_in, force_define=args.force_define)
-    df_bkg = add_split_flags(df_bkg)
-    rep_bkg = df_bkg.Report()
+    def match_any(s, keys):
+        sl = s.lower()
+        return any(k.lower() in sl for k in keys)
 
-    df_sig = add_fold(df_sig)
-    df_bkg = add_fold(df_bkg)
+    dy_subdirs   = [sd for sd in all_bgs if match_any(sd, ["dy","ewk"])]
+    tt_subdirs   = [sd for sd in all_bgs if match_any(sd, ["tt"])]
+    # diboson: WW/WZ/ZZ channels, excluding explicit tribosons
+    vv_subdirs   = [sd for sd in all_bgs if match_any(sd, ["ww","wz","zz"]) and sd not in ["WWW","WWZ","WZZ","ZZZ"]]
+    vvv_subdirs  = [sd for sd in all_bgs if sd in ["WWW","WWZ","WZZ","ZZZ"]]
 
-    for v in VARIABLES:
-        in_sig = v in df_sig.GetColumnNames()
-        in_bkg = v in df_bkg.GetColumnNames()
-        if in_sig and in_bkg:
-            ms = float(df_sig.Mean(v).GetValue())
-            ss = float(df_sig.StdDev(v).GetValue())
-            mb = float(df_bkg.Mean(v).GetValue())
-            sb = float(df_bkg.StdDev(v).GetValue())
-            print("[SIG]", v, "mean=", ms, "std=", ss)
-            print("[BKG]", v, "mean=", mb, "std=", sb)
-        else:
-            print(f"[WARN] variable '{v}' is missing in SIG or BKG")
+    CATS = [
+        ("DY",    dy_subdirs),
+        ("TTbar", tt_subdirs),
+        ("VV",    vv_subdirs),
+        ("VVV",   vvv_subdirs),
+    ]
 
-    train_bkg_out = os.path.join(outdir, f"{args.era}_train_background.root")
-    test_bkg_out  = os.path.join(outdir, f"{args.era}_test_background.root")
+    print(">>> Background category mapping:")
+    for name, subs in CATS:
+        print(f"    {name}: {subs}")
 
-    snapshot(df_bkg.Filter("is_train"), train_bkg_out, args.treename_out, args.weight_branch)
-    snapshot(df_bkg.Filter("!is_train"), test_bkg_out,  args.treename_out, args.weight_branch)
+    # ----- BACKGROUNDS (per-category) -----
+    for cat_name, subdirs in CATS:
+        files = collect_root_files(base_dir, subdirs)
+        print(f">>> Preparing BACKGROUND[{cat_name}] from {len(files)} files under {base_dir}")
+        if not files:
+            print(f"[WARN] No files found for {cat_name}; skipping this category.")
+            continue
 
-    # After writing train/test for SIG + BKG...
-    if args.make_all:
-        all_sig_out = os.path.join(outdir, f"{args.era}_all_signal.root")
-        all_bkg_out = os.path.join(outdir, f"{args.era}_all_background.root")
-        snapshot(df_sig, all_sig_out, args.treename_out, args.weight_branch)
-        snapshot(df_bkg, all_bkg_out, args.treename_out, args.weight_branch)
-        print("  ", all_sig_out)
-        print("  ", all_bkg_out)
+        df_cat = build_df(files, args.treename_in, force_define=args.force_define)
+        df_cat = add_split_flags(df_cat)
+        df_cat = add_fold(df_cat)
+        rep_cat = df_cat.Report()
 
-    rep_bkg.Print()
+        # Optionally print a few feature stats to confirm content
+        try:
+            for v in ["pt_mumu","njets","z"]:
+                if v in df_cat.GetColumnNames():
+                    m = float(df_cat.Mean(v).GetValue()); s = float(df_cat.StdDev(v).GetValue())
+                    print(f"[{cat_name}] {v}: mean={m:.3f} std={s:.3f}")
+        except Exception as e:
+            print(f"[{cat_name}] stats skipped: {e}")
 
-    print("Done. Wrote:")
-    print("  ", train_sig_out)
-    print("  ", test_sig_out)
-    print("  ", train_bkg_out)
-    print("  ", test_bkg_out)
+        train_out = os.path.join(outdir, f"{args.era}_train_{cat_name}.root")
+        test_out  = os.path.join(outdir, f"{args.era}_test_{cat_name}.root")
+        snapshot(df_cat.Filter("is_train"), train_out, args.treename_out, args.weight_branch, KEEP)
+        snapshot(df_cat.Filter("!is_train"), test_out,  args.treename_out, args.weight_branch, KEEP)
 
+        if args.make_all:
+            all_out = os.path.join(outdir, f"{args.era}_all_{cat_name}.root")
+            snapshot(df_cat, all_out, args.treename_out, args.weight_branch, KEEP)
+            print("      wrote:", all_out)
+
+        rep_cat.Print()
+
+    print("Done. Wrote signal and per-category background files into", outdir)

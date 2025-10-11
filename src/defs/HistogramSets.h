@@ -19,11 +19,12 @@ namespace analysis
 			
                 // -----  DiMuon Plots  -----
 				hDiMuonMass         = new TH1F("DiMuonMass", "DiMuonMass", 150, 50, 200);
+				hDiMuonMass_Z       = new TH1F("DiMuonMass_Z", "DiMuonMass_Z", 50, 86, 96);
                 hDiMuonpt           = new TH1F("DiMuonpt", "DiMuonpt", 50, 0, 200);
                 hDiMuoneta          = new TH1F("DiMuoneta", "DiMuoneta", 50, -2.5, 2.5);
                 hDiMuonrapidity     = new TH1F("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
-                hCollinsSoper       = new TH1F("hCollinsSoper","hCollinsSoper", 30, -3.2, 3.2);
-                hcosCollinsSoper    = new TH1F("hcosCollinsSoper","hcosCollinsSoper", 30, -3.2, 3.2);
+                hCollinsSoper       = new TH1F("CollinsSoper","CollinsSoper", 30, -3.2, 3.2);
+                hcosCollinsSoper    = new TH1F("cosCollinsSoper","cosCollinsSoper", 30, -3.2, 3.2);
 
                 // -----  Muon Plots  -----
 				hMuon1pt = new TH1F("Muon1pt", "Muon1pt", 50, 0, 200);
@@ -42,6 +43,7 @@ namespace analysis
                 
                 // -----  DiMuon  -----
                 TH1F *hDiMuonMass;
+                TH1F *hDiMuonMass_Z;
                 TH1F *hDiMuonpt;
                 TH1F *hDiMuoneta;
                 TH1F *hDiMuonrapidity;
@@ -304,7 +306,7 @@ namespace analysis
             analysis::processing::JetSet&  setJet_PreSelection;
             analysis::processing::JetSet&  corr_setJet_PreSelection;
 
-            /*analysis::processing::MuonSet& setDM_PreSelection_BB;
+            analysis::processing::MuonSet& setDM_PreSelection_BB;
             analysis::processing::MuonSet& corr_setDM_PreSelection_BB;
             analysis::processing::JetSet& setJet_PreSelection_BB;
 
@@ -326,7 +328,7 @@ namespace analysis
 
             analysis::processing::MuonSet& setDM_PreSelection_EE;
             analysis::processing::MuonSet& corr_setDM_PreSelection_EE;
-            analysis::processing::JetSet& setJet_PreSelection_EE;*/
+            analysis::processing::JetSet& setJet_PreSelection_EE;
 
             // pre-dijet
             analysis::processing::JetSet& setJet_PreDiJet_VBF;
@@ -338,7 +340,7 @@ namespace analysis
             analysis::processing::JetSet&  setJet_VBF;
             analysis::processing::JetSet&  corr_setJet_VBF;
 
-            /*analysis::processing::MuonSet& setDM_VBF_BB;
+            analysis::processing::MuonSet& setDM_VBF_BB;
             analysis::processing::MuonSet& corr_setDM_VBF_BB;
             analysis::processing::JetSet& setJet_VBF_BB;
 
@@ -360,7 +362,7 @@ namespace analysis
 
             analysis::processing::MuonSet& setDM_VBF_EE;
             analysis::processing::MuonSet& corr_setDM_VBF_EE;
-            analysis::processing::JetSet& setJet_VBF_EE;*/
+            analysis::processing::JetSet& setJet_VBF_EE;
         };
     }
 }
