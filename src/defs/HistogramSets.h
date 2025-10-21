@@ -18,8 +18,8 @@ namespace analysis
                 _dir->cd();
 			
                 // -----  DiMuon Plots  -----
-				hDiMuonMass         = new TH1F("DiMuonMass", "DiMuonMass", 150, 50, 200);
-				hDiMuonMass_Z       = new TH1F("DiMuonMass_Z", "DiMuonMass_Z", 50, 86, 96);
+				hDiMuonMass         = new TH1F("DiMuonMass", "DiMuonMass", 130, 70, 200);
+				hDiMuonMass_Z       = new TH1F("DiMuonMass_Z", "DiMuonMass_Z", 76, 72, 110);
                 hDiMuonpt           = new TH1F("DiMuonpt", "DiMuonpt", 50, 0, 200);
                 hDiMuoneta          = new TH1F("DiMuoneta", "DiMuoneta", 50, -2.5, 2.5);
                 hDiMuonrapidity     = new TH1F("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);

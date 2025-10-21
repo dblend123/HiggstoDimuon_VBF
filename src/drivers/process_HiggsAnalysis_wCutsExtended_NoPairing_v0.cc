@@ -159,7 +159,7 @@ std::string g_selected_lumi_key = "unset";
 
 // Kinematic Cuts  
 enum MuonType {kLead=0, kSubLead=1};  // Muon Id --> lead = 0, sublead =1
-double _leadmuonPt = 29.;
+double _leadmuonPt = 26.;  //29 && 26 from Run 2
 double _subleadmuonPt = 20.;
 double _leadmuonEta = 2.4;
 double _subleadmuonEta = 2.4;
@@ -490,8 +490,12 @@ void loadPileupCorrections() {
 
 float getMuonRochester(const Muon& mu, bool isMC)
 {
+    static int errorCount = 0;
     if (!muoncorrections) {
-        std::cerr << "[ERROR] Rochester corrections not loaded!\n";
+        if (errorCount < 5) {
+            std::cerr << "[ERROR] Rochester corrections not loaded!\n";
+        }
+        ++errorCount;
         return 1.0f;
     }
 
@@ -514,6 +518,12 @@ float getMuonRochester(const Muon& mu, bool isMC)
     try {
         // Primary: numeric leafs (kScaleDT/kScaleMC)
         if (!isMC) {
+            static bool printed = false;
+            if (!printed) {
+                std::cerr << "[ROCH] Applying Rochester correction for first muon event" << std::endl;
+                printed = true;
+            } 
+
             if (g_rochKeyDT.empty()) return 1.0f;
             return muoncorrections->at(g_rochKeyDT)->evaluate({charge, pt, eta, phi, s, m});
         } else {
@@ -547,6 +557,11 @@ static float getNTrackerLayersOrDefault(const Muon& mu) {
 
 float getMuonKITSmear(const Muon& mu, bool isMC) {
     if (!isMC) return 1.0f;                 // no smearing on data
+    static bool printed = false;            // Sanity check for KIT Muon Corrections
+    if (!printed) {
+        std::cerr << "[KIT] Applying KIT smearing for first muon event" << std::endl;
+        printed = true;
+    }
     if (!kitCorrections) return 1.0f;
 
     const double abseta = std::abs(mu._eta);
@@ -965,9 +980,31 @@ bool isBarrel(const Muon& m)  { return std::abs(m._eta) < 0.9; }
 bool isOverlap(const Muon& m) { return std::abs(m._eta) >= 0.9 && std::abs(m._eta) < 1.6; }
 bool isEndcap(const Muon& m)  { return std::abs(m._eta) >= 1.6 && std::abs(m._eta) < 2.4; }
 
+
 // -------------------------------------
-//LEPTON CRITERIA 
+//          VERTEX CRITERIA 
 // -------------------------------------
+
+inline bool passVertex(const Vertices* v) {
+    if (!v || v->empty()) return false;
+    return v->front()._npvsGood >= 1;
+}
+
+// -------------------------------------
+//          MUON/LEPTONS CRITERIA 
+// -------------------------------------
+
+// Returns the scale to apply to *_pt or *_bsConstrainedPt based on your flags.
+inline float muCorrScale(const Muon& mu, bool isMC) {
+    if (__noMuCorr) return 1.0f;
+    if (__useKIT)   return getMuonKITSmear(mu, isMC);
+    return getMuonRochester(mu, isMC); // default: Rochester
+}
+
+// Convenience: corrected BS-constrained pT following the same policy
+inline float correctedBsPt(const Muon& mu, bool isMC) {
+    return mu._bsConstrainedPt * muCorrScale(mu, isMC);
+}
 
 bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
 {
@@ -975,11 +1012,10 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
 
     // Check muons
     for (const auto& mu : *muons) {
-        float rochSF = getMuonRochester(mu, isMC);
-        float corrected_pt = mu._pt * rochSF;
+        float corrected_pt = mu._pt * muCorrScale(mu, isMC);
 
         if (corrected_pt > 20.0 && std::abs(mu._eta) < 2.4) {
-            if (mu._isGlobal && mu._isTracker && mu._isTight && mu._pfRelIso04_all <= _leadmuonIso) {
+            if (mu._isGlobal && mu._isTracker && mu._isMedium && mu._pfRelIso04_all <= _leadmuonIso) {
                 numPassingMuons++;
                 if (numPassingMuons > 2) return false; // Veto: more than 2 passing muons
             }
@@ -996,71 +1032,30 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
     return true; // Passed: ≤2 good muons AND no good electrons
 }
 
-// -------------------------------------
-//VERTEX CRITERIA 
-// -------------------------------------
-
-bool passVertex(Vertices* v)
-{
-	if (v->size()==0)
-		return false;
-	
-    int n=0;
-	for (Vertices::const_iterator it=v->begin(); it!=v->end() && n<20; ++it)
-	{
-        double rho = std::sqrt((it->_x * it->_x) + (it->_y * it->_y));
-
-        if (TMath::Abs(it->_z) < 24 
-            && it->_ndof > 4 
-            && rho <= 0.3)
-			return true;
-        n++;
-	}
-	return false;
-}
-
-//WILL PROB IMPLEMENT THIS ONE
-inline bool passVertex(Vertices* /*v*/, int PV_npvsGood) {
-    return PV_npvsGood >= 1;
-}
-
-// -------------------------------------
-//MUON CRITERIA 
-// -------------------------------------
-
 bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
 {
     // If we don't have trigger objects on DATA, fall back to a simple pT check.
     if (trig->size()==0) {
         if (!isMC) {
-            float rochSF = getMuonRochester(m, /*isMC=*/false);
-            float corrected_pt = m._bsConstrainedPt * rochSF;
+            float corrected_pt = correctedBsPt(m, /*isMC=*/false);
             return (corrected_pt >= 26.0f);
         }
-         return false;
-    }
-    
-    // Apply Rochester correction
-    float rochSF = getMuonRochester(m, isMC);
-    float corrected_pt = m._bsConstrainedPt * rochSF;
-
-    if (corrected_pt < 26)
         return false;
-	
-	for (TrigObjs::const_iterator it=trig->begin(); it!=trig->end(); ++it)
-	{
-        if (it->_id == 13 && it->_filterBits & (1 << 0)) // Bit 0 = TrkIsoVVL (HLT_IsoMu24) 
-        { 
+    }
+
+    float corrected_pt = correctedBsPt(m, isMC);
+    if (corrected_pt < 26.0f) return false;
+
+    for (TrigObjs::const_iterator it=trig->begin(); it!=trig->end(); ++it) {
+        if (it->_id == 13 && ((it->_filterBits & (1 << 0)) != 0)) { // TrkIsoVVL
             float deta = m._eta - it->_eta;
             float dphi = std::fabs(m._phi - it->_phi);
             if (dphi > M_PI) dphi = 2 * M_PI - dphi;
-
             float dR = std::sqrt(deta * deta + dphi * dphi);
-            if (dR < 0.3)
-                return true;
-            }
-        }   
-	return false;
+            if (dR < 0.3) return true;
+        }
+    }
+    return false;
 }
 
 bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
@@ -1071,7 +1066,7 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
             && m._isTracker 
             && corrected_pt > _leadmuonPt 
             && TMath::Abs(m._eta) < _leadmuonEta 
-            && m._isTight 
+            && m._isMedium 
             && m._pfRelIso04_all <= _leadmuonIso)
 		    return true;
     }
@@ -1081,7 +1076,7 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
             && m._isTracker 
             && corrected_pt > _subleadmuonPt 
             && TMath::Abs(m._eta) < _subleadmuonEta 
-            && m._isTight 
+            && m._isMedium 
             && m._pfRelIso04_all <= _subleadmuonIso)
 		    return true;
     }
@@ -1090,23 +1085,22 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
 
 bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
 {
-    // Get Rochester scale factors for both muons
-    float rochSF1 = getMuonRochester(m1, __isMC);
-    float rochSF2 = getMuonRochester(m2, __isMC);
+    float pt1_corr = correctedBsPt(m1, __isMC);
+    float pt2_corr = correctedBsPt(m2, __isMC);
 
-    float pt1_corr = m1._bsConstrainedPt * rochSF1;
-    float pt2_corr = m2._bsConstrainedPt * rochSF2;
-    
-    const Muon& leadmuon     = (pt1_corr > pt2_corr) ? m1 : m2;
-    const Muon& subleadmuon  = (pt1_corr > pt2_corr) ? m2 : m1;
-    float lead_pt_corr       = std::max(pt1_corr, pt2_corr);
-    float sublead_pt_corr    = std::min(pt1_corr, pt2_corr);
-	
-    if (m1._charge!=m2._charge && passMuon(leadmuon, lead_pt_corr, kLead) && passMuon(subleadmuon, sublead_pt_corr, kSubLead))
+    const Muon& leadmuon    = (pt1_corr > pt2_corr) ? m1 : m2;
+    const Muon& subleadmuon = (pt1_corr > pt2_corr) ? m2 : m1;
+    float lead_pt_corr      = std::max(pt1_corr, pt2_corr);
+    float sublead_pt_corr   = std::min(pt1_corr, pt2_corr);
+
+    if (m1._charge != m2._charge
+        && passMuon(leadmuon, lead_pt_corr, kLead)
+        && passMuon(subleadmuon, sublead_pt_corr, kSubLead))
+    {
         if (passMuonHLT(trigObjs, m1, __isMC) || passMuonHLT(trigObjs, m2, __isMC))
             return true;
-
-	return false;
+    }
+    return false;
 }
 
 // -------------------------------------
@@ -1180,13 +1174,20 @@ bool passJetIDfromJSON(const Jet& jet,
 // -------------------------------------
 
 float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
-    /*if (!isMC) {
-        std::cerr << "This is Data!\n";
+    static int errorCount = 0;
+    if (!isMC) {
+        if (errorCount < 5) {
+            std::cerr << "This is Data!\n";
+        }
+        ++errorCount;
         return 1.0;
-    }*/
+    }
 
     if (!corrections) {
-        std::cerr << "[ERROR] Correction set not initialized!\n";
+        if (errorCount < 5) {
+            std::cerr << "[ERROR] Correction set not initialized!\n";
+        }
+        ++errorCount;
         return 1.0;
     }
 
@@ -1229,13 +1230,9 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     //             MUONS 
     // -------------------------------------
     
-    // --- choose correction set ---
-    const float sf1 = __noMuCorr ? 1.0f
-                             : (__useKIT ? getMuonKITSmear(mu1, __isMC)
-                                         : getMuonRochester(mu1, __isMC));
-    const float sf2 = __noMuCorr ? 1.0f
-                             : (__useKIT ? getMuonKITSmear(mu2, __isMC)
-                                         : getMuonRochester(mu2, __isMC));
+    // --- KIT, Rochester, noMuCorr Dimuon Set ---
+    const float sf1 = muCorrScale(mu1, __isMC);
+    const float sf2 = muCorrScale(mu2, __isMC);
 
     // --- raw TLVs ---
     TLorentzVector p4m1, p4m2;
@@ -1303,7 +1300,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     // Collins-Soper Angles
     const bool mu1_is_minus = (mu1._charge < 0);
     const TLorentzVector& muMinus = mu1_is_minus ? corr_p4m1 : corr_p4m2;
-    const TLorentzVector& muPlus  = mu1_is_minus ? corr_p4m1 : corr_p4m2;
+    const TLorentzVector& muPlus  = mu1_is_minus ? corr_p4m2 : corr_p4m1;
 	
     // ---> Boost everything to the dimuon rest frame
     const TVector3 boostToQ = -corr_p4dimuon.BoostVector();
@@ -1424,8 +1421,8 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     float dphi_signed    = p4lead.DeltaPhi(p4sub);   
     float dijetdphi      = std::fabs(dphi_signed); 
     
-    float PTdDM1         = (corr_p4m1.Pt())/(dijet.M());
-    float PTdDM2         = (corr_p4m2.Pt())/(dijet.M());
+    float PTdDM1         = (corr_p4m1.Pt())/(corr_p4dimuon.M());
+    float PTdDM2         = (corr_p4m2.Pt())/(corr_p4dimuon.M()); 
 
     // -------------------------------------
     //          SF && WEIGHTS  
@@ -1498,7 +1495,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     // -------------------------------------
     //          VBF HISTOGRAMS  
     // -------------------------------------
-
+    
     if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
         pass_bjet_veto = false;
     
@@ -1788,6 +1785,12 @@ void process()
     //	Output Root File
     TFile *outroot = new TFile(__outputfilename.c_str(), "recreate");
 
+    // Also record the exact JSON filenames used (if any)
+    TNamed rj("muCorrRochJSON", g_rochJSON.empty() ? "none" : g_rochJSON.c_str());
+    rj.Write();
+    TNamed kj("muCorrKITJSON",  g_kitJSON.empty()  ? "none" : g_kitJSON.c_str());
+    kj.Write();
+
     // Pre-Selection blocks
     MuonSet     setDM_PreSelection(outroot, "DM_Pre-Selection");
     MuonSet     corr_setDM_PreSelection(outroot, "corr_DM_Pre-Selection");
@@ -1928,6 +1931,7 @@ void process()
     SET_BRANCH_BOOL_ARRAY(Muon_isTracker);
     SET_BRANCH_UCHAR_ARRAY(Muon_miniIsoId);
     SET_BRANCH_BOOL_ARRAY(Muon_tightId);
+    SET_BRANCH_BOOL_ARRAY(Muon_mediumId);
     //SET_BRANCH_BOOL_ARRAY(Muon_isPFcand);
     SET_BRANCH_FLOAT_ARRAY(Muon_dxy);
     SET_BRANCH_FLOAT_ARRAY(Muon_dz);
@@ -2095,6 +2099,7 @@ void process()
             mu._isGlobal = Muon_isGlobal[i];
             mu._isTracker = Muon_isTracker[i];
             mu._isTight = Muon_tightId[i];
+            mu._isMedium = Muon_mediumId[i];
             //mu._isPF = Muon_isPFcand[i];
             mu._dxy = Muon_dxy[i];
             mu._dz = Muon_dz[i];
@@ -2222,7 +2227,7 @@ void process()
 
         
         //	Selections
-		//if (!passVertex(vertices))continue;
+        if (!passVertex(vertices)) continue;
         if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
 
         // Prepare The Pairs Of Muons
@@ -2298,7 +2303,7 @@ void printCuts()
         << "    Leading Muon:" << std::endl
         << "    -------------" << std::endl
         << "    isGlobal && isTracker = true" << std::endl
-        << "    tightId = true" << std::endl
+        << "    mediumId = true" << std::endl
         << "    pfRelIso04_all < 0.15" << std::endl
         << "    pT > " << _leadmuonPt << " GeV" << std::endl
         << "    Abs(Eta) < " << _leadmuonEta << std::endl
@@ -2306,7 +2311,7 @@ void printCuts()
         << "    Sub-Leading Muon:" << std::endl
         << "    -----------------" << std::endl
         << "    isGlobal && isTracker = true" << std::endl
-        << "    tightId = true" << std::endl
+        << "    mediumId = true" << std::endl
         << "    pfRelIso04_all < 0.25" << std::endl
         << "    pT > " << _subleadmuonPt << " GeV" << std::endl
         << "    Abs(Eta) < " << _subleadmuonEta << std::endl
@@ -2345,7 +2350,8 @@ int main(int argc, char** argv)
 	signal(SIGINT, &sigHandler);
 
 	std::string none;
-	bool genPUMC = false;
+	std::string muCorrOpt = "roch";
+    bool genPUMC = false;
 
 	// Pare Options
 	po::options_description desc("Allowed Program Options");
@@ -2353,9 +2359,8 @@ int main(int argc, char** argv)
 		("help", "produce help messages")
 		("input", po::value<std::string>(), "a file specifying all the ROOT files to process")
 		("isMC", po::value<bool>(), "type of data: DATA vs MC")
-		("useKIT", po::value<bool>(), "KIT muon corrections")
-		("noMuCorr", po::value<bool>(), "Any muon corrections?")
-		("output", po::value<std::string>(), "output file name")
+        ("muCorr", po::value<std::string>(&muCorrOpt)->default_value("roch"), "Muon momentum correction: 'roch' (Rochester), 'kit' (KIT smearing), 'none' (NoMuCorr)")
+        ("output", po::value<std::string>(), "output file name")
 		("genPUMC", po::value<bool>(&genPUMC)->default_value(false), "true if should generate the MC PU file")
 		("puMC", po::value<std::string>(&__puMCfilename)->default_value("None"), "MC PU Reweight file")
 		("puDATA", po::value<std::string>(&__puDATAfilename)->default_value("None"), "DATA PU Reweight file")
@@ -2409,8 +2414,7 @@ int main(int argc, char** argv)
 	//	Assign globals
 	__inputfilename     = vm["input"].as<std::string>();
 	__isMC              = vm["isMC"].as<bool>();
-	__useKIT            = vm["useKIT"].as<bool>();
-    __noMuCorr          = vm["noMuCorr"].as<bool>();
+    const bool has_muCorr = (vm.count("muCorr") > 0);
     __outputfilename    = vm["output"].as<std::string>();
 	__genPUMC           = vm["genPUMC"].as<bool>();
 	__puMCfilename      = vm["puMC"].as<std::string>();
@@ -2427,7 +2431,27 @@ int main(int argc, char** argv)
     _subleadJetEta      = vm["subleadJetEta"].as<double>();
     _dijetMass_VBF      = vm["dijetMass_VBF"].as<double>();
     _dijetdEta_VBF      = vm["dijetdEta_VBF"].as<double>();
+   
+    if (!has_muCorr) {
+        if (__noMuCorr) {
+            muCorrOpt = "none";
+        } else if (__useKIT) {
+            muCorrOpt = "kit";
+        } else {
+            muCorrOpt = "roch";
+        }
+    }
+
+    std::string v = muCorrOpt;
+    std::transform(v.begin(), v.end(), v.begin(), ::tolower);
+    if (v == "none")      { __noMuCorr = true;  __useKIT = false; }
+    else if (v == "kit")  { __noMuCorr = false; __useKIT = true;  }
+    else                  { __noMuCorr = false; __useKIT = false; }
     
+    std::cerr << "[MUON] Correction mode = "
+            << ( __noMuCorr ? "NoMuCorr" : (__useKIT ? "KIT" : "Rochester"))
+            << std::endl;
+
     // --- Load weights & pick lumi for the chosen era (only for MC) ---
     if (__isMC && g_weightsFile != "None") {
         loadWeightsFile(g_weightsFile);   // fills g_sectionLumis / g_sectionSamples
@@ -2470,11 +2494,8 @@ int main(int argc, char** argv)
 
     
     // Start Main Loop Process 
-	if (!__noMuCorr) {
-        loadMuonCorrections();
-        if (__useKIT) 
-            loadKITCorrections();
-        }
+	loadMuonCorrections();            // loads SFs + Rochester JSONs  :contentReference[oaicite:5]{index=5}
+    if (__useKIT) loadKITCorrections();  // KIT only when requested   :contentReference[oaicite:6]{index=6}
     if (__isMC) {
         loadJetCorrections();               // JEC/JER for MC
         loadPileupCorrections();            // PU weights for MC
@@ -2483,7 +2504,11 @@ int main(int argc, char** argv)
     }
     process();
 
-    std::cerr << "[CFG] isMC=" << std::boolalpha << __isMC << " useKIT=" << __useKIT << "\n";
+    std::cout << "[MuonCorr] Mode=" 
+              << (__noMuCorr ? "NoMuCorr" : (__useKIT ? "KIT" : "Rochester"))
+              << "  isMC=" << std::boolalpha << __isMC
+              << "  era=" << g_era
+              << "\n";
 
 	return 0;
 }

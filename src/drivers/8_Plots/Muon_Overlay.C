@@ -1,6 +1,6 @@
+// ================== Muon_Overlay.C (clean two-mode version) ==================
 #include "TFile.h"
 #include "TH1.h"
-#include "THStack.h"
 #include "TCanvas.h"
 #include "TPad.h"
 #include "TLegend.h"
@@ -9,398 +9,333 @@
 #include "TString.h"
 #include "TSystem.h"
 #include <iostream>
-#include <algorithm>
 #include <string>
 #include <vector>
 #include <map>
 #include <fstream>
 #include <iomanip>
+#include <memory>
+#include <algorithm>
 
-// Helper to safely clone a histogram from a file
+// ---------- helpers ----------
 static TH1* getHist(TFile* f, const std::string& path) {
-    if (!f) return nullptr;
-    auto* h = dynamic_cast<TH1*>(f->Get(path.c_str()));
-    return h ? (TH1*)h->Clone() : nullptr;
+  if (!f) return nullptr;
+  auto* h = dynamic_cast<TH1*>(f->Get(path.c_str()));
+  if (!h) return nullptr;
+  auto* c = (TH1*)h->Clone();
+  c->SetDirectory(nullptr);
+  return c;
 }
 
-// Integral excluding a window [xmin, xmax] (ignores under/overflow)
 static double integralExcluding(const TH1* h, double xmin, double xmax) {
-    if (!h) return 0.0;
-    const int nb = h->GetNbinsX();
-    double sum = 0.0;
-    for (int i = 1; i <= nb; ++i) {
-        const double lo = h->GetXaxis()->GetBinLowEdge(i);
-        const double hi = h->GetXaxis()->GetBinUpEdge(i);
-        const bool overlap = (hi > xmin && lo < xmax);
-        if (!overlap) sum += h->GetBinContent(i);
-    }
-    return sum;
+  if (!h) return 0.0;
+  const int nb = h->GetNbinsX();
+  double sum = 0.0;
+  for (int i = 1; i <= nb; ++i) {
+    const double lo = h->GetXaxis()->GetBinLowEdge(i);
+    const double hi = h->GetXaxis()->GetBinUpEdge(i);
+    const bool overlap = (hi > xmin && lo < xmax);
+    if (!overlap) sum += h->GetBinContent(i);
+  }
+  return sum;
 }
 
-// Draw a single overlay (top pad log-y, bottom pad ratio), save to outdir.
-// - dir: directory inside ROOT files where hist lives (e.g., "corr_DM_VBF/")
-// - var: histogram name (e.g., "DiMuonMass")
-// - xTitle: x-axis title text
-// - doBlindMass: if true, blind 110–150 GeV (for DiMuonMass only)
+static TFile* open_or_warn(const TString& p) {
+  TFile* f = TFile::Open(p);
+  if (!f) std::cerr << "[ERROR] Could not open: " << p << "\n";
+  return f;
+}
+
+// ---------- draw one variable ----------
 static void draw_one(const TString& outdir, const std::string& dir, const std::string& var,
-                     TFile* f_data, TFile* f_DY, TFile* f_TT,
+                     TFile* f_data, TFile* f_DY, TFile* f_EWK, TFile* f_TT,
                      TFile* f_WZ2L2Q, TFile* f_WZ3LNu, TFile* f_ZZ2L2Nu, TFile* f_ZZ2L2Q, TFile* f_ZZ4L,
                      TFile* f_WWW, TFile* f_WWZ, TFile* f_WZZ, TFile* f_ZZZ,
                      TFile* f_signal, const char* xTitle, bool doBlindMass, double eraLumiPb,
                      std::ostream* summary = nullptr)
 {
-    const std::string hpath = dir + var;
+  const std::string hpath = dir + var;
 
-    // Pull histograms
-    TH1* h_data   = getHist(f_data,   hpath);
-    TH1* h_DY     = getHist(f_DY,     hpath);
-    TH1* h_TT     = getHist(f_TT,     hpath);
-    TH1* h_WZ2L2Q = getHist(f_WZ2L2Q, hpath);
-    TH1* h_WZ3L   = getHist(f_WZ3LNu, hpath);
-    TH1* h_ZZ2L2N = getHist(f_ZZ2L2Nu,hpath);
-    TH1* h_ZZ2L2Q = getHist(f_ZZ2L2Q, hpath);
-    TH1* h_ZZ4L   = getHist(f_ZZ4L,   hpath);
-    TH1* h_WWW    = getHist(f_WWW,    hpath);
-    TH1* h_WWZ    = getHist(f_WWZ,    hpath);
-    TH1* h_WZZ    = getHist(f_WZZ,    hpath);
-    TH1* h_ZZZ    = getHist(f_ZZZ,    hpath);
-    TH1* h_signal = getHist(f_signal, hpath);
+  // read
+  TH1* h_data   = getHist(f_data,   hpath);
+  TH1* h_DY     = getHist(f_DY,     hpath);
+  TH1* h_EWK    = getHist(f_EWK,    hpath);
+  TH1* h_TT     = getHist(f_TT,     hpath);
+  TH1* h_WZ2L2Q = getHist(f_WZ2L2Q, hpath);
+  TH1* h_WZ3L   = getHist(f_WZ3LNu, hpath);
+  TH1* h_ZZ2L2N = getHist(f_ZZ2L2Nu,hpath);
+  TH1* h_ZZ2L2Q = getHist(f_ZZ2L2Q, hpath);
+  TH1* h_ZZ4L   = getHist(f_ZZ4L,   hpath);
+  TH1* h_WWW    = getHist(f_WWW,    hpath);
+  TH1* h_WWZ    = getHist(f_WWZ,    hpath);
+  TH1* h_WZZ    = getHist(f_WZZ,    hpath);
+  TH1* h_ZZZ    = getHist(f_ZZZ,    hpath);
+  TH1* h_signal = getHist(f_signal, hpath);
 
-    if (!h_data || !h_DY || !h_TT ||
-        !h_WZ2L2Q || !h_WZ3L || !h_ZZ2L2N || !h_ZZ2L2Q || !h_ZZ4L ||
-        !h_WWW || !h_WWZ || !h_WZZ || !h_ZZZ ||
-        !h_signal) {
-        std::cerr << "[WARN] Missing hist(s) for " << var << " — skipping.\n";
-        return;
-    }
+  if (!h_data || !h_DY || !h_TT || !h_EWK ||
+      !h_WZ2L2Q || !h_WZ3L || !h_ZZ2L2N || !h_ZZ2L2Q || !h_ZZ4L ||
+      !h_WWW || !h_WWZ || !h_WZZ || !h_ZZZ || !h_signal) {
+    std::cerr << "[WARN] Missing hist(s) for " << var << " — skipping.\n";
+    // clean
+    delete h_data; delete h_DY; delete h_EWK; delete h_TT; delete h_WZ2L2Q; delete h_WZ3L;
+    delete h_ZZ2L2N; delete h_ZZ2L2Q; delete h_ZZ4L; delete h_WWW; delete h_WWZ; delete h_WZZ; delete h_ZZZ; delete h_signal;
+    return;
+  }
 
-    // Group diboson and triboson
-    TH1* h_VV = (TH1*)h_WZ2L2Q->Clone(("h_VV_"+var).c_str());
-    h_VV->Add(h_WZ3L);
-    h_VV->Add(h_ZZ2L2Q);
-    h_VV->Add(h_ZZ2L2N);
-    h_VV->Add(h_ZZ4L);
+  // groups
+  TH1* h_VV  = (TH1*)h_WZ2L2Q->Clone(("h_VV_"+var).c_str());
+  h_VV->SetDirectory(nullptr);
+  h_VV->Add(h_WZ3L); h_VV->Add(h_ZZ2L2Q); h_VV->Add(h_ZZ2L2N); h_VV->Add(h_ZZ4L);
 
-    TH1* h_VVV = (TH1*)h_WWW->Clone(("h_VVV_"+var).c_str());
-    h_VVV->Add(h_WWZ);
-    h_VVV->Add(h_WZZ);
-    h_VVV->Add(h_ZZZ);
+  TH1* h_VVV = (TH1*)h_WWW->Clone(("h_VVV_"+var).c_str());
+  h_VVV->SetDirectory(nullptr);
+  h_VVV->Add(h_WWZ); h_VVV->Add(h_WZZ); h_VVV->Add(h_ZZZ);
 
-    for (TH1* h : {h_data,h_DY,h_TT,h_VV,h_VVV,h_signal})
-        if (h && h->GetSumw2N()==0) h->Sumw2(kTRUE);
+  for (TH1* h : {h_data,h_DY,h_EWK,h_TT,h_VV,h_VVV,h_signal})
+    if (h && h->GetSumw2N()==0) h->Sumw2(kTRUE);
 
-    // Style
-    h_data->SetMarkerStyle(20); h_data->SetMarkerColor(kBlack); h_data->SetLineColor(kBlack); h_data->SetMarkerSize(1.2);
-    h_DY->SetFillColor(kOrange-2); h_DY->SetLineColor(kOrange+3);
-    h_TT->SetFillColor(kRed-4);    h_TT->SetLineColor(kRed+1);
-    h_VV->SetFillColor(kAzure-9);  h_VV->SetLineColor(kAzure+2);
-    h_VVV->SetFillColor(kGreen-7); h_VVV->SetLineColor(kGreen+3);
-    h_signal->SetFillColor(kMagenta+1); h_signal->SetLineColor(kMagenta+3); h_signal->SetLineWidth(3);
+  // style
+  h_data->SetMarkerStyle(20); h_data->SetMarkerColor(kBlack); h_data->SetLineColor(kBlack); h_data->SetMarkerSize(1.2);
+  h_DY->SetFillColor(kOrange-2); h_DY->SetLineColor(kOrange+3);
+  h_TT->SetFillColor(kRed-4);    h_TT->SetLineColor(kRed+1);
+  h_VV->SetFillColor(kAzure-9);  h_VV->SetLineColor(kAzure+2);
+  h_VVV->SetFillColor(kGreen-7); h_VVV->SetLineColor(kGreen+3);
+  h_EWK->SetFillColor(kTeal-6);  h_EWK->SetLineColor(kTeal+2);
+  h_signal->SetFillColor(kMagenta+1); h_signal->SetLineColor(kMagenta+3); h_signal->SetLineWidth(3);
 
-    // Canvas & pads
-    TCanvas* c = new TCanvas(("c_"+var).c_str(), var.c_str(), 800, 800);
-    TPad* pad1 = new TPad(("pad1_"+var).c_str(), "Top pad",    0, 0.32, 1, 1);
-    TPad* pad2 = new TPad(("pad2_"+var).c_str(), "Bottom pad", 0, 0.02, 1, 0.32);
-    pad1->SetBottomMargin(0.03);
-    pad2->SetTopMargin(0.03);
-    pad2->SetBottomMargin(0.3);
-    pad1->Draw(); pad2->Draw();
+  // canvas/pads
+  std::unique_ptr<TCanvas> c(new TCanvas(("c_"+var).c_str(), var.c_str(), 800, 800));
+  std::unique_ptr<TPad> pad1(new TPad(("pad1_"+var).c_str(), "Top",    0, 0.32, 1, 1));
+  std::unique_ptr<TPad> pad2(new TPad(("pad2_"+var).c_str(), "Bottom", 0, 0.02, 1, 0.32));
+  pad1->SetBottomMargin(0.03); pad2->SetTopMargin(0.03); pad2->SetBottomMargin(0.3);
+  pad1->Draw(); pad2->Draw();
 
-    // Top pad
-    pad1->cd();
-    pad1->SetLogy();
+  // top
+  pad1->cd(); pad1->SetLogy();
+  TH1* h_data_draw = (TH1*)h_data->Clone(("h_data_draw_"+TString(var.c_str())).Data());
+  h_data_draw->SetDirectory(nullptr);
+  if (doBlindMass && var=="DiMuonMass") {
+    const int bmin = h_data_draw->FindBin(110.0);
+    const int bmax = h_data_draw->FindBin(150.0);
+    for (int i=bmin;i<=bmax;++i){ h_data_draw->SetBinContent(i,0); h_data_draw->SetBinError(i,0); }
+  }
 
-    // Prepare blinded copy of data (top pad) if requested
-    TH1* h_data_draw = (TH1*)h_data->Clone(("h_data_draw_"+TString(var.c_str())).Data());
-    if (doBlindMass) {
-        int bin_min_top = h_data_draw->FindBin(110.0);
-        int bin_max_top = h_data_draw->FindBin(150.0);
-        for (int i = bin_min_top; i <= bin_max_top; ++i) {
-            h_data_draw->SetBinContent(i, 0);
-            h_data_draw->SetBinError(i, 0);
-        }
-    }
-    
-    // --- Integrals for global Data/MC (exclude blinded window if requested) ---
-    auto integralNoUF = [](TH1* h) -> double {
-        return h ? h->Integral(1, h->GetNbinsX()) : 0.0;
-    };
+  // integrals (exclude blinded window for both Data/MC if DiMuonMass)
+  const bool blind = (doBlindMass && var=="DiMuonMass");
+  auto iNoUF = [](TH1* h){ return h ? h->Integral(1,h->GetNbinsX()) : 0.0; };
+  auto iMC   = [&](TH1* h){ return blind ? integralExcluding(h,110.0,150.0) : iNoUF(h); };
 
-    const bool blindNow = doBlindMass;        // only true for DiMuonMass
-    const double bxmin  = 110.0;
-    const double bxmax  = 150.0;
+  const double data_int = blind ? integralExcluding(h_data,110.0,150.0) : iNoUF(h_data);
+  const double dy_int   = iMC(h_DY);
+  const double ewk_int  = iMC(h_EWK);
+  const double tt_int   = iMC(h_TT);
+  const double vv_int   = iMC(h_VV);
+  const double vvv_int  = iMC(h_VVV);
+  const double mc_int   = dy_int + ewk_int + tt_int + vv_int + vvv_int; // include EWK!
 
-    // Data integral (respect blinding if needed)
-    double data_int = 0.0;
-    if (blindNow) data_int = integralExcluding(h_data, bxmin, bxmax);
-    else          data_int = integralNoUF(h_data);
+  const double dataOverMc = (mc_int>0.0 ? data_int/mc_int : 0.0);
+  const double effLumiPb  = dataOverMc * eraLumiPb;
 
-    // MC integrals (exclude signal; respect blinding if needed)
-    auto mcInt = [&](TH1* h) -> double {
-        return blindNow ? integralExcluding(h, bxmin, bxmax) : integralNoUF(h);
-    };
-    double dy_int   = mcInt(h_DY);
-    double tt_int   = mcInt(h_TT);
-    double vv_int   = mcInt(h_VV);
-    double vvv_int  = mcInt(h_VVV);
-    double mc_int   = dy_int + tt_int + vv_int + vvv_int;
+  std::cout << std::fixed
+            << "[PLOT] dir=" << dir << " var=" << var
+            << " Data=" << data_int << " DY=" << dy_int << " EWK=" << ewk_int
+            << " TT=" << tt_int << " VV=" << vv_int << " VVV=" << vvv_int
+            << " MC=" << mc_int << " Data/MC=" << dataOverMc << "\n";
 
-    double dataOverMc = (mc_int > 0.0 ? data_int / mc_int : 0.0);
-    double effLumiPb  = dataOverMc * eraLumiPb;
+  if (summary && *summary) {
+    (*summary) << std::fixed << std::setprecision(6)
+               << "Variable: " << var << "\n"
+               << "Blinded: " << (blind ? "yes [110,150] GeV" : "no") << "\n"
+               << "Data: " << data_int << "\n"
+               << "MC: "   << mc_int
+               << "  (DY=" << dy_int << ", EWK=" << ewk_int << ", TT=" << tt_int
+               << ", VV=" << vv_int << ", VVV=" << vvv_int << ")\n"
+               << "Data/MC: " << dataOverMc << "\n"
+               << "Era lumi (fb^-1): " << (eraLumiPb/1000.0) << "\n"
+               << "Effective data lumi (fb^-1): " << (effLumiPb/1000.0) << "\n"
+               << "------------------------------------------\n";
+  }
 
-    std::cout << std::fixed
-              << "[PLOT] dir=" << dir
-              << " var=" << var
-              << " data=" << data_int
-              << " DY=" << dy_int
-              << " TT=" << tt_int
-              << " VV=" << vv_int
-              << " VVV=" << vvv_int
-              << " mc=" << mc_int
-              << " data/mc=" << dataOverMc
-              << "\n";
+  const double ymax = std::max({
+    h_data->GetMaximum(), h_DY->GetMaximum(), h_EWK->GetMaximum(), h_TT->GetMaximum(),
+    h_VV->GetMaximum(), h_VVV->GetMaximum(), h_signal->GetMaximum()
+  }) * 1.8;
 
-    std::cout << "[PLOT] eff_data_lumi ≈ " << (effLumiPb/1000.0) << " fb^-1"
-              << " (using eraLumi=" << (eraLumiPb/1000.0) << " fb^-1)"
-              << std::endl;
+  h_data_draw->SetTitle("");
+  h_data_draw->GetYaxis()->SetTitle("Events");
+  h_data_draw->GetYaxis()->SetTitleSize(0.05);
+  h_data_draw->GetYaxis()->SetLabelSize(0.04);
+  h_data_draw->GetYaxis()->SetTitleOffset(1.2);
+  h_data_draw->SetMaximum(ymax);
+  h_data_draw->SetMinimum(0.1);
+  h_data_draw->GetXaxis()->SetTitle(xTitle);
+  h_data_draw->Draw("E1");
 
-    // --- Append one line-block to the single summary file ---
-    if (summary && *summary) {
-        (*summary) << std::fixed << std::setprecision(6);
-        (*summary) << "Variable: " << var << "\n";
-        (*summary) << "Blinded: " << (doBlindMass ? "yes [110,150] GeV" : "no") << "\n";
-        (*summary) << "Data: "    << data_int << "\n";
-        (*summary) << "MC: "      << mc_int
-                   << "  (DY=" << dy_int << ", TT=" << tt_int
-                   << ", VV=" << vv_int << ", VVV=" << vvv_int << ")\n";
-        (*summary) << "Data/MC: " << dataOverMc << "\n";
-        (*summary) << "Era lumi (fb^-1): " << (eraLumiPb/1000.0) << "\n";
-        (*summary) << "Effective data lumi (fb^-1): " << (effLumiPb/1000.0) << "\n";
-        (*summary) << "------------------------------------------\n";
-        (*summary).flush(); // optional, helps if you crash mid-run
-    }
+  h_DY->Draw("HIST SAME"); 
+  h_EWK->Draw("HIST SAME"); 
+  h_TT->Draw("HIST SAME");
+  h_VV->Draw("HIST SAME"); 
+  h_VVV->Draw("HIST SAME"); 
+  h_signal->Draw("HIST SAME");
+  h_data_draw->Draw("E1 SAME");
+  
+  if (blind) {
+    const double y0 = 0.1, y1 = ymax;
+    TLine v1(110.0, y0, 110.0, y1);
+    TLine v2(150.0, y0, 150.0, y1);
+    v1.SetLineStyle(2); v2.SetLineStyle(2);
+    v1.SetLineWidth(3); v2.SetLineWidth(3);
+    v1.SetLineColor(kGray+2); v2.SetLineColor(kGray+2);
+    v1.Draw("SAME"); v2.Draw("SAME");
+  }
 
-    double ymax = std::max({
-        h_data->GetMaximum(),
-        h_DY->GetMaximum(),
-        h_TT->GetMaximum(),
-        h_VV->GetMaximum(),
-        h_VVV->GetMaximum(),
-        h_signal->GetMaximum()
-    }) * 1.8;
+  TLegend leg(0.60, 0.50, 0.88, 0.88);
+  leg.SetBorderSize(0); leg.SetFillStyle(0); leg.SetTextFont(42); leg.SetTextSize(0.035);
+  leg.AddEntry(h_signal, "VBF H#rightarrow#mu#mu", "f");
+  leg.AddEntry(h_TT,     "t#bar{t} + Jets",        "f");
+  leg.AddEntry(h_DY,     "DY + Jets",              "f");
+  leg.AddEntry(h_EWK,    "EWK + Jets",             "f");
+  leg.AddEntry(h_VV,     "VV + Jets",              "f");
+  leg.AddEntry(h_VVV,    "VVV + Jets",             "f");
+  leg.AddEntry(h_data,   "Data",                   "lep");
+  leg.Draw();
 
-    h_data_draw->SetTitle("");
-    h_data_draw->GetYaxis()->SetTitle("Events");
-    h_data_draw->GetYaxis()->SetTitleSize(0.05);
-    h_data_draw->GetYaxis()->SetLabelSize(0.04);
-    h_data_draw->GetYaxis()->SetTitleOffset(1.2);
-    h_data_draw->SetMaximum(ymax);
-    h_data_draw->SetMinimum(0.1);
-    h_data_draw->GetXaxis()->SetTitle(xTitle);
-    h_data_draw->Draw("E1");
+  TLatex latex; latex.SetNDC(); latex.SetTextFont(42); latex.SetTextSize(0.04);
+  latex.DrawLatex(0.13, 0.93, "CMS #scale[0.8]{#it{Preliminary}}");
+  latex.DrawLatex(0.52, 0.93, Form("#sqrt{s} = 13.6 TeV, %.2f fb^{-1}", eraLumiPb/1000.0));
 
-    // Draw MC
-    h_DY->Draw("HIST SAME");
-    h_TT->Draw("HIST SAME");
-    h_VV->Draw("HIST SAME");
-    h_VVV->Draw("HIST SAME");
-    h_signal->Draw("HIST SAME");
-    h_data_draw->Draw("E1 SAME");
+  // bottom ratio
+  pad2->cd();
+  TH1* h_mctot = (TH1*)h_DY->Clone(("h_mctot_"+var).c_str());
+  h_mctot->SetDirectory(nullptr);
+  h_mctot->Add(h_EWK); h_mctot->Add(h_TT); h_mctot->Add(h_VV); h_mctot->Add(h_VVV);
 
-    // Dashed vertical lines for blinding window on top pad
-    if (doBlindMass) {
-        TLine* v1_top = new TLine(110.0, 0.1, 110.0, ymax);
-        TLine* v2_top = new TLine(150.0, 0.1, 150.0, ymax);
-        v1_top->SetLineStyle(2); v2_top->SetLineStyle(2);
-        v1_top->SetLineWidth(2); v2_top->SetLineWidth(2);
-        v1_top->Draw("SAME"); v2_top->Draw("SAME");
-    }
+  TH1* h_ratio = (TH1*)h_data->Clone(("h_ratio_"+var).c_str());
+  h_ratio->SetDirectory(nullptr);
+  for (int i=1;i<=h_ratio->GetNbinsX();++i){
+    if (h_mctot->GetBinContent(i)<=0){ h_ratio->SetBinContent(i,0); h_ratio->SetBinError(i,0); }
+  }
+  h_ratio->Divide(h_mctot);
+  if (blind) {
+    const int bmin = h_ratio->FindBin(110.0), bmax = h_ratio->FindBin(150.0);
+    for (int i=bmin;i<=bmax;++i){ h_ratio->SetBinContent(i,0); h_ratio->SetBinError(i,0); }
+  }
 
+  h_ratio->GetYaxis()->SetTitle("Data/MC");
+  h_ratio->GetYaxis()->SetTitleSize(0.12);
+  h_ratio->GetYaxis()->SetTitleOffset(0.4);
+  h_ratio->GetYaxis()->SetLabelSize(0.1);
+  h_ratio->GetYaxis()->SetNdivisions(505);
+  h_ratio->GetXaxis()->SetLabelSize(0.12);
+  h_ratio->GetXaxis()->SetTitleSize(0.12);
+  h_ratio->GetXaxis()->SetTitle(xTitle);
+  h_ratio->SetMinimum(0.0);
+  h_ratio->SetMaximum(2.0);
+  h_ratio->SetLineColor(kBlack);
+  h_ratio->SetMarkerStyle(20);
+  h_ratio->Draw("E1");
 
-    // Legend
-    TLegend* leg = new TLegend(0.60, 0.50, 0.88, 0.88);
-    leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextFont(42); leg->SetTextSize(0.035);
-    leg->AddEntry(h_signal, "VBF H#rightarrow#mu#mu", "f");
-    leg->AddEntry(h_TT,     "t#bar{t} + Jets",        "f");
-    leg->AddEntry(h_DY,     "DY + Jets",              "f");
-    leg->AddEntry(h_VV,     "VV + Jets",              "f");
-    leg->AddEntry(h_VVV,    "VVV + Jets",             "f");
-    leg->AddEntry(h_data,   "Data",                   "lep");
-    leg->Draw();
+  TLine line(h_ratio->GetXaxis()->GetXmin(),1.0,h_ratio->GetXaxis()->GetXmax(),1.0);
+  line.SetLineStyle(2); line.Draw("SAME");
+  if (blind) {
+    const double y0 = h_ratio->GetMinimum();
+    const double y1 = h_ratio->GetMaximum();
+    TLine v1(110.0, y0, 110.0, y1);
+    TLine v2(150.0, y0, 150.0, y1);
+    v1.SetLineStyle(2); v2.SetLineStyle(2);
+    v1.SetLineWidth(3); v2.SetLineWidth(3);
+    v1.SetLineColor(kGray+2); v2.SetLineColor(kGray+2);
+    v1.Draw("SAME"); v2.Draw("SAME");
+  }
 
-    // CMS text
-    TLatex latex;
-    latex.SetNDC();
-    latex.SetTextFont(42);
-    latex.SetTextSize(0.04);
-    latex.DrawLatex(0.13, 0.93, "CMS #scale[0.8]{#it{Preliminary}}");
-    latex.DrawLatex(0.55, 0.93, Form("#sqrt{s} = 13 TeV, %.2f fb^{-1}", eraLumiPb/1000.0));
+  gSystem->Exec("mkdir -p " + outdir);
+  const TString baseName = "OverlayRatio_" + TString(var.c_str());
+  c->SaveAs(outdir + baseName + ".pdf");
+  c->SaveAs(outdir + baseName + ".png");
 
-
-    // Bottom pad (ratio)
-    pad2->cd();
-
-    // MC total excludes signal
-    TH1* h_mctot = (TH1*)h_DY->Clone(("h_mctot_"+var).c_str());
-    h_mctot->Add(h_TT);
-    h_mctot->Add(h_VV);
-    h_mctot->Add(h_VVV);
-
-    TH1* h_ratio = (TH1*)h_data->Clone(("h_ratio_"+var).c_str());
-    for (int i = 1; i <= h_ratio->GetNbinsX(); ++i) {
-        if (h_mctot->GetBinContent(i) <= 0) {
-            h_ratio->SetBinContent(i, 0);
-            h_ratio->SetBinError(i, 0);
-        }
-    }
-    h_ratio->Divide(h_mctot);
-
-    // Optional blinding for dimuon mass
-    if (doBlindMass) {
-        int bin_min = h_ratio->FindBin(110.0);
-        int bin_max = h_ratio->FindBin(150.0);
-        for (int i = bin_min; i <= bin_max; ++i) {
-            h_ratio->SetBinContent(i, 0);
-            h_ratio->SetBinError(i, 0);
-        }
-    }
-
-    h_ratio->GetYaxis()->SetTitle("Data/MC");
-    h_ratio->GetYaxis()->SetTitleSize(0.12);
-    h_ratio->GetYaxis()->SetTitleOffset(0.4);
-    h_ratio->GetYaxis()->SetLabelSize(0.1);
-    h_ratio->GetYaxis()->SetNdivisions(505);
-    h_ratio->GetXaxis()->SetLabelSize(0.12);
-    h_ratio->GetXaxis()->SetTitleSize(0.12);
-    h_ratio->GetXaxis()->SetTitle(xTitle);
-    h_ratio->SetMinimum(0.0);
-    h_ratio->SetMaximum(2.0);
-    h_ratio->SetLineColor(kBlack);
-    h_ratio->SetMarkerStyle(20);
-    h_ratio->Draw("E1");
-
-    // Horizontal line at 1
-    TLine* line = new TLine(h_ratio->GetXaxis()->GetXmin(), 1.0,
-                            h_ratio->GetXaxis()->GetXmax(), 1.0);
-    line->SetLineStyle(2);
-    line->Draw("SAME");
-
-    // Dashed vertical lines for blinding window on bottom pad
-    if (doBlindMass) {
-        TLine* v1_bot = new TLine(110.0, h_ratio->GetMinimum(), 110.0, h_ratio->GetMaximum());
-        TLine* v2_bot = new TLine(150.0, h_ratio->GetMinimum(), 150.0, h_ratio->GetMaximum());
-        v1_bot->SetLineStyle(2); v2_bot->SetLineStyle(2);
-        v1_bot->SetLineWidth(2); v2_bot->SetLineWidth(2);
-        v1_bot->Draw("SAME"); v2_bot->Draw("SAME");
-    }
-
-
-    // Save
-    gSystem->Exec("mkdir -p " + outdir);
-    TString baseName = "OverlayRatio_" + TString(var.c_str());
-    c->SaveAs(outdir + baseName + ".pdf");
-    c->SaveAs(outdir + baseName + ".png");
-
+  // clean local clones (file-owned hists were cloned; delete our clones)
+  delete h_data; delete h_DY; delete h_EWK; delete h_TT;
+  delete h_WZ2L2Q; delete h_WZ3L; delete h_ZZ2L2N; delete h_ZZ2L2Q; delete h_ZZ4L;
+  delete h_WWW; delete h_WWZ; delete h_WZZ; delete h_ZZZ; delete h_signal;
+  delete h_VV; delete h_VVV; delete h_data_draw; delete h_mctot; delete h_ratio;
 }
 
+// ---------- driver ----------
 void Muon_Overlay(TString era = "12022") {
-    // Pick lumi (pb^-1) for the selected era
-    double eraLumiPb = 0.0;
-    if (era == "12022")      eraLumiPb = 7980.454145;   // 7.980 fb^-1
-    else if (era == "22022") eraLumiPb = 26671.60971;   // 26.672 fb^-1
-    else if (era == "12023") eraLumiPb = 18704.13341;   // 18.704 fb^-1
-    else if (era == "22023") eraLumiPb = 9693.130053;   // 9.693 fb^-1
-    else {
-        std::cerr << "[WARN] Unknown era \"" << era << "\"; eraLumiPb=0\n";
+  double eraLumiPb = 0.0;
+  if      (era == "12022") eraLumiPb =  7980.454145;
+  else if (era == "22022") eraLumiPb = 26671.60971;
+  else if (era == "12023") eraLumiPb = 18704.13341;
+  else if (era == "22023") eraLumiPb =  9693.130053;
+  else std::cerr << "[WARN] Unknown era \"" << era << "\"; eraLumiPb=0\n";
+
+  const TString base = "/eos/user/d/dblend/Analyzed_SkimmedFiles/" + era + "/";
+
+  const std::vector<TString> MODES = {"KIT","Rochester"};
+  const std::vector<std::string> vars = {
+    "DiMuonMass","DiMuonpt","DiMuoneta","DiMuonrapidity",
+    "Muon1pt","Muon2pt","Muon1eta","Muon2eta",
+    "Muon1PTdDM","Muon2PTdDM","CollinsSoper","cosCollinsSoper","pt_balance"
+  };
+  const std::string dir = "corr_DM_VBF/";
+
+  for (const auto& MODE : MODES) {
+    // Per-mode Data (fallback to legacy)
+    std::unique_ptr<TFile> f_data(TFile::Open(base + MODE + "/DATA/DATA_all.root"));
+    if (!f_data) {
+      std::cerr << "[WARN] Missing " << (base + MODE + "/DATA/DATA_all.root")
+                << " ; falling back to " << (base + "Data/Data_all.root") << "\n";
+      f_data.reset(TFile::Open(base + "Data/Data_all.root"));
+    }
+    // Per-mode MC
+    std::unique_ptr<TFile> f_DY       ( open_or_warn(base + MODE + "/DY/DY_all.root") );
+    std::unique_ptr<TFile> f_EWK      ( open_or_warn(base + MODE + "/EWK/EWK_all.root") );
+    std::unique_ptr<TFile> f_TT       ( open_or_warn(base + MODE + "/TT/TT_all.root") );
+    std::unique_ptr<TFile> f_WZ2L2Q   ( open_or_warn(base + MODE + "/WZto2L2Q/WZto2L2Q_all.root") );
+    std::unique_ptr<TFile> f_WZ3LNu   ( open_or_warn(base + MODE + "/WZto3LNu/WZto3LNu_all.root") );
+    std::unique_ptr<TFile> f_ZZ2L2Nu  ( open_or_warn(base + MODE + "/ZZto2L2Nu/ZZto2L2Nu_all.root") );
+    std::unique_ptr<TFile> f_ZZ2L2Q   ( open_or_warn(base + MODE + "/ZZto2L2Q/ZZto2L2Q_all.root") );
+    std::unique_ptr<TFile> f_ZZ4L     ( open_or_warn(base + MODE + "/ZZto4L/ZZto4L_all.root") );
+    std::unique_ptr<TFile> f_WWW      ( open_or_warn(base + MODE + "/WWW/WWW_all.root") );
+    std::unique_ptr<TFile> f_WWZ      ( open_or_warn(base + MODE + "/WWZ/WWZ_all.root") );
+    std::unique_ptr<TFile> f_WZZ      ( open_or_warn(base + MODE + "/WZZ/WZZ_all.root") );
+    std::unique_ptr<TFile> f_ZZZ      ( open_or_warn(base + MODE + "/ZZZ/ZZZ_all.root") );
+    std::unique_ptr<TFile> f_signal   ( open_or_warn(base + MODE + "/VBF/VBF_all.root") );
+
+    if (!f_data || !f_DY || !f_EWK || !f_TT || !f_WZ2L2Q || !f_WZ3LNu || !f_ZZ2L2Nu || !f_ZZ2L2Q ||
+        !f_ZZ4L || !f_WWW || !f_WWZ || !f_WZZ || !f_ZZZ || !f_signal) {
+      std::cerr << "[ERROR] Missing file(s) for MODE=" << MODE << " — skipping.\n";
+      continue;
     }
 
-    // Base paths
-    const TString base = "/eos/user/d/dblend/Analyzed_SkimmedFiles/" + era + "/";
-
-    // Open files
-    TFile* f_data       = TFile::Open(base + "MC/DATA/DATA_all.root");
-    TFile* f_DY         = TFile::Open(base + "MC/DY/DY_all.root");
-    TFile* f_TT         = TFile::Open(base + "MC/TT/TT_all.root");
-
-    // Diboson
-    TFile* f_WZto2L2Q   = TFile::Open(base + "MC/WZto2L2Q/WZto2L2Q_all.root");
-    TFile* f_WZto3LNu   = TFile::Open(base + "MC/WZto3LNu/WZto3LNu_all.root");
-    TFile* f_ZZto2L2Nu  = TFile::Open(base + "MC/ZZto2L2Nu/ZZto2L2Nu_all.root");
-    TFile* f_ZZto2L2Q   = TFile::Open(base + "MC/ZZto2L2Q/ZZto2L2Q_all.root");
-    TFile* f_ZZto4L     = TFile::Open(base + "MC/ZZto4L/ZZto4L_all.root");
-
-    // Triboson
-    TFile* f_WWW        = TFile::Open(base + "MC/WWW/WWW_all.root");
-    TFile* f_WWZ        = TFile::Open(base + "MC/WWZ/WWZ_all.root");
-    TFile* f_WZZ        = TFile::Open(base + "MC/WZZ/WZZ_all.root");
-    TFile* f_ZZZ        = TFile::Open(base + "MC/ZZZ/ZZZ_all.root");
-
-    // Signal
-    TFile* f_signal     = TFile::Open(base + "MC/VBF/VBF_all.root");
-
-    if (!f_data || !f_DY || !f_TT ||
-        !f_WZto2L2Q || !f_WZto3LNu || !f_ZZto2L2Nu || !f_ZZto2L2Q || !f_ZZto4L ||
-        !f_WWW || !f_WWZ || !f_WZZ || !f_ZZZ ||
-        !f_signal) {
-        std::cerr << "[ERROR] One or more files couldn't be opened!" << std::endl;
-        return;
-    }
-
-    // Variables requested
-    std::vector<std::string> vars = {
-        "DiMuonMass",
-        "DiMuonpt",
-        "DiMuoneta",
-        "DiMuonrapidity",
-        "Muon1pt",
-        "Muon2pt",
-        "Muon1eta",
-        "Muon2eta",
-        "Muon1PTdDM",
-        "Muon2PTdDM", 
-        "CollinsSoper", 
-        "cosCollinsSoper",
-        "pt_balance"
-    };
-    const std::string dir = "corr_DM_VBF/";
-    //const std::string dir = "corr_DM_Pre-Selection/";
-
-    // X-axis titles
-    std::map<std::string, std::string> xtitle = {
-        {"DiMuonMass", "m_{#mu#mu} [GeV]"},
-        {"DiMuonpt", "p_{T}(#mu#mu) [GeV]"},
-        {"DiMuoneta", "#eta(#mu#mu)"},
-        {"DiMuonrapidity", "y(#mu#mu)"},
-        {"Muon1pt", "p_{T}(#mu_{1}) [GeV]"},
-        {"Muon2pt", "p_{T}(#mu_{2}) [GeV]"},
-        {"Muon1eta", "#eta(#mu_{1})"},
-        {"Muon2eta", "#eta(#mu_{2})"},
-        {"Muon1PTdDM", "p_{T}(#mu_{1}) / m_{#mu#mu}"},
-        {"Muon2PTdDM", "p_{T}(#mu_{2}) / m_{#mu#mu}"}, 
-        {"CollinsSoper", "#phi_{CS}"},
-        {"cosCollinsSoper", "cos#theta_{CS}"},
-        {"pt_balance", "R_{T}"}
-    };
-
-    TString outdir = "/eos/user/d/dblend/StackedPlots/" + era + "/Muons/";
-    // one single text file:
+    const TString outdir = "/eos/user/d/dblend/StackedPlots/" + era + "/Muons/" + MODE + "/";
     gSystem->Exec("mkdir -p " + outdir);
     std::ofstream summary((outdir + "OverlayRatios_All.txt").Data());
-    if (!summary) {
-        std::cerr << "[ERROR] Could not open " << (outdir + "OverlayRatios_All.txt") << " for writing!\n";
-    }
-    for (const auto& v : vars) {
-        bool doBlind = (v == "DiMuonMass");
-        const char* xlab = xtitle.count(v) ? xtitle[v].c_str() : v.c_str();
-        draw_one(outdir, dir, v,
-                 f_data, f_DY, f_TT,
-                 f_WZto2L2Q, f_WZto3LNu, f_ZZto2L2Nu, f_ZZto2L2Q, f_ZZto4L,
-                 f_WWW, f_WWZ, f_WZZ, f_ZZZ,
-                 f_signal, xlab, doBlind, eraLumiPb, &summary);
-    }
 
-    // Cleanup
-    f_data->Close(); f_DY->Close(); f_TT->Close(); f_signal->Close();
-    f_WZto2L2Q->Close(); f_WZto3LNu->Close(); f_ZZto2L2Nu->Close(); f_ZZto2L2Q->Close(); f_ZZto4L->Close();
-    f_WWW->Close(); f_WWZ->Close(); f_WZZ->Close(); f_ZZZ->Close(); summary.close();
+    for (const auto& v : vars) {
+      const bool doBlind = (v == "DiMuonMass");
+      const char* xlab = (v=="DiMuonMass") ? "m_{#mu#mu} [GeV]" :
+                         (v=="DiMuonpt") ? "p_{T}(#mu#mu) [GeV]" :
+                         (v=="DiMuoneta") ? "#eta(#mu#mu)" :
+                         (v=="DiMuonrapidity") ? "y(#mu#mu)" :
+                         (v=="Muon1pt") ? "p_{T}(#mu_{1}) [GeV]" :
+                         (v=="Muon2pt") ? "p_{T}(#mu_{2}) [GeV]" :
+                         (v=="Muon1eta") ? "#eta(#mu_{1})" :
+                         (v=="Muon2eta") ? "#eta(#mu_{2})" :
+                         (v=="Muon1PTdDM") ? "p_{T}(#mu_{1}) / m_{#mu#mu}" :
+                         (v=="Muon2PTdDM") ? "p_{T}(#mu_{2}) / m_{#mu#mu}" :
+                         (v=="CollinsSoper") ? "#phi_{CS}" :
+                         (v=="cosCollinsSoper") ? "cos#theta_{CS}" :
+                         (v=="pt_balance") ? "R_{T}" : v.c_str();
+
+      draw_one(outdir, dir, v,
+               f_data.get(), f_DY.get(), f_EWK.get(), f_TT.get(),
+               f_WZ2L2Q.get(), f_WZ3LNu.get(), f_ZZ2L2Nu.get(), f_ZZ2L2Q.get(), f_ZZ4L.get(),
+               f_WWW.get(), f_WWZ.get(), f_WZZ.get(), f_ZZZ.get(),
+               f_signal.get(), xlab, doBlind, eraLumiPb, &summary);
+    }
+  }
 }
+// ============================================================================
+
+
