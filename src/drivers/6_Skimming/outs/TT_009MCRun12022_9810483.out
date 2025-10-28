@@ -1,0 +1,17 @@
+== Job started: Tue Oct 28 08:46:39 PM CET 2025
+Host: b9g12p0056.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12022/Background_listfiles/TTto2L2Nu/part009.list'  tag='TT_009MCRun12022'  sample='TT'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_2231945
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12022/Background_listfiles/TTto2L2Nu/part009.list' -> using local: '/pool/condor/dir_2231945/part009.list'
+Using Condor proxy: /pool/condor/dir_2231945/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_2231945/part009.list
+Input list has 39 lines
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5_ext1-v2/50000/65bb67ba-9f78-4551-890c-0ad74b185065.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5_ext1-v2/30000/014eb7dd-9fab-476f-9f32-07a1dca0096e.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5_ext1-v2/2520000/8e0f32cc-fbab-4ae2-9621-aa55768b038a.root ...
+Using skimmer: my_skim
+894a3a78bfe202d03bc471e3d7cee2a9  ./my_skim

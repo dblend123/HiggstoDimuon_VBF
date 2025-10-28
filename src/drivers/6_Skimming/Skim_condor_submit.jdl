@@ -39,7 +39,7 @@ request_cpus            = 1
 request_memory          = 2000
 request_disk            = 4000
 
-era       = 12023
+era       = 12022
 # era       = X
 # era       = X
 # era       = X
@@ -101,8 +101,8 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # ===== Signal =====
 
 # # VBF
-# sample    = VBF
-# queue inputList, tag from $(path)/Signal_input_lists/VBF.txt
+sample    = VBF
+queue inputList, tag from $(path)/Signal_input_lists/VBF.txt
 
 # ===== 12022 DATA queue =====
 
@@ -136,8 +136,8 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
-sample    = DATA
-queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+# sample    = DATA
+# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
 
 # ===== 22023 DATA queue =====
 

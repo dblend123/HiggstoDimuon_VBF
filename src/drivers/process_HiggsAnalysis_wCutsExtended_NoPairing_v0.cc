@@ -20,9 +20,10 @@
 #include "TrigObj.h"
 #include "Electron.h"
 #include "Rho.h"
+#include "Flag.h"
 #include "correction.h"
 
-// ROOT Header Files
+// Other Header Files
 #include "TFile.h"
 #include "TTree.h"
 #include "TChain.h"
@@ -32,21 +33,20 @@
 #include "TLorentzVector.h"
 #include "LumiReweightingStandAlone.h"
 #include "HistogramSets.h"
-#include "boost/program_options.hpp"
-#include "signal.h"
-#include "memory"
+#include <boost/program_options.hpp>
+#include <signal.h>
+#include <memory>
 #include <map>
 #include <set>
-#include "TVector2.h"
+#include <TVector2.h>
 #include <cmath> 
-#include "TRandom3.h"
-
-// Reading Weights
+#include <TRandom3.h>
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
 #include <regex>
-
+#include <utility>
+#include <vector>
 
 //*******************************************************************
 //                   HISTOGRAM MACROS
@@ -159,7 +159,7 @@ std::string g_selected_lumi_key = "unset";
 
 // Kinematic Cuts  
 enum MuonType {kLead=0, kSubLead=1};  // Muon Id --> lead = 0, sublead =1
-double _leadmuonPt = 26.;  //29 && 26 from Run 2
+double _leadmuonPt = 26.;  // +2 GeV of HLT trigger 
 double _subleadmuonPt = 20.;
 double _leadmuonEta = 2.4;
 double _subleadmuonEta = 2.4;
@@ -188,19 +188,18 @@ using namespace correction;
 // -------------------------------------
 
 // Muon SF && Momentum Corrections 
-std::shared_ptr<correction::CorrectionSet> corrections = nullptr;     // muon SFs
-std::shared_ptr<correction::CorrectionSet> muoncorrections = nullptr; // Rochester
-// KIT
-std::shared_ptr<correction::CorrectionSet> kitCorrections = nullptr;
+std::shared_ptr<correction::CorrectionSet> corrections      = nullptr;     // muon SFs
+std::shared_ptr<correction::CorrectionSet> muoncorrections  = nullptr;     // Rochester
+std::shared_ptr<correction::CorrectionSet> kitCorrections   = nullptr;     // KIT
 
 
 // ---------- Era-aware config (edit defaults if your layout changes) ----------
-std::string g_muDir     = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/MUO";
-std::string g_muSFJSON  = "auto";   // "auto" => muon_Z<era>.json
-std::string g_kitJSON = "auto";
-std::string g_muSFKeyID = "NUM_TightID_DEN_TrackerMuons";
-std::string g_muSFKeyISO = "NUM_TightPFIso_DEN_TightID";
-std::string g_muSFKeyTRG = "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight";
+std::string g_muDir         = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/MUO";
+std::string g_muSFJSON      = "auto";   // "auto" => muon_Z<era>.json
+std::string g_kitJSON       = "auto";
+std::string g_muSFKeyID     = "NUM_MediumID_DEN_TrackerMuons";
+std::string g_muSFKeyISO    = "NUM_TightPFIso_DEN_MediumID";
+std::string g_muSFKeyTRG    = "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight"; // Not sure about this last one 
 
 std::string g_rochJSON  = "auto";   // "auto" => RoccoR<era>.json
 static std::string g_rochKeyDT = "kScaleDT";
@@ -298,22 +297,25 @@ void loadMuonCorrections() {
 // -------------------------------------
 
 // Jet Energy Corrections/Resolutions (JEC/JER) 
-std::shared_ptr<correction::CorrectionSet> jetCorrections = nullptr;
-std::shared_ptr<correction::CorrectionSet> jetVetoMaps = nullptr;
+std::shared_ptr<correction::CorrectionSet> jetCorrections   = nullptr;
+std::shared_ptr<correction::CorrectionSet> jetVetoMaps      = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetIdCorrections = nullptr;
+std::shared_ptr<correction::CorrectionSet> btagCorrections  = nullptr;
 
 // ---------- Era-aware config & helpers ----------
 std::string g_jmeDir        = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/JME";
-std::string g_jercJSON      = "auto"; // "auto" => jet_jerc<era>.json
-std::string g_jetVetoJSON   = "auto"; // "auto" => jetvetomaps<era>.json
-std::string g_jetIdJSON     = "auto"; // "auto" => jetid<era>.json
+std::string g_jercJSON      = "auto";       // "auto" => jet_jerc<era>.json
+std::string g_jetVetoJSON   = "auto";       // "auto" => jetvetomaps<era>.json
+std::string g_jetIdJSON     = "auto";       // "auto" => jetid<era>.json
+std::string g_btagJSON      = "auto";       // "auto" => btagging<era>.json
+std::string g_btagAlgo      = "deepJet";    // "deepJet", "particleNet", "robustParticleTransformer"
 
 struct JecEraConfig {
-  std::string prefixBase;   // base for JEC keys, we’ll append _MC or _<RunTag>_DATA
-  std::string dataRunTag;   // e.g. RunCD, RunE, RunF, RunG, RunCv123, RunCv4, RunD
-  std::string jerScaleKey;  // exact JER SF key
-  std::string jerResKey;    // exact JER resolution key
-  std::string vetoMapKey;   // veto map key (if available for this era/tag); leave "" to skip
+  std::string prefixBase;                   // base for JEC keys, we’ll append _MC or _<RunTag>_DATA
+  std::string dataRunTag;                   // e.g. RunCD, RunE, RunF, RunG, RunCv123, RunCv4, RunD
+  std::string jerScaleKey;                  // exact JER SF key
+  std::string jerResKey;                    // exact JER resolution key
+  std::string vetoMapKey;                   // veto map key (if available for this era/tag); leave "" to skip
 };
 
 // Optional: try to infer 2022EE/2023 data run from the input file name
@@ -344,11 +346,11 @@ static JecEraConfig jecConfigForEra(const std::string& era, const std::string& i
   if (era == "12022") {
     // 2022 BCD
     return {
-      "Summer22_22Sep2023_V2",        // prefix base
-      "RunCD",                        // DATA tag
+      "Summer22_22Sep2023_V2",                               // prefix base
+      "RunCD",                                               // DATA tag
       "Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",   // JER SF
       "Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",  // JER Res
-      "Summer22_23Sep2023_RunCD_V1"   // veto map
+      "Summer22_23Sep2023_RunCD_V1"                          // veto map
     };
   }
   if (era == "22022") {
@@ -406,6 +408,11 @@ static std::string jetIdFileForEra(const std::string& era) {
   return g_jmeDir + "/jetid" + era + ".json";
 }
 
+static std::string btagFileForEra(const std::string& era) {
+    if (g_btagJSON != "auto") return g_btagJSON;
+    return g_jmeDir + "/btagging" + era + ".json";
+}
+
 void loadJetCorrections() {
   try {
     if (!jetCorrections)
@@ -427,6 +434,13 @@ void loadJetCorrections() {
   } catch (const std::exception& e) {
     std::cerr << "[JetID load ERROR] " << e.what() << std::endl;
     jetIdCorrections = nullptr;
+  }
+  try {
+    if (!btagCorrections)
+      btagCorrections = correction::CorrectionSet::from_file(btagFileForEra(g_era));
+  } catch (std::exception& e) {
+    std::cerr << "[Btag load ERROR] " << e.what() << std::endl;
+    btagCorrections = nullptr;
   }
 }
 
@@ -480,8 +494,78 @@ void loadPileupCorrections() {
   }
 }
 
+// -------------------------------------
+//             GOLDEN JSON
+// -------------------------------------
+
+static std::unordered_map<unsigned, std::vector<std::pair<unsigned,unsigned>>> g_lumiMask;
+
+std::string g_goldenDir  = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/Golden_json";
+std::string g_goldenJSON = "auto"; 
+
+static std::string goldenFileForEra(const std::string& era) {
+  if (g_goldenJSON != "auto") return g_goldenJSON;
+
+  if (era == "12022") return g_goldenDir + "/Cert_Collisions2022_13p6TeV_Golden.json";
+  if (era == "22022") return g_goldenDir + "/Cert_Collisions2022_13p6TeV_Golden.json";
+  if (era == "12023") return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
+  if (era == "22023") return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
+
+  // Fallback
+  return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
+}
+
+// Tiny parser for the CMS golden JSON schema:
+// { "315257": [[1,23],[25,178]], "315259": [[1,90]] , ... }
+static void loadGoldenJsonCorrections() {
+  g_lumiMask.clear();
+
+  const std::string path = goldenFileForEra(g_era);
+  try {
+    std::ifstream in(path);
+    if (!in) {
+      std::cerr << "[GOLDEN load ERROR] Cannot open " << path << "\n";
+      return;
+    }
+    const std::string s{ std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>() };
+
+    std::regex block_re("\"(\\d+)\"\\s*:\\s*\\[(.*?)\\]");
+    std::regex pair_re("\\[\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\]");
+
+    for (std::sregex_iterator it(s.begin(), s.end(), block_re), end; it != end; ++it) {
+      unsigned run = static_cast<unsigned>(std::stoul((*it)[1].str()));
+      std::string inner = (*it)[2].str();
+
+      std::vector<std::pair<unsigned,unsigned>> ranges;
+      for (std::sregex_iterator jt(inner.begin(), inner.end(), pair_re), jend; jt != jend; ++jt) {
+        unsigned a = static_cast<unsigned>(std::stoul((*jt)[1].str()));
+        unsigned b = static_cast<unsigned>(std::stoul((*jt)[2].str()));
+        if (a <= b) ranges.emplace_back(a, b);
+      }
+      if (!ranges.empty()) g_lumiMask.emplace(run, std::move(ranges));
+    }
+
+    std::cerr << "[GOLDEN] Loaded " << g_lumiMask.size() << " runs from " << path << "\n";
+  } catch (const std::exception& e) {
+    std::cerr << "[GOLDEN load EXCEPTION] " << e.what() << "\n";
+    std::cerr << "[GOLDEN load ERROR] era=" << g_era
+              << " file=" << path << "\n";
+    g_lumiMask.clear();
+  }
+}
+
+// Fast membership test (same idea as your PU accessors)
+static inline bool passGolden(unsigned run, unsigned lumi) {
+  auto it = g_lumiMask.find(run);
+  if (it == g_lumiMask.end()) return false;
+  for (const auto& rg : it->second) {
+    if (lumi >= rg.first && lumi <= rg.second) return true;
+  }
+  return false;
+}
+
 //*******************************************************************
-//                      MOMENTUM CORRECTIONS
+//                      IMPLEMENTING CORRECTIONS
 //*******************************************************************
 
 // -------------------------------------
@@ -863,7 +947,7 @@ if (!isMC) {
     float l1  = evalDataL1(area, eta, pt, rho);                                // (A,eta,pt,rho)
     float l2  = evalDataStep("L2Relative_AK4PFPuppi",  eta, phi, pt);          // (eta,phi,pt) or (eta,pt)
     float l3  = evalDataStep("L3Absolute_AK4PFPuppi",  eta, phi, pt);          // (eta,phi,pt) or (eta,pt)
-    float res = evalDataResidual(eta, phi, pt, run);  // 2022 → (eta,pt), 2023 → (run,eta,pt)
+    float res = evalDataResidual(eta, phi, pt, run);                           // 2022 → (eta,pt), 2023 → (run,eta,pt)
     jecFactor = l1 * l2 * l3 * res;
   }
 } else {
@@ -871,7 +955,7 @@ if (!isMC) {
   float l1  = (float)jetCorrections->at(prefix + "_L1FastJet_AK4PFPuppi")->evaluate({area, eta, pt, rho});
   float l2  = evalEtaPhiPtOrEtaPt(prefix + "_L2Relative_AK4PFPuppi",  eta, phi, pt);
   float l3  = evalEtaPhiPtOrEtaPt(prefix + "_L3Absolute_AK4PFPuppi",  eta, phi, pt);
-  float res = 1.0f; // residuals are DATA-only
+  float res = 1.0f;                                                            // residuals are DATA-only
   jecFactor = l1 * l2 * l3 * res;
 }
 
@@ -943,6 +1027,10 @@ auto evalJerRes = [&](const std::string& key, double eta_, double pt_, double rh
   return corr_pt;
 }
 
+// -------------------------------------
+//              JET VETO 
+// -------------------------------------
+
 inline bool isVetoedJet(float eta, float phi) {
   if (!jetVetoMaps) { std::cerr << "[ERROR] Jet veto corr not loaded!\n"; return false; }
   const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
@@ -960,6 +1048,116 @@ inline bool isVetoedJet(float eta, float phi) {
   }
 }
 
+// -------------------------------------
+//              B-TAGGING
+// -------------------------------------
+
+// -- 0) Get the jet's discriminator for the chosen algo (edit to match your Jet API) --
+static inline float getBTagDisc(const Jet& j, const std::string& algo = g_btagAlgo) {
+    if (algo == "deepJet")                   return j._btagDeepFlavB;              // DeepJet score in [0,1]
+    if (algo == "particleNet")               return j._btagPNetB;                  // example placeholder
+    if (algo == "robustParticleTransformer") return j._btagRobustParTAK4B;         // example placeholder
+    return 0.f;
+}
+
+// -- 1) Lookup numeric WP threshold from the JSON (e.g. "M" -> 0.3086 for deepJet, era-dependent) --
+static inline float btagWPThreshold(const std::string& algo, const std::string& wp) {
+    if (!btagCorrections) return 1e9f;
+    const std::string corrName = algo + "_wp_values"; // e.g. "deepJet_wp_values"
+    try {
+        const auto& c = btagCorrections->at(corrName);
+        return (float)c->evaluate({wp});
+    } catch (...) {
+        std::cerr << "[BTAG] Missing wp_values for algo='" << algo << "' wp='" << wp << "'\n";
+        return 1e9f;
+    }
+}
+
+// -- 2) Working-point SF (comb/mujets/light) --
+static inline double btagSF_WP(const std::string& algo,
+                               const std::string& source,   // "comb"/"mujets"/"light"
+                               const std::string& wp,       // "L","M","T","XT","XXT"
+                               int hadronFlavor, float eta, float pt,
+                               const std::string& syst = "central")
+{
+    if (!btagCorrections) return 1.0;
+    const int flav = (hadronFlavor == 5 ? 5 : (hadronFlavor == 4 ? 4 : 0));
+    const double abseta = std::fabs((double)eta);
+    const std::string corrName = algo + "_" + source; // e.g. "deepJet_comb", "deepJet_light"
+    try {
+        const auto& c = btagCorrections->at(corrName);
+        // signature: (systematic, working_point, flavor, abseta, pt)
+        return c->evaluate({syst, wp, flav, abseta, (double)pt});
+    } catch (...) {
+        // If a key/source doesn't exist for this era, just return 1
+        return 1.0;
+    }
+}
+
+// -- 3) Shape/reshaping SF (continuous discriminant) --
+static inline double btagSF_Shape(const std::string& algo,
+                                  int hadronFlavor, float eta, float pt,
+                                  float disc,
+                                  const std::string& syst = "central")
+{
+    if (!btagCorrections) return 1.0;
+    const int flav = (hadronFlavor == 5 ? 5 : (hadronFlavor == 4 ? 4 : 0));
+    const double abseta = std::fabs((double)eta);
+    const std::string corrName = algo + "_shape"; // e.g. "deepJet_shape"
+    // Clamp inputs to safe ranges (some payloads expect [0,1] for disc, non-neg pt, |eta| bounded)
+    const double disc_clamped = std::min(std::max((double)disc, 0.0), 1.0);
+    const double pt_safe      = std::max((double)pt, 0.1);
+    try {
+        // signature: (systematic, flavor, abseta, pt, discriminant)
+        const auto& c = btagCorrections->at(corrName);
+        return c->evaluate({syst, flav, abseta, pt_safe, disc_clamped});
+    } catch (...) {
+        return 1.0;
+    }
+}
+
+// ------------ 4) Convenience wrappers you can call in your event loop ------------
+
+// Decide if a jet is tagged at a given WP (using the algo's discriminator)
+static inline bool isTaggedBJet(const Jet& j, const std::string& algo, const std::string& wp) {
+    const float cut = btagWPThreshold(algo, wp);
+    const float score = getBTagDisc(j, algo);
+    return (score >= cut);
+}
+
+// Compute an event-level product of **WP SFs** over jets
+// sourceBC: "comb" or "mujets" (choose per analysis), sourceLight: "light"
+// syst     : "central" OR "up"/"down"/"up_correlated"/"down_uncorrelated", etc.
+static inline double eventBTagSF_WP(const std::vector<Jet>& jets,
+                                    const std::string& algo,
+                                    const std::string& wp,
+                                    const std::string& sourceBC,
+                                    const std::string& sourceLight,
+                                    const std::string& syst = "central")
+{
+    double w = 1.0;
+    for (const auto& j : jets) {
+        const int flav = j._hadronFlavour; // 5=b, 4=c, else light (0)
+        const bool isBC = (flav == 5 || flav == 4);
+        const std::string source = isBC ? sourceBC : sourceLight;
+        w *= btagSF_WP(algo, source, wp, flav, j._eta, j._pt, syst);
+    }
+    return w;
+}
+
+// Compute an event-level product of **shape SFs** over jets (continuous)
+static inline double eventBTagSF_Shape(const std::vector<Jet>& jets,
+                                       const std::string& algo,
+                                       const std::string& syst = "central")
+{
+    double w = 1.0;
+    for (const auto& j : jets) {
+        const float disc = getBTagDisc(j, algo);
+        w *= btagSF_Shape(algo, j._hadronFlavour, j._eta, j._pt, disc, syst);
+    }
+    return w;
+}
+
 float jetMuondR(float jeta,float jphi, float meta, float mphi)
 {
 	TLorentzVector p4j,p4m;
@@ -969,7 +1167,7 @@ float jetMuondR(float jeta,float jphi, float meta, float mphi)
 }
 
 //*******************************************************************
-//                      BOOLEAN CONDITIONS
+//                      CRITERIA CONDITIONS
 //*******************************************************************
 
 // -------------------------------------
@@ -980,6 +1178,22 @@ bool isBarrel(const Muon& m)  { return std::abs(m._eta) < 0.9; }
 bool isOverlap(const Muon& m) { return std::abs(m._eta) >= 0.9 && std::abs(m._eta) < 1.6; }
 bool isEndcap(const Muon& m)  { return std::abs(m._eta) >= 1.6 && std::abs(m._eta) < 2.4; }
 
+// -------------------------------------
+//              FLAG CRITERIA 
+// -------------------------------------
+
+inline bool passFlagFilters(const Flags* fv, bool isData /* = !__isMC */) {
+    if (!fv || fv->empty()) return true; // be permissive if not present
+    const Flag& f = fv->front();
+    return  f._goodVertices
+         && f._globalSuperTightHalo2016Filter
+         && f._EcalDeadCellTriggerPrimitiveFilter
+         && f._BadPFMuonFilter
+         && f._BadPFMuonDzFilter
+         && f._hfNoisyHitsFilter
+         && f._ecalBadCalibFilter
+         && ( !isData || f._eeBadScFilter );
+}
 
 // -------------------------------------
 //          VERTEX CRITERIA 
@@ -1062,8 +1276,7 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
 {
     if (id==kLead)
     {
-	    if (m._isGlobal 
-            && m._isTracker 
+	    if ((m._isGlobal || m._isTracker) 
             && corrected_pt > _leadmuonPt 
             && TMath::Abs(m._eta) < _leadmuonEta 
             && m._isMedium 
@@ -1072,8 +1285,7 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
     }
     else
     {
-	    if (m._isGlobal 
-            && m._isTracker 
+	    if ((m._isGlobal || m._isTracker) 
             && corrected_pt > _subleadmuonPt 
             && TMath::Abs(m._eta) < _subleadmuonEta 
             && m._isMedium 
@@ -1913,6 +2125,7 @@ void process()
     TrigObjs *trigobjs=NULL;
     Electrons *electrons=NULL;
     Rhos *rhos=NULL;
+    Flags *flags=NULL;
 
 #define ROOT_CHAIN streamer._chain
     
@@ -1959,6 +2172,9 @@ void process()
     SET_BRANCH_FLOAT_ARRAY(Jet_phi);
     SET_BRANCH_UCHAR_ARRAY(Jet_jetId);
     SET_BRANCH_FLOAT_ARRAY(Jet_btagDeepFlavB);
+    SET_BRANCH_FLOAT_ARRAY(Jet_btagPNetB);
+    SET_BRANCH_FLOAT_ARRAY(Jet_btagRobustParTAK4B);
+    SET_BRANCH_UCHAR_ARRAY(Jet_hadronFlavour);
     SET_BRANCH_FLOAT_ARRAY(Jet_area);
     SET_BRANCH_FLOAT_ARRAY(Jet_chHEF);
     SET_BRANCH_FLOAT_ARRAY(Jet_neHEF);
@@ -2019,6 +2235,16 @@ void process()
     //Setting Branch Array for Rho Properties
     SET_BRANCH_FLOAT(fixedGridRhoFastjetAll);
    
+    //Setting Branch Array for Rho Properties
+    SET_BRANCH_BOOL(Flag_goodVertices);
+    SET_BRANCH_BOOL(Flag_globalSuperTightHalo2016Filter);
+    SET_BRANCH_BOOL(Flag_EcalDeadCellTriggerPrimitiveFilter);
+    SET_BRANCH_BOOL(Flag_BadPFMuonFilter);
+    SET_BRANCH_BOOL(Flag_BadPFMuonDzFilter);
+    SET_BRANCH_BOOL(Flag_eeBadScFilter);
+    SET_BRANCH_BOOL(Flag_ecalBadCalibFilter);
+    SET_BRANCH_BOOL(Flag_hfNoisyHitsFilter);
+   
     // --- Event-level weights from NanoAOD ---
     float Pileup_nTrueInt  = 0.0f;
 
@@ -2043,30 +2269,31 @@ void process()
         ROOT_CHAIN->SetBranchAddress("nTrueInt", &Pileup_nTrueInt);
 
 
-    muons = new std::vector<Muon>();
-    jets = new std::vector<Jet>();
-    genjets = new std::vector<GenJet>();
-    fsrphotons = new std::vector<FsrPhoton>();
-    photons = new std::vector<Photon>();
-    vertices = new std::vector<Vertex>();
-    met = new MET();
-    l1s = new std::vector<L1>();
-    hlts = new std::vector<HLT>();
-    trigobjs = new std::vector<TrigObj>();
-    electrons = new std::vector<Electron>();
-    rhos = new std::vector<Rho>();
-    event = new Event();
+    muons       = new std::vector<Muon>();
+    jets        = new std::vector<Jet>();
+    genjets     = new std::vector<GenJet>();
+    fsrphotons  = new std::vector<FsrPhoton>();
+    photons     = new std::vector<Photon>();
+    vertices    = new std::vector<Vertex>();
+    met         = new MET();
+    l1s         = new std::vector<L1>();
+    hlts        = new std::vector<HLT>();
+    trigobjs    = new std::vector<TrigObj>();
+    electrons   = new std::vector<Electron>();
+    rhos        = new std::vector<Rho>();
+    flags       = new std::vector<Flag>();
+    event       = new Event();
 
 
 	//	Main Event Loop
-	uint32_t numEntries = streamer._chain->GetEntries();
-    uint32_t updateInterval = numEntries / 100; // Update every 1% of progress
+	uint32_t numEntries         = streamer._chain->GetEntries();
+    uint32_t updateInterval     = numEntries / 100; // Update every 1% of progress
     if (updateInterval == 0) updateInterval = 1; // Handle very small numbers of entries
     
     double sum_w_nominal = 0.0;      // base * genWeight
-    double sum_w_pu = 0.0;           // base * genWeight * PU
-    long long n_events = 0;
-    long long n_neg = 0;
+    double sum_w_pu      = 0.0;           // base * genWeight * PU
+    long long n_events   = 0;
+    long long n_neg      = 0;
 
     for (uint32_t i=0; i<numEntries && __continueRunning; i++)
 	{   
@@ -2091,39 +2318,42 @@ void process()
 
         for (size_t i=0; i<nMuon; i++) {
             Muon mu;
-            mu._pt = Muon_pt[i];
+            mu._pt              = Muon_pt[i];
             mu._bsConstrainedPt = Muon_bsConstrainedPt[i];
-            mu._eta = Muon_eta[i];
-            mu._phi = Muon_phi[i];
-            mu._charge = Muon_charge[i];
-            mu._isGlobal = Muon_isGlobal[i];
-            mu._isTracker = Muon_isTracker[i];
-            mu._isTight = Muon_tightId[i];
-            mu._isMedium = Muon_mediumId[i];
-            //mu._isPF = Muon_isPFcand[i];
-            mu._dxy = Muon_dxy[i];
-            mu._dz = Muon_dz[i];
-            mu._pfRelIso04_all = Muon_pfRelIso04_all[i];
-            mu._nTrackerLayers = Muon_nTrackerLayers[i];
+            mu._eta             = Muon_eta[i];
+            mu._phi             = Muon_phi[i];
+            mu._charge          = Muon_charge[i];
+            mu._isGlobal        = Muon_isGlobal[i];
+            mu._isTracker       = Muon_isTracker[i];
+            mu._isTight         = Muon_tightId[i];
+            mu._isMedium        = Muon_mediumId[i];
+            //mu._isPF          = Muon_isPFcand[i];
+            mu._dxy             = Muon_dxy[i];
+            mu._dz              = Muon_dz[i];
+            mu._pfRelIso04_all  = Muon_pfRelIso04_all[i];
+            mu._nTrackerLayers  = Muon_nTrackerLayers[i];
 
             muons->push_back(std::move(mu));
         }
 
         for (size_t i=0; i<nJet; i++) {
             Jet jet;
-            jet._pt = Jet_pt[i];
-            jet._eta = Jet_eta[i];
-            jet._phi = Jet_phi[i];
-            jet._mass = Jet_mass[i];
-            jet._jetId = Jet_jetId[i];
-            jet._btagDeepFlavB = Jet_btagDeepFlavB[i];
-            jet._area = Jet_area[i];
-            jet._chHEF = Jet_chHEF[i];
-            jet._neHEF = Jet_neHEF[i];
-            jet._chEmEF = Jet_chEmEF[i];
-            jet._neEmEF = Jet_neEmEF[i];
-            jet._muEF = Jet_muEF[i];
-            jet._genJetIdx = Jet_genJetIdx[i];
+            jet._pt 				= Jet_pt[i];
+            jet._eta 				= Jet_eta[i];
+            jet._phi 				= Jet_phi[i];
+            jet._mass 				= Jet_mass[i];
+            jet._jetId 				= Jet_jetId[i];
+            jet._btagDeepFlavB		= Jet_btagDeepFlavB[i];
+            jet._btagPNetB 			= Jet_btagPNetB[i];
+            jet._btagRobustParTAK4B	= Jet_btagRobustParTAK4B[i];
+            jet._hadronFlavour 		= Jet_hadronFlavour[i];
+            jet._area 				= Jet_area[i];
+            jet._chHEF 				= Jet_chHEF[i];
+            jet._neHEF 				= Jet_neHEF[i];
+            jet._chEmEF 			= Jet_chEmEF[i];
+            jet._neEmEF 			= Jet_neEmEF[i];
+            jet._muEF 				= Jet_muEF[i];
+            jet._genJetIdx 			= Jet_genJetIdx[i];
 
             jets->push_back(std::move(jet));
         }
@@ -2180,15 +2410,29 @@ void process()
         float rho = rhos->at(0)._fixedGridRhoFastjetAll;
 
         Vertex vertex;
-        vertex._chi2 = PV_chi2;
-        vertex._ndof = PV_ndof;
-        vertex._score = PV_score;
-        vertex._x = PV_x;
-        vertex._y = PV_y;
-        vertex._z = PV_z;
-         
+        vertex._chi2        = PV_chi2;
+        vertex._ndof        = PV_ndof;
+        vertex._score       = PV_score;
+        vertex._x           = PV_x;
+        vertex._y           = PV_y;
+        vertex._z           = PV_z;
+        vertex._npvsGood    = static_cast<int>(PV_npvsGood);
+        vertex._npvs        = static_cast<int>(PV_npvs);
+
         vertices->push_back(std::move(vertex));
-        
+       
+        Flag flag;
+        flag._goodVertices                          = Flag_goodVertices;
+        flag._globalSuperTightHalo2016Filter        = Flag_globalSuperTightHalo2016Filter;
+        flag._EcalDeadCellTriggerPrimitiveFilter    = Flag_EcalDeadCellTriggerPrimitiveFilter;
+        flag._BadPFMuonFilter                       = Flag_BadPFMuonFilter;
+        flag._BadPFMuonDzFilter                     = Flag_BadPFMuonDzFilter;
+        flag._eeBadScFilter                         = Flag_eeBadScFilter;       // DATA-only
+        flag._ecalBadCalibFilter                    = Flag_ecalBadCalibFilter;
+        flag._hfNoisyHitsFilter                     = Flag_hfNoisyHitsFilter;
+
+        flags->push_back(std::move(flag));
+       
         // Pileup from correctionlib (JSON expects: NumTrueInteractions, "weights")
         float pileupWeight = 1.0f;
         if (__isMC && pu_corrections) {
@@ -2225,8 +2469,16 @@ void process()
           << " total=" << Dataweight << "\n";
           }*/
 
-        
+       if (!__isMC && !g_lumiMask.empty()) {
+            const unsigned run  = static_cast<unsigned>(event->_run);               // adapt to your names
+            const unsigned lumi = static_cast<unsigned>(event->_lumi);   // e.g. event._lumi
+            if (!passGolden(run, lumi)) {
+                continue; // skip non-certified lumisections
+            }
+       }
+
         //	Selections
+        if (!passFlagFilters(flags, /*isData*/ !__isMC)) continue;
         if (!passVertex(vertices)) continue;
         if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
 
@@ -2357,43 +2609,46 @@ int main(int argc, char** argv)
 	po::options_description desc("Allowed Program Options");
 	desc.add_options()
 		("help", "produce help messages")
-		("input", po::value<std::string>(), "a file specifying all the ROOT files to process")
-		("isMC", po::value<bool>(), "type of data: DATA vs MC")
-        ("muCorr", po::value<std::string>(&muCorrOpt)->default_value("roch"), "Muon momentum correction: 'roch' (Rochester), 'kit' (KIT smearing), 'none' (NoMuCorr)")
-        ("output", po::value<std::string>(), "output file name")
-		("genPUMC", po::value<bool>(&genPUMC)->default_value(false), "true if should generate the MC PU file")
-		("puMC", po::value<std::string>(&__puMCfilename)->default_value("None"), "MC PU Reweight file")
-		("puDATA", po::value<std::string>(&__puDATAfilename)->default_value("None"), "DATA PU Reweight file")
-        ("leadmuonPt", po::value<double>(&_leadmuonPt)->default_value(_leadmuonPt), "Muon Pt Cut")
-        ("subleadmuonPt", po::value<double>(&_subleadmuonPt)->default_value(_subleadmuonPt), "Muon Pt Cut")
-        ("leadmuonEta", po::value<double>(&_leadmuonEta)->default_value(_leadmuonEta), "Muon Eta Cut")
-        ("subleadmuonEta", po::value<double>(&_subleadmuonEta)->default_value(_subleadmuonEta), "Muon Eta Cut")
-        ("leadmuonIso", po::value<double>(&_leadmuonIso)->default_value(_leadmuonIso), "Muon Isolation Cut")
-        ("subleadmuonIso", po::value<double>(&_subleadmuonIso)->default_value(_subleadmuonIso), "Muon Isolation Cut")
-        ("leadJetPt", po::value<double>(&_leadJetPt)->default_value(_leadJetPt), "Lead Jet Pt Cut")
-        ("subleadJetPt", po::value<double>(&_subleadJetPt)->default_value(_subleadJetPt), "SubLeading Jet Pt Cut")
-        ("leadJetEta", po::value<double>(&_leadJetEta)->default_value(_leadJetEta), "Lead Jet Eta Cut")
-        ("subleadJetEta", po::value<double>(&_subleadJetEta)->default_value(_subleadJetEta), "SubLeading Jet Eta Cut")
-        ("dijetMass_VBF", po::value<double>(&_dijetMass_VBF)->default_value(_dijetMass_VBF), "DiJet Mass VBF-Category Cut")
-        ("dijetdEta_VBF", po::value<double>(&_dijetdEta_VBF)->default_value(_dijetdEta_VBF), "DiJet deta VBF-Category Cut")
-	    ("weights", po::value<std::string>(&g_weightsFile)->default_value("None"), "path to weights config (key=value)")
-        ("sample",  po::value<std::string>(&g_sampleName)->default_value("DATA"), "sample name (e.g. DY, TT, WZ, VBF, DATA)")
-        ("era", po::value<std::string>(&g_era)->default_value("12022"), "Era section from weights.ini (e.g. 12022, 22022, 12023, 22023)")
-        ("puDir",  po::value<std::string>(&g_puDir)->default_value(g_puDir), "Directory containing PU JSONs")
-        ("puJSON", po::value<std::string>(&g_puJSON)->default_value("auto"), "PU JSON file path or 'auto' to use puWeights<era>.json")
-        ("puKey",  po::value<std::string>(&g_puKey)->default_value("auto"),  "Correction key inside PU JSON or 'auto' to use era-based default")
-        ("--muDir",     po::value<std::string>(&g_muDir)->default_value(g_muDir), "Directory containing muon JSONs")
-        ("--muSFJSON",  po::value<std::string>(&g_muSFJSON)->default_value("auto"), "Muon SF JSON (path) or 'auto' => muon_Z<era>.json")
-        ("--muSFKeyID", po::value<std::string>(&g_muSFKeyID)->default_value(g_muSFKeyID),  "Muon ID SF key")
-        ("--muSFKeyISO",po::value<std::string>(&g_muSFKeyISO)->default_value(g_muSFKeyISO),"Muon ISO SF key")
-        ("--muSFKeyTRG",po::value<std::string>(&g_muSFKeyTRG)->default_value(g_muSFKeyTRG),"Muon trigger SF key")
-        ("--rochJSON",  po::value<std::string>(&g_rochJSON)->default_value("auto"),        "Rochester JSON (path) or 'auto' => RoccoR<era>.json")
-        ("--rochKeyDT", po::value<std::string>(&g_rochKeyDT)->default_value(g_rochKeyDT),  "Rochester data key")
-        ("--rochKeyMC", po::value<std::string>(&g_rochKeyMC)->default_value(g_rochKeyMC),  "Rochester MC key")
-        ("--jmeDir",     po::value<std::string>(&g_jmeDir)->default_value(g_jmeDir), "Directory containing JME JSONs")
-        ("--jercJSON",   po::value<std::string>(&g_jercJSON)->default_value("auto"), "Path to JERC JSON, or 'auto' => jet_jerc<era>.json")
-        ("--jetVetoJSON",po::value<std::string>(&g_jetVetoJSON)->default_value("auto"), "Path to veto map JSON, or 'auto' => jetvetomaps<era>.json")
-        ("--jetIdJSON",  po::value<std::string>(&g_jetIdJSON)->default_value("auto"), "Path to jet ID JSON, or 'auto' => jetid<era>.json")
+		("input",           po::value<std::string>(), "a file specifying all the ROOT files to process")
+		("isMC",            po::value<bool>(), "type of data: DATA vs MC")
+        ("muCorr",          po::value<std::string>(&muCorrOpt)->default_value("roch"), "'roch' (Rochester), 'kit' (KIT smearing), 'none' (NoMuCorr)")
+        ("output",          po::value<std::string>(), "output file name")
+		("genPUMC",         po::value<bool>(&genPUMC)->default_value(false), "true if should generate the MC PU file")
+		("puMC",            po::value<std::string>(&__puMCfilename)->default_value("None"), "MC PU Reweight file")
+		("puDATA",          po::value<std::string>(&__puDATAfilename)->default_value("None"), "DATA PU Reweight file")
+        ("leadmuonPt",      po::value<double>(&_leadmuonPt)->default_value(_leadmuonPt), "Muon Pt Cut")
+        ("subleadmuonPt",   po::value<double>(&_subleadmuonPt)->default_value(_subleadmuonPt), "Muon Pt Cut")
+        ("leadmuonEta",     po::value<double>(&_leadmuonEta)->default_value(_leadmuonEta), "Muon Eta Cut")
+        ("subleadmuonEta",  po::value<double>(&_subleadmuonEta)->default_value(_subleadmuonEta), "Muon Eta Cut")
+        ("leadmuonIso",     po::value<double>(&_leadmuonIso)->default_value(_leadmuonIso), "Muon Isolation Cut")
+        ("subleadmuonIso",  po::value<double>(&_subleadmuonIso)->default_value(_subleadmuonIso), "Muon Isolation Cut")
+        ("leadJetPt",       po::value<double>(&_leadJetPt)->default_value(_leadJetPt), "Lead Jet Pt Cut")
+        ("subleadJetPt",    po::value<double>(&_subleadJetPt)->default_value(_subleadJetPt), "SubLeading Jet Pt Cut")
+        ("leadJetEta",      po::value<double>(&_leadJetEta)->default_value(_leadJetEta), "Lead Jet Eta Cut")
+        ("subleadJetEta",   po::value<double>(&_subleadJetEta)->default_value(_subleadJetEta), "SubLeading Jet Eta Cut")
+        ("dijetMass_VBF",   po::value<double>(&_dijetMass_VBF)->default_value(_dijetMass_VBF), "DiJet Mass VBF-Category Cut")
+        ("dijetdEta_VBF",   po::value<double>(&_dijetdEta_VBF)->default_value(_dijetdEta_VBF), "DiJet deta VBF-Category Cut")
+	    ("weights",         po::value<std::string>(&g_weightsFile)->default_value("None"), "path to weights config (key=value)")
+        ("sample",          po::value<std::string>(&g_sampleName)->default_value("DATA"), "sample name (e.g. DY, TT, WZ, VBF, DATA)")
+        ("era",             po::value<std::string>(&g_era)->default_value("12022"), "Era section from weights.ini (e.g. 12022, 22022, 12023, 22023)")
+        ("puDir",           po::value<std::string>(&g_puDir)->default_value(g_puDir), "Directory containing PU JSONs")
+        ("puJSON",          po::value<std::string>(&g_puJSON)->default_value("auto"), "PU JSON file path or 'auto' to use puWeights<era>.json")
+        ("puKey",           po::value<std::string>(&g_puKey)->default_value("auto"),  "Correction key in PU JSON or 'auto' to use era-based default")
+        ("--muDir",         po::value<std::string>(&g_muDir)->default_value(g_muDir), "Directory containing muon JSONs")
+        ("--muSFJSON",      po::value<std::string>(&g_muSFJSON)->default_value("auto"), "Muon SF JSON (path) or 'auto' => muon_Z<era>.json")
+        ("--muSFKeyID",     po::value<std::string>(&g_muSFKeyID)->default_value(g_muSFKeyID),  "Muon ID SF key")
+        ("--muSFKeyISO",    po::value<std::string>(&g_muSFKeyISO)->default_value(g_muSFKeyISO),"Muon ISO SF key")
+        ("--muSFKeyTRG",    po::value<std::string>(&g_muSFKeyTRG)->default_value(g_muSFKeyTRG),"Muon trigger SF key")
+        ("--rochJSON",      po::value<std::string>(&g_rochJSON)->default_value("auto"),        "Rochester JSON (path) or 'auto' => RoccoR<era>.json")
+        ("--rochKeyDT",     po::value<std::string>(&g_rochKeyDT)->default_value(g_rochKeyDT),  "Rochester data key")
+        ("--rochKeyMC",     po::value<std::string>(&g_rochKeyMC)->default_value(g_rochKeyMC),  "Rochester MC key")
+        ("--jmeDir",        po::value<std::string>(&g_jmeDir)->default_value(g_jmeDir), "Directory containing JME JSONs")
+        ("--jercJSON",      po::value<std::string>(&g_jercJSON)->default_value("auto"), "Path to JERC JSON, or 'auto' => jet_jerc<era>.json")
+        ("--jetVetoJSON",   po::value<std::string>(&g_jetVetoJSON)->default_value("auto"), "Path to veto map JSON, or 'auto' => jetvetomaps<era>.json")
+        ("--jetIdJSON",     po::value<std::string>(&g_jetIdJSON)->default_value("auto"), "Path to jet ID JSON, or 'auto' => jetid<era>.json")
+        ("golden",          po::value<std::string>()->default_value("auto"), "Golden JSON path or 'auto' for era-based default")
+        ("noGolden",        po::bool_switch()->default_value(false), "Disable golden JSON masking on DATA");
+
     ;
 
 	po::variables_map vm;
@@ -2414,7 +2669,6 @@ int main(int argc, char** argv)
 	//	Assign globals
 	__inputfilename     = vm["input"].as<std::string>();
 	__isMC              = vm["isMC"].as<bool>();
-    const bool has_muCorr = (vm.count("muCorr") > 0);
     __outputfilename    = vm["output"].as<std::string>();
 	__genPUMC           = vm["genPUMC"].as<bool>();
 	__puMCfilename      = vm["puMC"].as<std::string>();
@@ -2431,7 +2685,11 @@ int main(int argc, char** argv)
     _subleadJetEta      = vm["subleadJetEta"].as<double>();
     _dijetMass_VBF      = vm["dijetMass_VBF"].as<double>();
     _dijetdEta_VBF      = vm["dijetdEta_VBF"].as<double>();
-   
+    g_goldenJSON        = vm["golden"].as<std::string>();
+    const bool has_muCorr = (vm.count("muCorr") > 0);
+    bool noGolden       = vm["noGolden"].as<bool>();
+
+
     if (!has_muCorr) {
         if (__noMuCorr) {
             muCorrOpt = "none";
@@ -2494,13 +2752,16 @@ int main(int argc, char** argv)
 
     
     // Start Main Loop Process 
-	loadMuonCorrections();            // loads SFs + Rochester JSONs  :contentReference[oaicite:5]{index=5}
-    if (__useKIT) loadKITCorrections();  // KIT only when requested   :contentReference[oaicite:6]{index=6}
+    loadMuonCorrections();                  // loads SFs + Rochester JSONs  :contentReference[oaicite:5]{index=5}
+    if (__useKIT) loadKITCorrections();     // KIT only when requested   :contentReference[oaicite:6]{index=6}
     if (__isMC) {
         loadJetCorrections();               // JEC/JER for MC
         loadPileupCorrections();            // PU weights for MC
     } else {
         loadJetCorrections();               // if you want DATA residuals
+    }
+	if (!__isMC && !noGolden) {             // loads Golden Json files 
+        loadGoldenJsonCorrections();
     }
     process();
 

@@ -10,15 +10,13 @@
     (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
     static_assert(true, "")
 
-#define SET_BRANCH_FLOAT(NAME) \
-    Float_t NAME; \
+#define SET_BRANCH_INT_ARRAY(NAME) \
+    Int_t NAME[100]; \
     (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
     static_assert(true, "")
 
-    /// TODO
-    /// customize further
-#define SET_BRANCH_INT_ARRAY(NAME) \
-    Int_t NAME[100]; \
+#define SET_BRANCH_FLOAT(NAME) \
+    Float_t NAME; \
     (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
     static_assert(true, "")
 
@@ -29,6 +27,11 @@
 
 #define SET_BRANCH_BOOL_ARRAY(NAME) \
     Bool_t NAME[100]; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    static_assert(true, "")
+
+#define SET_BRANCH_BOOL(NAME) \
+    Bool_t NAME; \
     (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
     static_assert(true, "")
 

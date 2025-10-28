@@ -242,10 +242,11 @@ int main(int argc, char* argv[])
 
       // muons
       "nMuon",
-      "Muon_pt","Muon_eta","Muon_phi","Muon_charge",
-      "Muon_isGlobal","Muon_isTracker","Muon_tightId",
+      "Muon_*", 
+      /*"Muon_pt","Muon_eta","Muon_phi","Muon_charge",
+      "Muon_isGlobal","Muon_isTracker","Muon_tightId", "Muon_mediumId", 
       "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers",
-      "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt",
+      "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt",*/
 
       // triggers & trig objects
       "HLT_IsoMu24",
@@ -253,9 +254,10 @@ int main(int argc, char* argv[])
 
       // jets
       "nJet",
-      "Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
+      "Jet_*",
+      /*"Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
       "Jet_btagDeepFlavB","Jet_area","Jet_chHEF","Jet_neHEF","Jet_chEmEF","Jet_neEmEF","Jet_muEF",
-      "Jet_genJetIdx",
+      "Jet_genJetIdx",*/
 
       // gen jets
       "nGenJet","GenJet_pt","GenJet_eta","GenJet_phi","GenJet_mass",
@@ -272,6 +274,10 @@ int main(int argc, char* argv[])
 
       // MET
       "MET_pt","MET_phi",
+    
+      // Flags
+      "Flag_goodVertices", "Flag_globalSuperTightHalo2016Filter", "Flag_EcalDeadCellTriggerPrimitiveFilter", "Flag_BadPFMuonFilter",
+      "Flag_BadPFMuonDzFilter", "Flag_eeBadScFilter", "Flag_ecalBadCalibFilter", "Flag_hfNoisyHitsFilter",
     };
 
     for (auto b : keep) tree->SetBranchStatus(b, 1);

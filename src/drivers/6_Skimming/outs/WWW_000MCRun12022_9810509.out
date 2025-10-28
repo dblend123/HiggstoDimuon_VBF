@@ -1,0 +1,51 @@
+== Job started: Tue Oct 28 08:56:57 PM CET 2025
+Host: b9p17p7284.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12022/Background_listfiles/WWW/part000.list'  tag='WWW_000MCRun12022'  sample='WWW'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1828721
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12022/Background_listfiles/WWW/part000.list' -> using local: '/pool/condor/dir_1828721/part000.list'
+Using Condor proxy: /pool/condor/dir_1828721/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1828721/part000.list
+Input list has 24 lines
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/WWW_4F_TuneCP5_13p6TeV_amcatnlo-madspin-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5-v2/2540000/232e6c0e-c85b-44fd-8987-054d7edd26e0.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/WWW_4F_TuneCP5_13p6TeV_amcatnlo-madspin-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5-v2/50000/441f88ff-e67f-47b8-8135-480a094e4119.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/WWW_4F_TuneCP5_13p6TeV_amcatnlo-madspin-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5-v2/40000/755107aa-f827-4cd1-9577-aba678a7062a.root ...
+Using skimmer: my_skim
+33a4feeb962c1b2b8c6cb57ed8475bae  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: WWW_000MCRun12022
+Running: ./my_skim '/pool/condor/dir_1828721/part000.list' '-1'
+Requested ALL events
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_232e6c0e-c85b-44fd-8987-054d7edd26e0.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_441f88ff-e67f-47b8-8135-480a094e4119.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_755107aa-f827-4cd1-9577-aba678a7062a.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_cebe9149-7608-4575-a293-bf1afc83bd02.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_cfcff90a-192a-4ba7-9526-92be3ca340f4.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_81a2464d-52d0-431a-8d60-b5597769f379.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_199d0969-be45-496a-8e5e-fc3cfde62bcf.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_f91ab6b6-33fa-42b2-9fb2-9278cf738e80.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_e6faee81-af60-4bcb-bbdd-89cc1c42ec54.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_58b17637-345f-4b7a-ad1a-d8619e9ba6ba.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_a986c6a8-1cca-4b5e-8c98-c609312e59f4.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_6c78e579-c3bc-4d7e-ad04-27915be0918a.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_ac75bf46-14bb-4a89-82da-2279b26d2875.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_e1e1f415-fc58-486c-bcfa-0b83099bc328.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_aa2ff693-abbe-4919-a0fb-fb66b46e2d48.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_d41e8db5-7e58-4fe7-bad5-1f4feca654ec.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_1e7081df-af0c-40ec-a5d7-5e35cba79264.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_cfe3968f-3aba-4ba1-a08e-06fd6cc855f9.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_1fcf52c3-34a0-477b-bc4d-8d329b94a375.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_635b9f71-d336-4024-a9b6-639981c1b972.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_a834d440-71f0-46c6-9796-e14766eb4e7c.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_566efe5c-6785-4e37-8ec0-1f869f0bcfc4.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_7315d9d5-355d-42f8-89ec-b48f5448dd8f.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_fd3675d8-8975-4fb7-ba16-0aca9cbcb99d.root
+
+Done. Files skimmed: 24  |  Events kept: 22813
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12022/WWW/WWW_000MCRun12022
+Found 0 skim files.
+WARNING: no skim outputs found

@@ -1,0 +1,31 @@
+== Job started: Tue Oct 28 08:57:00 PM CET 2025
+Host: b9p02p9779.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12022/Background_listfiles/WZto3LNu/part003.list'  tag='WZ3LNu_003MCRun12022'  sample='WZto3LNu'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_3706381
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12022/Background_listfiles/WZto3LNu/part003.list' -> using local: '/pool/condor/dir_3706381/part003.list'
+Using Condor proxy: /pool/condor/dir_3706381/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_3706381/part003.list
+Input list has 4 lines
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5_ext1-v3/2810000/8d841bcc-b047-4846-9149-08eb8836b170.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5_ext1-v3/140000/d7202940-0684-447d-a51d-5b41f7a2d267.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22NanoAODv12/WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_v5_ext1-v3/2810000/f410fbf0-8c02-4c71-9e6a-b5d350b4a517.root ...
+Using skimmer: my_skim
+33a4feeb962c1b2b8c6cb57ed8475bae  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: WZ3LNu_003MCRun12022
+Running: ./my_skim '/pool/condor/dir_3706381/part003.list' '-1'
+Requested ALL events
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_8d841bcc-b047-4846-9149-08eb8836b170.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_d7202940-0684-447d-a51d-5b41f7a2d267.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_f410fbf0-8c02-4c71-9e6a-b5d350b4a517.root
+Writing: /eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023/Skimmed_450f77ff-adda-4bb4-b12b-1ef48392bb03.root
+
+Done. Files skimmed: 4  |  Events kept: 50542
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12022/WZto3LNu/WZ3LNu_003MCRun12022
+Found 0 skim files.
+WARNING: no skim outputs found
