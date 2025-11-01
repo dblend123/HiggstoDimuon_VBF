@@ -1,0 +1,39 @@
+== Job started: Thu Oct 30 08:12:09 PM CET 2025
+Host: b9p24p9529.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Data_listfiles/Muon0/Muon0_2023C_v4_part004.list'  tag='Muon0C_010MCRun12023'  sample='DATA_12023_Muon0'
+ERA (4th arg): '12023'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_3459377
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Data_listfiles/Muon0/Muon0_2023C_v4_part004.list' -> using local: '/pool/condor/dir_3459377/Muon0_2023C_v4_part004.list'
+Using Condor proxy: /pool/condor/dir_3459377/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_3459377/Muon0_2023C_v4_part004.list
+Input list has 5 lines
+root://cms-xrd-global.cern.ch//store/data/Run2023C/Muon0/NANOAOD/22Sep2023_v4-v1/50000/8194e374-f448-418c-a0b2-06b1343d812c.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2023C/Muon0/NANOAOD/22Sep2023_v4-v1/50000/b2302a7d-0f96-492a-ba37-84088a8acd3a.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2023C/Muon0/NANOAOD/22Sep2023_v4-v1/50000/29aba056-f4de-4508-942b-5012f4952363.root ...
+Using skimmer: my_skim
+257656e61b96e3b1a9898b4fdf955d52  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: Muon0C_010MCRun12023
+Running: ./my_skim '/pool/condor/dir_3459377/Muon0_2023C_v4_part004.list' '-1'
+Requested ALL events
+Writing: ./skims/Skimmed_8194e374-f448-418c-a0b2-06b1343d812c.root
+Writing: ./skims/Skimmed_b2302a7d-0f96-492a-ba37-84088a8acd3a.root
+Writing: ./skims/Skimmed_29aba056-f4de-4508-942b-5012f4952363.root
+Writing: ./skims/Skimmed_decdd57c-b601-4631-9811-eb7bb4004803.root
+Writing: ./skims/Skimmed_f914896c-1934-4ca0-8eca-5af6e6f91ed3.root
+
+Done. Files skimmed: 5  |  Events kept: 275394
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_010MCRun12023
+Found 5 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_010MCRun12023/Skimmed_29aba056-f4de-4508-942b-5012f4952363.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_010MCRun12023/Skimmed_8194e374-f448-418c-a0b2-06b1343d812c.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_010MCRun12023/Skimmed_b2302a7d-0f96-492a-ba37-84088a8acd3a.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_010MCRun12023/Skimmed_decdd57c-b601-4631-9811-eb7bb4004803.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_010MCRun12023/Skimmed_f914896c-1934-4ca0-8eca-5af6e6f91ed3.root
+Done staging.
+== Job finished: Thu Oct 30 08:14:46 PM CET 2025

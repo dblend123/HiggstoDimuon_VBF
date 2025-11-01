@@ -1,0 +1,46 @@
+013 (9812076.006.000) 10/30 20:16:16 Job was released.
+	via condor_release (by user dblend)
+...
+040 (9812076.006.000) 10/30 20:27:07 Started transferring input files
+	Transferring to host: <188.185.192.114:9618?addrs=188.185.192.114-9618+[2001-1458-303-1f--100-6e]-9618&alias=b9p13p2396.cern.ch&noUDP&sock=slot1_8_8098_8602_38876>
+...
+040 (9812076.006.000) 10/30 20:27:07 Finished transferring input files
+...
+001 (9812076.006.000) 10/30 20:27:07 Job executing on host: <188.185.192.114:9618?addrs=188.185.192.114-9618+[2001-1458-303-1f--100-6e]-9618&alias=b9p13p2396.cern.ch&noUDP&sock=startd_7002_5e3a>
+	SlotName: slot1_8@b9p13p2396.cern.ch
+	CondorScratchDir = "/pool/condor/dir_2338341"
+	Cpus = 1
+	Disk = 6885
+	GPUs = 0
+	Memory = 3000
+...
+006 (9812076.006.000) 10/30 20:27:21 Image size of job updated: 39432
+	1  -  MemoryUsage of job (MB)
+	948  -  ResidentSetSize of job (KB)
+...
+006 (9812076.006.000) 10/30 20:32:21 Image size of job updated: 176432
+	6  -  MemoryUsage of job (MB)
+	5636  -  ResidentSetSize of job (KB)
+...
+040 (9812076.006.000) 10/30 20:34:45 Finished transferring output files
+...
+005 (9812076.006.000) 10/30 20:34:45 Job terminated.
+	(1) Normal termination (return value 0)
+		Usr 0 00:05:37, Sys 0 00:00:06  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+		Usr 0 00:05:37, Sys 0 00:00:06  -  Total Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Total Local Usage
+	0  -  Run Bytes Sent By Job
+	197150  -  Run Bytes Received By Job
+	0  -  Total Bytes Sent By Job
+	394300  -  Total Bytes Received By Job
+	Partitionable Resources :     Usage  Request Allocated 
+	   Cpus                 :      0.73        1         1 
+	   Disk (KB)            : 187470        4000      6885 
+	   GPUs                 :                            0 
+	   Memory (MB)          :      6        3000      3000 
+	   TimeExecute (s)      :    458                       
+	   TimeSlotBusy (s)     :    459                       
+
+	Job terminated of its own accord at 2025-10-30T19:34:45Z with exit-code 0.
+...

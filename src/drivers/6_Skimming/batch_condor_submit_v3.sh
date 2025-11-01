@@ -11,6 +11,7 @@ if [[ ! -f "$JDL_FILE" ]]; then
 fi
 BASE_FILE="${JDL_FILE}.base"
 
+# ---- Default MC samples (unchanged) ----
 DEFAULT_SAMPLES=(
   DY
   EWK
@@ -30,7 +31,35 @@ DEFAULT_SAMPLES=(
 usage(){ echo "Usage: $0 <ERA> [SAMPLE1 SAMPLE2 ...]"; exit 2; }
 [[ $# -lt 1 ]] && usage
 ERA="$1"; shift
-SAMPLES=("$@"); [[ ${#SAMPLES[@]} -eq 0 ]] && SAMPLES=("${DEFAULT_SAMPLES[@]}")
+
+# ---------------------------
+# DATA sample names per ERA (Option B)
+# ---------------------------
+# Rename your DATA blocks in the JDL to these unique names, e.g.:
+#   sample = DATA_22022_E
+#   queue inputList, tag from $(path)/Data_input_lists/Muon22022E.txt
+data_samples_for_era(){
+  case "$1" in
+    12022) echo "DATA_12022_C DATA_12022_D" ;;
+    22022) echo "DATA_22022_E DATA_22022_F DATA_22022_G" ;;
+    12023) echo "DATA_12023_Muon0 DATA_12023_Muon1" ;;
+    22023) echo "DATA_22023_Muon0 DATA_22023_Muon1" ;;
+    *)     echo "" ;;
+  esac
+}
+
+# ---------------------------
+# Init SAMPLES from CLI; if empty, compose from defaults + ERA DATA
+# ---------------------------
+SAMPLES=("$@")
+if [[ ${#SAMPLES[@]} -eq 0 ]]; then
+  SAMPLES=("${DEFAULT_SAMPLES[@]}")
+  # Add DATA for this ERA
+  read -r -a DS <<<"$(data_samples_for_era "$ERA")"
+  if (( ${#DS[@]} > 0 )); then
+    SAMPLES+=("${DS[@]}")
+  fi
+fi
 
 # Create a pristine base if missing
 if [[ ! -f "$BASE_FILE" ]]; then
@@ -39,6 +68,7 @@ fi
 
 restore_base(){ cp -p "$BASE_FILE" "$JDL_FILE"; }
 
+# Ensure "era = <val>" is present & not commented
 set_era(){
   local era_val="$1"
   sed -i -E 's/^([[:space:]]*)#?[[:space:]]*era[[:space:]]*=[[:space:]]*[0-9]+([[:space:]]*)$/\1# era       = X\2/g' "$JDL_FILE"
@@ -49,6 +79,7 @@ set_era(){
   fi
 }
 
+# Normalize arguments line
 fix_arguments_line(){
   if grep -qE '^\s*arguments\s*=' "$JDL_FILE"; then
     sed -i -E 's/^\s*arguments\s*=.*/arguments = $(inputList) $(tag) $(sample) $(era)/' "$JDL_FILE"
@@ -57,14 +88,15 @@ fix_arguments_line(){
   fi
 }
 
+# Comment all queue lines and sample lines
 comment_all_queues(){
   sed -i -E 's/^([[:space:]]*)(queue[[:space:]].*)/\1# \2/g' "$JDL_FILE"
 }
-
 comment_all_samples(){
   sed -i -E 's/^([[:space:]]*)(sample[[:space:]]*=[[:space:]]*.+)/\1# \2/g' "$JDL_FILE"
 }
 
+# Un-comment exactly one block: the "sample = NAME" and the first queue in that block
 activate_block(){
   local name="$1"
   awk -v name="$name" '
@@ -106,6 +138,8 @@ submit_one(){
 }
 
 main(){
+  echo "ERA=${ERA}"
+  printf 'Samples to submit: %s\n' "${SAMPLES[*]}"
   for s in "${SAMPLES[@]}"; do
     submit_one "$s"
   done
@@ -113,3 +147,4 @@ main(){
 }
 
 main "$@"
+

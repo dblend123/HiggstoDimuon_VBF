@@ -28,10 +28,9 @@ using namespace std;
 static string FileLocation(const string& initfile);
 
 //--------- output root dir --------
-//static string NewPath = "./skims";   // change if you like
+static string NewPath = "./skims";   // change if you like
 //static string NewPath = "/eos/user/d/dblend/SkimmedFiles/12022/DATA/C";   // change if you like
 //static string NewPath = "/eos/user/d/dblend/SkimmedFiles/12022/DATA/D";   // change if you like
-static string NewPath = "/eos/user/d/dblend/SkimmedFiles/22023/DY/DY_005MCRun22023";   // change if you like
 
 //--------- run stats --------------
 static time_t startOfProgram = 0;

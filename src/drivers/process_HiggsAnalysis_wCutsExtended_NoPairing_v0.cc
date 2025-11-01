@@ -318,6 +318,10 @@ struct JecEraConfig {
   std::string vetoMapKey;                   // veto map key (if available for this era/tag); leave "" to skip
 };
 
+static inline const char* pnetCorrName() {
+  return (g_era == "12022" || g_era == "22022") ? "particleNet_comb" : "ParticleNet";
+}
+
 // Optional: try to infer 2022EE/2023 data run from the input file name
 static std::string inferDataRunTag(const std::string& era, const std::string& inputFile) {
   if (era == "22022") {
@@ -438,11 +442,29 @@ void loadJetCorrections() {
   try {
     if (!btagCorrections)
       btagCorrections = correction::CorrectionSet::from_file(btagFileForEra(g_era));
+
+    if (btagCorrections) {
+      auto has = [&](const char* name){
+        try { (void)btagCorrections->at(name); return true; } catch (...) { return false; }
+      };
+      // Probe the names we actually use
+      const bool has_wp      = has("particleNet_wp_values") || has("ParticleNet_wp_values");
+      const bool has_comb    = has("particleNet_comb")      || has("ParticleNet_comb");
+      const bool has_shape   = has("particleNet_shape")     || has("ParticleNet_shape");
+      const bool has_light   = has("particleNet_light")     || has("ParticleNet_light");
+
+      std::cerr << "[BTAG] Loaded from " << btagFileForEra(g_era)
+                << " | keys: "
+                << (has_wp    ? "wp "    : "")
+                << (has_comb  ? "comb "  : "")
+                << (has_shape ? "shape " : "")
+                << (has_light ? "light " : "")
+                << "\n";
+    }
   } catch (std::exception& e) {
     std::cerr << "[Btag load ERROR] " << e.what() << std::endl;
     btagCorrections = nullptr;
   }
-}
 
 
 // -------------------------------------
@@ -1052,110 +1074,79 @@ inline bool isVetoedJet(float eta, float phi) {
 //              B-TAGGING
 // -------------------------------------
 
-// -- 0) Get the jet's discriminator for the chosen algo (edit to match your Jet API) --
-static inline float getBTagDisc(const Jet& j, const std::string& algo = g_btagAlgo) {
-    if (algo == "deepJet")                   return j._btagDeepFlavB;              // DeepJet score in [0,1]
-    if (algo == "particleNet")               return j._btagPNetB;                  // example placeholder
-    if (algo == "robustParticleTransformer") return j._btagRobustParTAK4B;         // example placeholder
-    return 0.f;
+// 0) ParticleNet discriminator (Jet_btagPNetB)
+float getBTagDisc(const Jet& j, const std::string& algo) {
+    (void)algo; // unused
+    return j._btagPNetB;  // NanoAOD: Jet_btagPNetB
 }
 
-// -- 1) Lookup numeric WP threshold from the JSON (e.g. "M" -> 0.3086 for deepJet, era-dependent) --
-static inline float btagWPThreshold(const std::string& algo, const std::string& wp) {
+static inline float btagWPThreshold(const std::string& /*algo*/, const std::string& wp) {
     if (!btagCorrections) return 1e9f;
-    const std::string corrName = algo + "_wp_values"; // e.g. "deepJet_wp_values"
-    try {
-        const auto& c = btagCorrections->at(corrName);
-        return (float)c->evaluate({wp});
-    } catch (...) {
-        std::cerr << "[BTAG] Missing wp_values for algo='" << algo << "' wp='" << wp << "'\n";
-        return 1e9f;
+    // Try particleNet first, then ParticleNet (2022 quirk)
+    for (const std::string base : {"particleNet_wp_values", "ParticleNet_wp_values"}) {
+        try { return (float)btagCorrections->at(base)->evaluate({wp}); }
+        catch (...) {}
     }
+    std::cerr << "[BTAG] Missing wp_values for ParticleNet wp='" << wp << "'\n";
+    return 1e9f;
 }
 
-// -- 2) Working-point SF (comb/mujets/light) --
-static inline double btagSF_WP(const std::string& algo,
-                               const std::string& source,   // "comb"/"mujets"/"light"
-                               const std::string& wp,       // "L","M","T","XT","XXT"
-                               int hadronFlavor, float eta, float pt,
-                               const std::string& syst = "central")
+// 1) SHAPE / RESHAPING SFs  (use correction name: "ParticleNet" for 2022 & 2023)
+static inline double pnetSF_Shape(int hadronFlavor, float eta, float pt,
+                                  float disc, const std::string& syst = "central")
 {
     if (!btagCorrections) return 1.0;
     const int flav = (hadronFlavor == 5 ? 5 : (hadronFlavor == 4 ? 4 : 0));
     const double abseta = std::fabs((double)eta);
-    const std::string corrName = algo + "_" + source; // e.g. "deepJet_comb", "deepJet_light"
-    try {
-        const auto& c = btagCorrections->at(corrName);
-        // signature: (systematic, working_point, flavor, abseta, pt)
-        return c->evaluate({syst, wp, flav, abseta, (double)pt});
-    } catch (...) {
-        // If a key/source doesn't exist for this era, just return 1
-        return 1.0;
-    }
-}
-
-// -- 3) Shape/reshaping SF (continuous discriminant) --
-static inline double btagSF_Shape(const std::string& algo,
-                                  int hadronFlavor, float eta, float pt,
-                                  float disc,
-                                  const std::string& syst = "central")
-{
-    if (!btagCorrections) return 1.0;
-    const int flav = (hadronFlavor == 5 ? 5 : (hadronFlavor == 4 ? 4 : 0));
-    const double abseta = std::fabs((double)eta);
-    const std::string corrName = algo + "_shape"; // e.g. "deepJet_shape"
-    // Clamp inputs to safe ranges (some payloads expect [0,1] for disc, non-neg pt, |eta| bounded)
     const double disc_clamped = std::min(std::max((double)disc, 0.0), 1.0);
     const double pt_safe      = std::max((double)pt, 0.1);
+
     try {
-        // signature: (systematic, flavor, abseta, pt, discriminant)
-        const auto& c = btagCorrections->at(corrName);
+        // NAME: "ParticleNet"
+        // Signature: (systematic, flavor, abseta, pt, discriminant) -> weight
+        const auto& c = btagCorrections->at("ParticleNet");
         return c->evaluate({syst, flav, abseta, pt_safe, disc_clamped});
     } catch (...) {
         return 1.0;
     }
 }
 
-// ------------ 4) Convenience wrappers you can call in your event loop ------------
-
-// Decide if a jet is tagged at a given WP (using the algo's discriminator)
-static inline bool isTaggedBJet(const Jet& j, const std::string& algo, const std::string& wp) {
-    const float cut = btagWPThreshold(algo, wp);
-    const float score = getBTagDisc(j, algo);
-    return (score >= cut);
+// 2) (Optional) 2022-only WORKING-POINT SFs for ParticleNet using "particleNet_comb"
+static inline double btagSF_WP(const std::string& /*algo*/,
+                               const std::string& source,  // "comb" or "light"
+                               const std::string& wp,
+                               int hadronFlavor, float eta, float pt,
+                               const std::string& syst="central") {
+    if (!btagCorrections) return 1.0;
+    const int   flav    = (hadronFlavor==5?5:(hadronFlavor==4?4:0));
+    const double abseta = std::fabs((double)eta);
+    // Try particleNet_<source> then ParticleNet_<source>
+    for (const std::string base : {"particleNet_", "ParticleNet_"}) {
+        const std::string name = base + source;
+        try {
+            const auto& c = btagCorrections->at(name);
+            return c->evaluate({syst, wp, flav, abseta, (double)pt});
+        } catch (...) {}
+    }
+    return 1.0;
 }
 
-// Compute an event-level product of **WP SFs** over jets
-// sourceBC: "comb" or "mujets" (choose per analysis), sourceLight: "light"
-// syst     : "central" OR "up"/"down"/"up_correlated"/"down_uncorrelated", etc.
-static inline double eventBTagSF_WP(const std::vector<Jet>& jets,
-                                    const std::string& algo,
-                                    const std::string& wp,
-                                    const std::string& sourceBC,
-                                    const std::string& sourceLight,
-                                    const std::string& syst = "central")
-{
-    double w = 1.0;
-    for (const auto& j : jets) {
-        const int flav = j._hadronFlavour; // 5=b, 4=c, else light (0)
-        const bool isBC = (flav == 5 || flav == 4);
-        const std::string source = isBC ? sourceBC : sourceLight;
-        w *= btagSF_WP(algo, source, wp, flav, j._eta, j._pt, syst);
+// 3) Event-level products
+static inline double btagSF_Shape(const std::string& /*algo*/,
+                                  int hadronFlavor, float eta, float pt,
+                                  float disc, const std::string& syst="central") {
+    if (!btagCorrections) return 1.0;
+    const int   flav      = (hadronFlavor==5?5:(hadronFlavor==4?4:0));
+    const double abseta   = std::fabs((double)eta);
+    const double d_clamp  = std::clamp((double)disc, 0.0, 1.0);
+    const double pt_safe  = std::max((double)pt, 0.1);
+    for (const std::string name : {"particleNet_shape", "ParticleNet_shape"}) {
+        try {
+            const auto& c = btagCorrections->at(name);
+            return c->evaluate({syst, flav, abseta, pt_safe, d_clamp});
+        } catch (...) {}
     }
-    return w;
-}
-
-// Compute an event-level product of **shape SFs** over jets (continuous)
-static inline double eventBTagSF_Shape(const std::vector<Jet>& jets,
-                                       const std::string& algo,
-                                       const std::string& syst = "central")
-{
-    double w = 1.0;
-    for (const auto& j : jets) {
-        const float disc = getBTagDisc(j, algo);
-        w *= btagSF_Shape(algo, j._hadronFlavour, j._eta, j._pt, disc, syst);
-    }
-    return w;
+    return 1.0;
 }
 
 float jetMuondR(float jeta,float jphi, float meta, float mphi)
@@ -1427,6 +1418,47 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
 
     //std::cout << "[DEBUG] Muon SF: eta = " << eta << ", pt = " << pt << ", SF = " << id_sf << std::endl;
     return id_sf * iso_sf * trig_sf;
+}
+
+// -------------------------------------
+//             JETS 
+// -------------------------------------
+
+// ParticleNet (shape) per-event SF product over a jet collection
+// - Uses the correction named "ParticleNet" (and tries "particleNet" as a fallback for 2022 naming).
+// - MC-only: returns 1.0 for data automatically.
+static inline double getBTagSF_PNet_Shape(const std::vector<analysis::core::Jet>& jets) {
+    if (!__isMC) return 1.0;                   // DATA → no SF
+    if (!btagCorrections) return 1.0;          // not loaded
+
+    static bool printedOnce = false;
+    double w = 1.0;
+
+    for (const auto& j : jets) {
+        const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
+        const double abseta = std::fabs((double)j._eta);
+        const double pt_safe = std::max((double)j._pt, 0.1);
+        const double disc = std::clamp((double)j._btagPNetB, 0.0, 1.0);
+
+        double sf = 1.0;
+        // Try ParticleNet then particleNet to survive 2022 capitalization differences
+        for (const std::string name : {"ParticleNet", "particleNet"}) {
+            try {
+                const auto& c = btagCorrections->at(name); // signature: (syst, flav, abseta, pt, disc)
+                sf = c->evaluate({std::string("central"), flav, abseta, pt_safe, disc});
+                break;
+            } catch (...) {
+                // try next name
+            }
+        }
+        w *= sf;
+    }
+
+    if (!printedOnce) {
+        std::cerr << "[BTAG] Using ParticleNet shape SFs (central), Njets=" << jets.size() << "\n";
+        printedOnce = true;
+    }
+    return w;
 }
 
 //*******************************************************************

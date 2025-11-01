@@ -30,6 +30,7 @@ host="$(hostname -f || hostname)"
 echo "== Job started: ${start_ts}"
 echo "Host: ${host}"
 echo "Args: inputList='${INPUT_LIST}'  tag='${TAG}'  sample='${SAMPLE}'"
+echo "ERA (4th arg): '${ERA}'"
 echo "MAX_EVENTS:  ${MAX_EVENTS}"
 
 # Normalize the list file to the transferred local copy

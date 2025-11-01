@@ -39,7 +39,7 @@ request_cpus            = 1
 request_memory          = 2000
 request_disk            = 4000
 
-era       = 12023
+era       = 22023
 # era       = X
 # era       = X
 # era       = X
@@ -107,46 +107,46 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # ===== 12022 DATA queue =====
 
 # # C
-# sample    = DATA
+# sample    = DATA_12022_C
 # queue inputList, tag from $(path)/Data_input_lists/C.txt
 
 # # D
-# sample    = DATA
+# sample    = DATA_12022_D
 # queue inputList, tag from $(path)/Data_input_lists/D.txt
 
 # ===== 22022 DATA queue =====
 
 # # E
-# sample    = DATA
+# sample    = DATA_22022_E
 # queue inputList, tag from $(path)/Data_input_lists/Muon22022E.txt
   
 # # F
-# sample    = DATA
+# sample    = DATA_22022_F
 # queue inputList, tag from $(path)/Data_input_lists/Muon22022F.txt
   
 # # G
-#sample    = DATA
-#queue inputList, tag from $(path)/Data_input_lists/Muon22022G.txt
+# sample    = DATA_22022_G
+# queue inputList, tag from $(path)/Data_input_lists/Muon22022G.txt
 
 # ===== 12023 DATA queue =====
 
 # # B/C
 # # Muon0
-# sample    = DATA
+# sample    = DATA_12023_Muon0
 # queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
-sample    = DATA
-queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+# sample    = DATA_12023_Muon1
+# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
 
 # ===== 22023 DATA queue =====
 
 # # D
 # # Muon0
-# sample    = DATA
+# sample    = DATA_22023_Muon0
 # queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
-# sample    = DATA
-# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+sample    = DATA_22023_Muon1
+queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
 

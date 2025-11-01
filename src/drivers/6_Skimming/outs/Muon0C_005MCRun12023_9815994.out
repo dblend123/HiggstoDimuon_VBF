@@ -1,0 +1,32 @@
+== Job started: Thu Oct 30 08:12:07 PM CET 2025
+Host: b9p29p9286.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Data_listfiles/Muon0/Muon0_2023C_v3_part001.list'  tag='Muon0C_005MCRun12023'  sample='DATA_12023_Muon0'
+ERA (4th arg): '12023'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1991731
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Data_listfiles/Muon0/Muon0_2023C_v3_part001.list' -> using local: '/pool/condor/dir_1991731/Muon0_2023C_v3_part001.list'
+Using Condor proxy: /pool/condor/dir_1991731/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1991731/Muon0_2023C_v3_part001.list
+Input list has 2 lines
+root://cms-xrd-global.cern.ch//store/data/Run2023C/Muon0/NANOAOD/22Sep2023_v3-v1/50000/d8467cff-e68b-49d2-96e8-5742b4893e7f.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2023C/Muon0/NANOAOD/22Sep2023_v3-v1/50000/ce27811d-cf70-4900-932b-e9a6cd3cac33.root ...
+Using skimmer: my_skim
+257656e61b96e3b1a9898b4fdf955d52  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: Muon0C_005MCRun12023
+Running: ./my_skim '/pool/condor/dir_1991731/Muon0_2023C_v3_part001.list' '-1'
+Requested ALL events
+Writing: ./skims/Skimmed_d8467cff-e68b-49d2-96e8-5742b4893e7f.root
+Writing: ./skims/Skimmed_ce27811d-cf70-4900-932b-e9a6cd3cac33.root
+
+Done. Files skimmed: 2  |  Events kept: 43826
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_005MCRun12023
+Found 2 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_005MCRun12023/Skimmed_ce27811d-cf70-4900-932b-e9a6cd3cac33.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/12023/DATA_12023_Muon0/Muon0C_005MCRun12023/Skimmed_d8467cff-e68b-49d2-96e8-5742b4893e7f.root
+Done staging.
+== Job finished: Thu Oct 30 08:13:18 PM CET 2025
