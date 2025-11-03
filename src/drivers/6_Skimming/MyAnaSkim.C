@@ -29,8 +29,6 @@ static string FileLocation(const string& initfile);
 
 //--------- output root dir --------
 static string NewPath = "./skims";   // change if you like
-//static string NewPath = "/eos/user/d/dblend/SkimmedFiles/12022/DATA/C";   // change if you like
-//static string NewPath = "/eos/user/d/dblend/SkimmedFiles/12022/DATA/D";   // change if you like
 
 //--------- run stats --------------
 static time_t startOfProgram = 0;
@@ -241,11 +239,11 @@ int main(int argc, char* argv[])
 
       // muons
       "nMuon",
-      "Muon_*", 
-      /*"Muon_pt","Muon_eta","Muon_phi","Muon_charge",
+      //"Muon_*", 
+      "Muon_pt","Muon_eta","Muon_phi","Muon_charge",
       "Muon_isGlobal","Muon_isTracker","Muon_tightId", "Muon_mediumId", 
       "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers",
-      "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt",*/
+      "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt",
 
       // triggers & trig objects
       "HLT_IsoMu24",
@@ -253,10 +251,10 @@ int main(int argc, char* argv[])
 
       // jets
       "nJet",
-      "Jet_*",
-      /*"Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
+      //"Jet_*",
+      "Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
       "Jet_btagDeepFlavB","Jet_area","Jet_chHEF","Jet_neHEF","Jet_chEmEF","Jet_neEmEF","Jet_muEF",
-      "Jet_genJetIdx",*/
+      "Jet_genJetIdx",
 
       // gen jets
       "nGenJet","GenJet_pt","GenJet_eta","GenJet_phi","GenJet_mass",

@@ -45,25 +45,25 @@ void Jet_Overlay(TString era = "12022") {
     const TString base = "/eos/user/d/dblend/Analyzed_SkimmedFiles/" + era + "/";
 
     // ---------- Open inputs ----------
-    TFile* f_data       = TFile::Open(base + "MC/DATA/DATA_all.root");
-    TFile* f_DY         = TFile::Open(base + "MC/DY/DY_all.root");
-    TFile* f_TT         = TFile::Open(base + "MC/TT/TT_all.root");
+    TFile* f_data       = TFile::Open(base + "Rochester/DATA/DATA_all.root");
+    TFile* f_DY         = TFile::Open(base + "Rochester/DY/DY_all.root");
+    TFile* f_TT         = TFile::Open(base + "Rochester/TT/TT_all.root");
 
     // Diboson
-    TFile* f_WZto2L2Q   = TFile::Open(base + "MC/WZto2L2Q/WZto2L2Q_all.root");
-    TFile* f_WZto3LNu   = TFile::Open(base + "MC/WZto3LNu/WZto3LNu_all.root");
-    TFile* f_ZZto2L2Nu  = TFile::Open(base + "MC/ZZto2L2Nu/ZZto2L2Nu_all.root");
-    TFile* f_ZZto2L2Q   = TFile::Open(base + "MC/ZZto2L2Q/ZZto2L2Q_all.root");
-    TFile* f_ZZto4L     = TFile::Open(base + "MC/ZZto4L/ZZto4L_all.root");
+    TFile* f_WZto2L2Q   = TFile::Open(base + "Rochester/WZto2L2Q/WZto2L2Q_all.root");
+    TFile* f_WZto3LNu   = TFile::Open(base + "Rochester/WZto3LNu/WZto3LNu_all.root");
+    TFile* f_ZZto2L2Nu  = TFile::Open(base + "Rochester/ZZto2L2Nu/ZZto2L2Nu_all.root");
+    TFile* f_ZZto2L2Q   = TFile::Open(base + "Rochester/ZZto2L2Q/ZZto2L2Q_all.root");
+    TFile* f_ZZto4L     = TFile::Open(base + "Rochester/ZZto4L/ZZto4L_all.root");
 
     // Triboson
-    TFile* f_WWW        = TFile::Open(base + "MC/WWW/WWW_all.root");
-    TFile* f_WWZ        = TFile::Open(base + "MC/WWZ/WWZ_all.root");
-    TFile* f_WZZ        = TFile::Open(base + "MC/WZZ/WZZ_all.root");
-    TFile* f_ZZZ        = TFile::Open(base + "MC/ZZZ/ZZZ_all.root");
+    TFile* f_WWW        = TFile::Open(base + "Rochester/WWW/WWW_all.root");
+    TFile* f_WWZ        = TFile::Open(base + "Rochester/WWZ/WWZ_all.root");
+    TFile* f_WZZ        = TFile::Open(base + "Rochester/WZZ/WZZ_all.root");
+    TFile* f_ZZZ        = TFile::Open(base + "Rochester/ZZZ/ZZZ_all.root");
 
     // Signal
-    TFile* f_signal     = TFile::Open(base + "MC/VBF/VBF_all.root");
+    TFile* f_signal     = TFile::Open(base + "Rochester/VBF/VBF_all.root");
 
     if (!f_data || !f_DY || !f_TT ||
         !f_WZto2L2Q || !f_WZto3LNu || !f_ZZto2L2Nu || !f_ZZto2L2Q || !f_ZZto4L ||

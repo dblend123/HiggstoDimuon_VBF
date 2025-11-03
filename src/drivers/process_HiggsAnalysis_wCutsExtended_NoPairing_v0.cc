@@ -465,6 +465,7 @@ void loadJetCorrections() {
     std::cerr << "[Btag load ERROR] " << e.what() << std::endl;
     btagCorrections = nullptr;
   }
+}
 
 
 // -------------------------------------
@@ -1074,80 +1075,61 @@ inline bool isVetoedJet(float eta, float phi) {
 //              B-TAGGING
 // -------------------------------------
 
-// 0) ParticleNet discriminator (Jet_btagPNetB)
-float getBTagDisc(const Jet& j, const std::string& algo) {
-    (void)algo; // unused
-    return j._btagPNetB;  // NanoAOD: Jet_btagPNetB
-}
-
-static inline float btagWPThreshold(const std::string& /*algo*/, const std::string& wp) {
+// ParticleNet WP threshold from JSON (tries 2023 naming and capitalization)
+static inline float pnetWPThreshold(const std::string& wp) {
     if (!btagCorrections) return 1e9f;
-    // Try particleNet first, then ParticleNet (2022 quirk)
-    for (const std::string base : {"particleNet_wp_values", "ParticleNet_wp_values"}) {
-        try { return (float)btagCorrections->at(base)->evaluate({wp}); }
+    for (const std::string key : {"particleNet_wp_values", "ParticleNet_wp_values"}) {
+        try { return (float)btagCorrections->at(key)->evaluate({wp}); }
         catch (...) {}
     }
-    std::cerr << "[BTAG] Missing wp_values for ParticleNet wp='" << wp << "'\n";
+    std::cerr << "[BTAG] Missing ParticleNet wp_values for wp='" << wp << "'\n";
     return 1e9f;
 }
 
-// 1) SHAPE / RESHAPING SFs  (use correction name: "ParticleNet" for 2022 & 2023)
-static inline double pnetSF_Shape(int hadronFlavor, float eta, float pt,
-                                  float disc, const std::string& syst = "central")
-{
-    if (!btagCorrections) return 1.0;
-    const int flav = (hadronFlavor == 5 ? 5 : (hadronFlavor == 4 ? 4 : 0));
-    const double abseta = std::fabs((double)eta);
-    const double disc_clamped = std::min(std::max((double)disc, 0.0), 1.0);
-    const double pt_safe      = std::max((double)pt, 0.1);
+static inline bool isTaggedPNet(const Jet& j, const std::string& wp) {
+    const float cut = pnetWPThreshold(wp);
+    return j._btagPNetB >= cut;
+}
 
-    try {
-        // NAME: "ParticleNet"
-        // Signature: (systematic, flavor, abseta, pt, discriminant) -> weight
-        const auto& c = btagCorrections->at("ParticleNet");
-        return c->evaluate({syst, flav, abseta, pt_safe, disc_clamped});
-    } catch (...) {
-        return 1.0;
+static inline void logPNetWPsOnce() {
+    static bool printedWPonce = false;
+    if (!printedWPonce && btagCorrections) {
+        std::cerr << "[GOLDEN][BTAG] ParticleNet WP: "
+                  << "L=" << pnetWPThreshold("L")
+                  << " M=" << pnetWPThreshold("M") << "\n";
+        printedWPonce = true;
     }
 }
 
-// 2) (Optional) 2022-only WORKING-POINT SFs for ParticleNet using "particleNet_comb"
-static inline double btagSF_WP(const std::string& /*algo*/,
-                               const std::string& source,  // "comb" or "light"
-                               const std::string& wp,
-                               int hadronFlavor, float eta, float pt,
-                               const std::string& syst="central") {
-    if (!btagCorrections) return 1.0;
-    const int   flav    = (hadronFlavor==5?5:(hadronFlavor==4?4:0));
-    const double abseta = std::fabs((double)eta);
-    // Try particleNet_<source> then ParticleNet_<source>
+// Per-jet WP SF for ParticleNet (MC only; returns 1 on DATA)
+static inline double pnetSF_WP_jet(const Jet& j, const std::string& wp,
+                                   const std::string& syst = "central")
+{
+    if (!__isMC || !btagCorrections) return 1.0;
+    const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
+    const double abseta = std::fabs((double)j._eta);
+    const double pt     = std::max((double)j._pt, 0.1);
+
+    // choose source based on flavor
+    const std::string source = (flav == 5 || flav == 4) ? "comb" : "light";
+
+    // Tables exist in your 2023 JSON: particleNet_comb, particleNet_light
+    // signature: (systematic, working_point, flavor, abseta, pt)
     for (const std::string base : {"particleNet_", "ParticleNet_"}) {
         const std::string name = base + source;
         try {
             const auto& c = btagCorrections->at(name);
-            return c->evaluate({syst, wp, flav, abseta, (double)pt});
-        } catch (...) {}
+            return c->evaluate({syst, wp, flav, abseta, pt});
+        } catch (...) {
+            // try next capitalization
+        }
     }
     return 1.0;
 }
 
-// 3) Event-level products
-static inline double btagSF_Shape(const std::string& /*algo*/,
-                                  int hadronFlavor, float eta, float pt,
-                                  float disc, const std::string& syst="central") {
-    if (!btagCorrections) return 1.0;
-    const int   flav      = (hadronFlavor==5?5:(hadronFlavor==4?4:0));
-    const double abseta   = std::fabs((double)eta);
-    const double d_clamp  = std::clamp((double)disc, 0.0, 1.0);
-    const double pt_safe  = std::max((double)pt, 0.1);
-    for (const std::string name : {"particleNet_shape", "ParticleNet_shape"}) {
-        try {
-            const auto& c = btagCorrections->at(name);
-            return c->evaluate({syst, flav, abseta, pt_safe, d_clamp});
-        } catch (...) {}
-    }
-    return 1.0;
-}
+// -------------------------------------
+//           JET SEPERATION
+// -------------------------------------
 
 float jetMuondR(float jeta,float jphi, float meta, float mphi)
 {
@@ -1424,41 +1406,47 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
 //             JETS 
 // -------------------------------------
 
-// ParticleNet (shape) per-event SF product over a jet collection
-// - Uses the correction named "ParticleNet" (and tries "particleNet" as a fallback for 2022 naming).
-// - MC-only: returns 1.0 for data automatically.
-static inline double getBTagSF_PNet_Shape(const std::vector<analysis::core::Jet>& jets) {
-    if (!__isMC) return 1.0;                   // DATA → no SF
-    if (!btagCorrections) return 1.0;          // not loaded
+// Build the event b-tag weight for your veto selection:
+// - Count M-tags and L-tags,
+// - If it fails the veto, return 1.0 (you'll discard the event anyway),
+// - Otherwise multiply WP SFs for the actually-tagged jets (M first, then L).
+static inline double getBTagSF_PNet_WP_forVeto(const std::vector<const Jet*>& jets,
+                                               const std::string& looseWP  = "L",
+                                               const std::string& mediumWP = "M",
+                                               const std::string& syst     = "central")
+{
+    int nM = 0, nL = 0;
+    std::vector<const Jet*> Ltagged, Mtagged;
+    Ltagged.reserve(jets.size());
+    Mtagged.reserve(jets.size());
 
-    static bool printedOnce = false;
+    for (const Jet* pj : jets) {
+        const bool passM = isTaggedPNet(*pj, mediumWP);
+        const bool passL = (!passM) && isTaggedPNet(*pj, looseWP);
+        if (passM) { ++nM; Mtagged.push_back(pj); }
+        else if (passL) { ++nL; Ltagged.push_back(pj); }
+    }
+
+    if (nM >= 1 || nL >= 2) return 1.0;
+
     double w = 1.0;
-
-    for (const auto& j : jets) {
-        const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
-        const double abseta = std::fabs((double)j._eta);
-        const double pt_safe = std::max((double)j._pt, 0.1);
-        const double disc = std::clamp((double)j._btagPNetB, 0.0, 1.0);
-
-        double sf = 1.0;
-        // Try ParticleNet then particleNet to survive 2022 capitalization differences
-        for (const std::string name : {"ParticleNet", "particleNet"}) {
-            try {
-                const auto& c = btagCorrections->at(name); // signature: (syst, flav, abseta, pt, disc)
-                sf = c->evaluate({std::string("central"), flav, abseta, pt_safe, disc});
-                break;
-            } catch (...) {
-                // try next name
-            }
-        }
-        w *= sf;
-    }
-
-    if (!printedOnce) {
-        std::cerr << "[BTAG] Using ParticleNet shape SFs (central), Njets=" << jets.size() << "\n";
-        printedOnce = true;
-    }
+    for (const Jet* pj : Mtagged) w *= pnetSF_WP_jet(*pj, mediumWP, syst);
+    for (const Jet* pj : Ltagged) w *= pnetSF_WP_jet(*pj, looseWP,  syst);
     return w;
+}
+
+// ------------------------------------------------------------------
+// Wrapper: Allow passing std::vector<Jet> instead of std::vector<const Jet*>
+// ------------------------------------------------------------------
+static inline double getBTagSF_PNet_WP_forVeto(const std::vector<Jet>& jets,
+                                               const std::string& looseWP  = "L",
+                                               const std::string& mediumWP = "M",
+                                               const std::string& syst     = "central")
+{
+    std::vector<const Jet*> ptrs;
+    ptrs.reserve(jets.size());
+    for (const auto& j : jets) ptrs.push_back(&j);
+    return getBTagSF_PNet_WP_forVeto(ptrs, looseWP, mediumWP, syst);
 }
 
 //*******************************************************************
@@ -1574,7 +1562,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     // -------------------------------------
     //              JETS  
     // -------------------------------------
-    
+
     bool pass_bjet_veto = true;
     int n_loose_bjets = 0;
     int n_medium_bjets = 0;
@@ -1583,23 +1571,30 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     std::vector<TLorentzVector> p4jets;
     p4jets.reserve(jets->size());
 
+    // NEW: build the Jet list that mirrors p4jets for b-tag SFs
+    std::vector<analysis::core::Jet> btagJets;
+    btagJets.reserve(jets->size());
+
+    // Get PN working-point thresholds from the JSON once
+    const float pnetL = pnetWPThreshold("L");
+    const float pnetM = pnetWPThreshold("M");
+
     for (const auto& j : *jets) {
         // veto map
         if (isVetoedJet(j._eta, j._phi)) continue;
 
         // gen matching for JER
-        float genJetPt = 0.f; 
+        float genJetPt = 0.f;
         bool hasGenJet = false;
-        
+
         if (__isMC && j._genJetIdx >= 0 && j._genJetIdx < (int)genjets->size()) {
             const auto& gj = genjets->at(j._genJetIdx);
-            genJetPt = gj._pt; 
+            genJetPt = gj._pt;
             hasGenJet = true;
         }
 
         int runNum = __isMC ? 0 : static_cast<int>(event._run);
         float corr_pt = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet, runNum);
-        //float corr_pt   = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet);
         float corr_mass = j._mass * (corr_pt / std::max(1e-6f, j._pt));
 
         if (corr_pt <= 25.f) continue;
@@ -1612,16 +1607,24 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) < 0.4) continue;
         if (jetMuondR(j._eta, j._phi, mu2._eta, mu2._phi) < 0.4) continue;
 
+        // keep the kinematics for later use
         TLorentzVector p4; p4.SetPtEtaPhiM(corr_pt, j._eta, j._phi, corr_mass);
         p4jets.push_back(p4);
 
-        // b-tag counting should use the same cleaned/accepted jets as above
-        if (j._btagDeepFlavB > 0.0583) n_loose_bjets++;
-        if (j._btagDeepFlavB > 0.3086) n_medium_bjets++;
+        // IMPORTANT: push a copy of the *Jet* we just accepted,
+        // and overwrite its pt with the corrected pt so SFs see corrected kinematics
+        analysis::core::Jet jSF = j;
+        jSF._pt = corr_pt;
+        btagJets.push_back(jSF);
+
+        // ---- b-tag counting with ParticleNet thresholds from JSON ----
+        const float pn = j._btagPNetB; // ParticleNet b score
+        if (pn >= pnetM) ++n_medium_bjets;
+        else if (pn >= pnetL) ++n_loose_bjets;
     }
 
-    // sort by corrected pT
-    std::sort(p4jets.begin(), p4jets.end(), [](const TLorentzVector& a, const TLorentzVector& b){ return a.Pt() > b.Pt(); });
+    std::sort(p4jets.begin(), p4jets.end(),
+              [](const TLorentzVector& a, const TLorentzVector& b){ return a.Pt() > b.Pt(); });
 
     if (p4jets.size() < 2) return; // no dijet
     
@@ -1674,7 +1677,8 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
    
     float mu1_SF         = getMuonSF(mu1, __isMC);
     float mu2_SF         = getMuonSF(mu2, __isMC);
-    float totalWeight    = Dataweight * mu1_SF * mu2_SF;
+    float btagjet_SF     = getBTagSF_PNet_WP_forVeto(btagJets, "L", "M", "central");
+    float totalWeight    = Dataweight * mu1_SF * mu2_SF * btagjet_SF;
     float noWeight       = 1.0;
     
     // -------------------------------------
@@ -1687,7 +1691,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     FILL_JET_HIST(hists.setJet_PreSelection, noWeight); 
     FILL_CORR_JET_HIST(hists.corr_setJet_PreSelection, totalWeight); 
 
-    if (isBarrel(mu1) && isBarrel(mu2))
+    /*if (isBarrel(mu1) && isBarrel(mu2))
     {
         //	BB
         FILL_MUON_HIST(hists.setDM_PreSelection_BB, noWeight);
@@ -1731,7 +1735,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         FILL_MUON_HIST(hists.setDM_PreSelection_EE, noWeight);
         FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_EE, totalWeight);
         FILL_JET_HIST(hists.setJet_PreSelection_EE, totalWeight); 
-    }
+    }*/
 
     if (p4lead.Pt() < _leadJetPt) return;      // leading threshold
     if (p4sub.Pt() < _subleadJetPt) return;   // subleading threshold
@@ -1806,7 +1810,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
             FILL_JET_HIST(hists.setJet_VBF, noWeight); 
             FILL_CORR_JET_HIST(hists.corr_setJet_VBF, totalWeight); 
 
-            if (isBarrel(mu1) && isBarrel(mu2))
+            /*if (isBarrel(mu1) && isBarrel(mu2))
             {
                 //	BB
                 FILL_MUON_HIST(hists.setDM_VBF_BB, noWeight);
@@ -1850,7 +1854,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
                 FILL_MUON_HIST(hists.setDM_VBF_EE, noWeight);
                 FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_EE, totalWeight)
                 FILL_JET_HIST(hists.setJet_VBF_EE, totalWeight); 
-            }
+            }*/
 		}
     }
 }
