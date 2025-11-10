@@ -1,0 +1,47 @@
+== Job started: Tue Nov  4 08:40:42 PM CET 2025
+Host: b9g12p7551.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/EWK/part003.list'  tag='EWK_003MCRun2024'  sample='EWK'
+ERA (4th arg): '2024'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_2322271
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/EWK/part003.list' -> using local: '/pool/condor/dir_2322271/part003.list'
+Using Condor proxy: /pool/condor/dir_2322271/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_2322271/part003.list
+Input list has 9 lines
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/2560000/f5e9c0ad-9138-4644-8d2c-7699e066fc47.root ...
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/120000/18c663ef-c838-48c2-be72-c001bf32d82f.root ...
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/2560000/8858256a-a403-43b5-a2a8-0013f30bf1e5.root ...
+Using skimmer: my_skim
+866116774c4348101376b1ab709e1120  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: EWK_003MCRun2024
+Running: ./my_skim '/pool/condor/dir_2322271/part003.list' '-1'
+Requested ALL events
+Writing: ./skims/Skimmed_f5e9c0ad-9138-4644-8d2c-7699e066fc47.root
+Writing: ./skims/Skimmed_18c663ef-c838-48c2-be72-c001bf32d82f.root
+Writing: ./skims/Skimmed_8858256a-a403-43b5-a2a8-0013f30bf1e5.root
+Writing: ./skims/Skimmed_6d963510-f574-4ff6-883e-06c802541df4.root
+Writing: ./skims/Skimmed_fe65b350-13f1-4ceb-a01d-329c398cf3d2.root
+Writing: ./skims/Skimmed_8bfb65cd-98be-467d-b09f-eb9a9c9e29b2.root
+Writing: ./skims/Skimmed_02cca412-29c2-4838-8bdc-21f9dbbdbcf7.root
+Writing: ./skims/Skimmed_9fd00be3-5ef3-4f68-89b3-9c4e73271573.root
+Writing: ./skims/Skimmed_037055f2-d971-4a34-8d73-547f34e8f946.root
+
+Done. Files skimmed: 9  |  Events kept: 284075
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024
+Found 9 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_02cca412-29c2-4838-8bdc-21f9dbbdbcf7.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_037055f2-d971-4a34-8d73-547f34e8f946.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_18c663ef-c838-48c2-be72-c001bf32d82f.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_6d963510-f574-4ff6-883e-06c802541df4.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_8858256a-a403-43b5-a2a8-0013f30bf1e5.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_8bfb65cd-98be-467d-b09f-eb9a9c9e29b2.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_9fd00be3-5ef3-4f68-89b3-9c4e73271573.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_f5e9c0ad-9138-4644-8d2c-7699e066fc47.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/EWK/EWK_003MCRun2024/Skimmed_fe65b350-13f1-4ceb-a01d-329c398cf3d2.root
+Done staging.
+== Job finished: Tue Nov  4 08:47:15 PM CET 2025

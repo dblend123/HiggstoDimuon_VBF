@@ -1,10 +1,10 @@
 # XGBoost must be imported before ROOT
 #
 # Example:
-#   source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh && python3 tmva101_Training.py --era 12022 --base-dir DataPreparation_Files/12022
+#   source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh && python3 tmva101_Training.py --era 12022 --base-dir DataPreparation_Files/12022 --bkg-cats background
 #
 # This version looks in DataPreparation_Files/<era>/ and trains one model per background
-# category (DY, TTbar, VV, VVV) vs signal.
+# category (DY, EWK, TT, VV, VVV) vs signal.
 
 from xgboost import XGBClassifier
 import argparse, os, glob, numpy as np, ROOT
@@ -141,7 +141,7 @@ def find_prep_files(base_dir, era, kind):
         if os.path.exists(allf): return [allf]
         return [os.path.join(base_dir, f"{era}_train_{kind}.root"), os.path.join(base_dir, f"{era}_test_{kind}.root")]
 
-def train_one(era, base_dir, bkg_cat, sig_extra_weight_branch=None, outdir_root="Outputs"):
+def train_one(era, base_dir, bkg_cat, sig_extra_weight_branch=None, outdir_root="Outputs/Training"):
     sig_files = find_prep_files(base_dir, era, "signal")
     bkg_files = find_prep_files(base_dir, era, bkg_cat)
     print(f"[debug] category={bkg_cat}  sig_files={sig_files}  bkg_files={bkg_files}")
@@ -216,9 +216,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--era", default="12022")
     ap.add_argument("--base-dir", default=None, help="Override base dir. Default: DataPreparation_Files/<era>/")
-    ap.add_argument("--bkg-cats", nargs="*", default=["DY","TTbar","VV","VVV"], help="Background categories to train against.")
+    ap.add_argument("--bkg-cats", nargs="*", default=["DY","EWK","TT","VV","VVV"], help="Background categories to train against.")
     ap.add_argument("--sig-extra-weight-branch", default=None, help="Extra multiplicative weight for SIGNAL only (e.g. mass resolution)")
-    ap.add_argument("--outdir", default="Outputs", help="Output base directory (default: %(default)s)")
+    ap.add_argument("--outdir", default="Outputs/Training", help="Output base directory (default: %(default)s)")
     args = ap.parse_args()
 
     base_dir = args.base_dir or os.path.join("DataPreparation", str(args.era))

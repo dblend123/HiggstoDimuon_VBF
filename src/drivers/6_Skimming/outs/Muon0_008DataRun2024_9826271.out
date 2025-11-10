@@ -1,0 +1,109 @@
+== Job started: Tue Nov  4 08:41:08 PM CET 2025
+Host: b9p13p6807.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Data_listfiles/Muon0/part008.list'  tag='Muon0_008DataRun2024'  sample='DATA_2024_Muon0'
+ERA (4th arg): '2024'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1722581
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Data_listfiles/Muon0/part008.list' -> using local: '/pool/condor/dir_1722581/part008.list'
+Using Condor proxy: /pool/condor/dir_1722581/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1722581/part008.list
+Input list has 40 lines
+root://cms-xrd-global.cern.ch//store/data/Run2024G/Muon0/NANOAOD/MINIv6NANOv15-v1/2540000/6cb89f7d-8864-4af0-a6f0-93b4ccd25b0b.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2024G/Muon0/NANOAOD/MINIv6NANOv15-v1/2520000/cc47f7b9-482c-4e1e-af6d-80eba730b6ed.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2024G/Muon0/NANOAOD/MINIv6NANOv15-v1/90000/386b7617-4cde-47f9-aa50-6be0d6785057.root ...
+Using skimmer: my_skim
+866116774c4348101376b1ab709e1120  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: Muon0_008DataRun2024
+Running: ./my_skim '/pool/condor/dir_1722581/part008.list' '-1'
+Requested ALL events
+Writing: ./skims/Skimmed_6cb89f7d-8864-4af0-a6f0-93b4ccd25b0b.root
+Writing: ./skims/Skimmed_cc47f7b9-482c-4e1e-af6d-80eba730b6ed.root
+Writing: ./skims/Skimmed_386b7617-4cde-47f9-aa50-6be0d6785057.root
+Writing: ./skims/Skimmed_5f498d08-88ca-4960-8177-aad3cada4b4c.root
+Writing: ./skims/Skimmed_fd29aa87-bc34-468a-963f-452e30a621bb.root
+Writing: ./skims/Skimmed_29c2d42e-7c20-4328-8830-293bfb8e3bea.root
+Writing: ./skims/Skimmed_d46c31aa-55b2-4191-a9f5-5b27d7c465c5.root
+Writing: ./skims/Skimmed_30f7f75b-1830-4445-b037-3282dbab9492.root
+Writing: ./skims/Skimmed_61532556-32ab-49a2-8b86-4f83e3d24a18.root
+Writing: ./skims/Skimmed_49f8b10c-a72b-47e3-ae8d-d6233cd819b9.root
+Writing: ./skims/Skimmed_d91f084e-e62a-426b-b19b-049c709ffa95.root
+Writing: ./skims/Skimmed_a6e8e87a-9185-4d1e-b41a-5e2d5c4dedbf.root
+Writing: ./skims/Skimmed_5f7e1377-bb6c-432c-841a-7d6ab9fc2419.root
+Writing: ./skims/Skimmed_6f33dc7e-f186-49e4-b647-3a465b2c371d.root
+Writing: ./skims/Skimmed_c17c1a2f-4ab9-4561-9718-26edaa15ca85.root
+Writing: ./skims/Skimmed_5a9cb2d4-eaf1-4792-b412-6ea0d6c2156b.root
+Writing: ./skims/Skimmed_840d8b32-d0f6-42c6-af1b-532656ccf05f.root
+Writing: ./skims/Skimmed_59c70110-4f30-4869-bbba-bc92951a725e.root
+Writing: ./skims/Skimmed_79cbe8b9-9f52-41b5-a8ce-5b4afcd4fd0f.root
+Writing: ./skims/Skimmed_7d6a7c28-4b5c-4928-83b2-9ea02c23ab79.root
+Writing: ./skims/Skimmed_2a599b39-9ea6-4020-a4cc-2fdecb466acc.root
+Writing: ./skims/Skimmed_c9b54c85-6097-4dc6-a05d-58486f042462.root
+Writing: ./skims/Skimmed_eaa37886-b6d3-4e34-bf1d-5cdc773f49e6.root
+Writing: ./skims/Skimmed_cc2d11d6-2d59-428d-9801-fd40f36aa37d.root
+Writing: ./skims/Skimmed_9cbd8ce3-ef48-47d9-9aff-487a4a58905f.root
+Writing: ./skims/Skimmed_029075b8-dbb4-48d0-8924-4aa3a4f6d71b.root
+Writing: ./skims/Skimmed_2cc8d71c-37fa-4e39-858e-03a3c3f4dd57.root
+Writing: ./skims/Skimmed_416b01c7-4b85-46e9-9e89-eea9c6ea8c52.root
+Writing: ./skims/Skimmed_060ecdc9-a6a9-46e9-be9a-0aa8462cd385.root
+Writing: ./skims/Skimmed_8e37ef31-40fc-47c0-ad93-f56f837ce229.root
+Writing: ./skims/Skimmed_061f26e8-59da-44b6-8694-ea2bd4c61364.root
+Writing: ./skims/Skimmed_385783c2-1136-4d1b-b7bf-a1b83784a21c.root
+Writing: ./skims/Skimmed_2e8c7011-5173-42e0-8372-612f1199fc17.root
+Writing: ./skims/Skimmed_4ee494ac-ebd9-4107-a509-973fea30ef5f.root
+Writing: ./skims/Skimmed_fe116367-5eaa-4fa2-a53b-6deebb125f64.root
+Writing: ./skims/Skimmed_a2e83333-d7bd-4e4b-988f-41c4ef157daf.root
+Writing: ./skims/Skimmed_59632eb8-5ee4-46a0-9c9b-3a18d05216e1.root
+Writing: ./skims/Skimmed_d15da06c-d9aa-407d-b1b8-71ea714598c0.root
+Writing: ./skims/Skimmed_ef855eb5-30e9-4047-af8d-2f956116d918.root
+Writing: ./skims/Skimmed_90ef1ace-321a-4c6f-bc4a-84f648a08de9.root
+
+Done. Files skimmed: 40  |  Events kept: 5925430
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024
+Found 40 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_029075b8-dbb4-48d0-8924-4aa3a4f6d71b.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_060ecdc9-a6a9-46e9-be9a-0aa8462cd385.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_061f26e8-59da-44b6-8694-ea2bd4c61364.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_29c2d42e-7c20-4328-8830-293bfb8e3bea.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_2a599b39-9ea6-4020-a4cc-2fdecb466acc.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_2cc8d71c-37fa-4e39-858e-03a3c3f4dd57.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_2e8c7011-5173-42e0-8372-612f1199fc17.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_30f7f75b-1830-4445-b037-3282dbab9492.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_385783c2-1136-4d1b-b7bf-a1b83784a21c.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_386b7617-4cde-47f9-aa50-6be0d6785057.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_416b01c7-4b85-46e9-9e89-eea9c6ea8c52.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_49f8b10c-a72b-47e3-ae8d-d6233cd819b9.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_4ee494ac-ebd9-4107-a509-973fea30ef5f.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_59632eb8-5ee4-46a0-9c9b-3a18d05216e1.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_59c70110-4f30-4869-bbba-bc92951a725e.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_5a9cb2d4-eaf1-4792-b412-6ea0d6c2156b.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_5f498d08-88ca-4960-8177-aad3cada4b4c.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_5f7e1377-bb6c-432c-841a-7d6ab9fc2419.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_61532556-32ab-49a2-8b86-4f83e3d24a18.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_6cb89f7d-8864-4af0-a6f0-93b4ccd25b0b.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_6f33dc7e-f186-49e4-b647-3a465b2c371d.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_79cbe8b9-9f52-41b5-a8ce-5b4afcd4fd0f.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_7d6a7c28-4b5c-4928-83b2-9ea02c23ab79.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_840d8b32-d0f6-42c6-af1b-532656ccf05f.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_8e37ef31-40fc-47c0-ad93-f56f837ce229.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_90ef1ace-321a-4c6f-bc4a-84f648a08de9.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_9cbd8ce3-ef48-47d9-9aff-487a4a58905f.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_a2e83333-d7bd-4e4b-988f-41c4ef157daf.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_a6e8e87a-9185-4d1e-b41a-5e2d5c4dedbf.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_c17c1a2f-4ab9-4561-9718-26edaa15ca85.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_c9b54c85-6097-4dc6-a05d-58486f042462.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_cc2d11d6-2d59-428d-9801-fd40f36aa37d.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_cc47f7b9-482c-4e1e-af6d-80eba730b6ed.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_d15da06c-d9aa-407d-b1b8-71ea714598c0.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_d46c31aa-55b2-4191-a9f5-5b27d7c465c5.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_d91f084e-e62a-426b-b19b-049c709ffa95.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_eaa37886-b6d3-4e34-bf1d-5cdc773f49e6.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_ef855eb5-30e9-4047-af8d-2f956116d918.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_fd29aa87-bc34-468a-963f-452e30a621bb.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0_008DataRun2024/Skimmed_fe116367-5eaa-4fa2-a53b-6deebb125f64.root
+Done staging.
+== Job finished: Tue Nov  4 10:51:45 PM CET 2025

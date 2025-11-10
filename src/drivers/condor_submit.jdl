@@ -1,5 +1,5 @@
-# Args: $1=inputList $2=tag $3=sample $4=weights $5=maxEvents
-arguments               = $(inputList) $(tag) $(sample) $(weights) $(maxEvents) $(era)
+# Args: $1=inputList $2=tag $3=sample $4=weights $5=maxEvents $6=era $7=muCorr
+arguments               = $(inputList) $(tag) $(sample) $(weights) $(maxEvents) $(era) $(muCorr)
 
 executable              = run_job.sh
 output                  = HTCondor/outs/$(tag)_$(ClusterId).out
@@ -50,11 +50,13 @@ request_cpus            = 1
 request_memory          = 2000
 request_disk            = 4000
 
-maxEvents = -1
-era       = 12022
+maxEvents   = -1
+muCorr      = none # kit, roch, none
+era         = 12022
 # era       = 22022
 # era       = 12023
 # era       = 22023
+# era       = 2024
 
 # Base path to listfiles
 path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/Condor_listfiles/Skimmed_input_lists/
@@ -138,6 +140,13 @@ queue inputList, tag from $(path)/VBF_input_lists.txt
 # ===== 22023 DATA queue =====
 
 # # D
+# # Muon0/1
+# sample    = DATA
+# queue inputList, tag from $(path)/DATA_input_lists.txt
+
+# ===== 2024 DATA queue =====
+
+# # BCDEFGHI
 # # Muon0/1
 # sample    = DATA
 # queue inputList, tag from $(path)/DATA_input_lists.txt

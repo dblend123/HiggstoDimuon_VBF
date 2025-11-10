@@ -44,6 +44,7 @@ data_samples_for_era(){
     22022) echo "DATA_22022_E DATA_22022_F DATA_22022_G" ;;
     12023) echo "DATA_12023_Muon0 DATA_12023_Muon1" ;;
     22023) echo "DATA_22023_Muon0 DATA_22023_Muon1" ;;
+    2024)  echo "DATA_2024_Muon0 DATA_2024_Muon1" ;;
     *)     echo "" ;;
   esac
 }

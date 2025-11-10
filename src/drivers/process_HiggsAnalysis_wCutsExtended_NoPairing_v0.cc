@@ -242,6 +242,12 @@ void loadKITCorrections() {
 }
 
 void loadMuonCorrections() {
+    if (__noMuCorr) { 
+    std::cerr << "[MUON] Skipping muon corrections (--muCorr none).\n";
+    corrections = nullptr; 
+    muoncorrections = nullptr; 
+    return; 
+    }
     try {
         const std::string sfPath   = muSFFileForEra(g_era);
         const std::string rochPath = rochFileForEra(g_era);
@@ -529,10 +535,11 @@ std::string g_goldenJSON = "auto";
 static std::string goldenFileForEra(const std::string& era) {
   if (g_goldenJSON != "auto") return g_goldenJSON;
 
-  if (era == "12022") return g_goldenDir + "/Cert_Collisions2022_13p6TeV_Golden.json";
-  if (era == "22022") return g_goldenDir + "/Cert_Collisions2022_13p6TeV_Golden.json";
-  if (era == "12023") return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
-  if (era == "22023") return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
+  if (era == "12022") return g_goldenDir + "/Cert_Collisions2022_355100_362760_Golden.json";
+  if (era == "22022") return g_goldenDir + "/Cert_Collisions2022_355100_362760_Golden.json";
+  if (era == "12023") return g_goldenDir + "/Cert_Collisions2023_366442_370790_Golden.json";
+  if (era == "22023") return g_goldenDir + "/Cert_Collisions2023_366442_370790_Golden.json";
+  if (era == "2024")  return g_goldenDir + "/Cert_Collisions2024_378981_386951_Golden.json";
 
   // Fallback
   return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
@@ -707,8 +714,13 @@ float getMuonKITSmear(const Muon& mu, bool isMC) {
 
 float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run) {
     if (!jetCorrections) {
-        std::cerr << "[ERROR] Jet corrections not loaded!\n";
-        return jet._pt;
+        static int nWarns = 0;
+        if (nWarns < 3) {
+            std::cerr << "[ERROR] Jet corrections not loaded!" << std::endl;
+            if (++nWarns == 3)
+                std::cerr << "[ERROR] (Further jet correction warnings suppressed...)\n";
+        }
+            return jet._pt;
     }
 
     const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
@@ -1055,7 +1067,15 @@ auto evalJerRes = [&](const std::string& key, double eta_, double pt_, double rh
 // -------------------------------------
 
 inline bool isVetoedJet(float eta, float phi) {
-  if (!jetVetoMaps) { std::cerr << "[ERROR] Jet veto corr not loaded!\n"; return false; }
+  if (!jetVetoMaps) { 
+    static int nWarns = 0;
+    if (nWarns < 3) {
+        std::cerr << "[ERROR] Jet veto corr not loaded!" << std::endl;
+        if (++nWarns == 3)
+            std::cerr << "[ERROR] (Further jet veto warnings suppressed...)\n";
+    }
+    return false; 
+ }
   const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
   if (cfg.vetoMapKey.empty()) return false; // no maps listed for this era
   try {

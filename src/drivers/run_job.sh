@@ -21,6 +21,7 @@ sample="${3:-DATA}"          # e.g. DY, TT, WZ, ... or DATA
 weights_remote="${4:-None}"  # transferred by Condor (we'll use its basename if present)
 maxEvents="${5:--1}"         # -1 = all
 era="${6:-22022}"  
+muCorr="${7:-roch}" 
 
 echo "=== Job $(date) ==="
 echo "tag=$tag  sample=$sample  maxEvents=$maxEvents"
@@ -56,7 +57,7 @@ fi
 
 # Build args; use the full (already-edited) list as-is
 bin="./process_HiggsAnalysis_wCutsExtended_NoPairing_v0"
-args=( --input "$inputList" --output "${tag}.root" --isMC "$isMC" --sample "$sample" --era "$era" )
+args=( --input "$inputList" --output "${tag}.root" --isMC "$isMC" --sample "$sample" --era "$era" --muCorr "$muCorr" )
 
 # Only pass --maxEvents if binary supports it
 if "$bin" --help 2>&1 | grep -q -- '--maxEvents'; then
@@ -80,26 +81,32 @@ echo
 echo "Produced files:"
 ls -lh || true
 
-# --------------------
-# Stage out to EOS (inside job)
-# --------------------
-OUTDIR="${OUTDIR:-MC}"   # comes from JDL environment = "OUTDIR=$(outdir)"
-EOS_BASE="/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/${OUTDIR}/${sample}"
+# Normalize and validate correction mode
+muCorr=$(echo "$muCorr" | tr '[:upper:]' '[:lower:]')
+case "$muCorr" in
+  none) CORR_DIR="NoMuCorr" ;;
+  kit)  CORR_DIR="KIT" ;;
+  *)    CORR_DIR="Rochester" ;;  # default roch
+esac
+
+# Build EOS base: include CORR_DIR even for DATA so runs don't overwrite each other
+if [[ "$isMC" == "false" ]]; then
+  EOS_BASE="/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/${CORR_DIR}/DATA"
+else
+  EOS_BASE="/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/${CORR_DIR}/${sample}"
+fi
+
 EOS_URL="root://eosuser.cern.ch//${EOS_BASE}"
 
-echo
 echo "Staging ${tag}.root  ->  ${EOS_URL}/${tag}.root"
-
-# Ensure target dir exists (best effort)
 xrdfs root://eosuser.cern.ch mkdir -p "${EOS_BASE}" || true
-
-# Copy and verify
 xrdcp -f "${tag}.root" "${EOS_URL}/${tag}.root"
-xrdfs root://eosuser.cern.ch stat "${EOS_BASE}/${tag}.root" || { echo "ERROR: xrdcp verification failed"; exit 73; }
+xrdfs root://eosuser.cern.ch stat "${EOS_BASE}/${tag}.root" \
+  || { echo "ERROR: xrdcp verification failed"; exit 73; }
 
 # Optional: keep sandbox light
 rm -f "${tag}.root" || true
 
-echo "Stage-out done."
+echo "Stage-out done to ${EOS_BASE}/"
 echo "=== Done $(date) ==="
 

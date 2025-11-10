@@ -13,7 +13,7 @@ import ROOT
 def parse_args():
     p = argparse.ArgumentParser(description="Prepare train/test ROOT files (mva tree) for TMVA/XGBoost. Backgrounds are written per-process: DY, TTbar, VV, VVV.")
     p.add_argument("--era", required=True, help="Era string, e.g. 12022")
-    p.add_argument("--base", default="/eos/user/d/dblend/Analyzed_SkimmedFiles/{era}/MC/",
+    p.add_argument("--base", default="/eos/user/d/dblend/Analyzed_SkimmedFiles/{era}/Rochester/",
                    help="Base path pattern with {era} placeholder (default: %(default)s)")
     p.add_argument("--signal-name", default="VBF_all.root",
                    help="Signal ROOT file name pattern (default: %(default)s)")
@@ -21,9 +21,11 @@ def parse_args():
                    help="Subdirectory under base where signal file lives (default: %(default)s)")
     # We keep bg-subdirs for compatibility; we will partition them into DY/TTbar/VV/VVV.
     p.add_argument("--bg-subdirs", nargs="*", default=[
-        "DY","TT",
-        "WWW","WWZ","WZto2L2Q","WZto3LNu","WZZ",
-        "ZZto2L2Nu","ZZto2L2Q","ZZto4L","ZZZ"
+        "DY",
+        "EWK",
+        "TT",
+        "WWW","WWZ","WZZ","ZZZ",
+        "WZto2L2Q","WZto3LNu","ZZto2L2Nu","ZZto2L2Q","ZZto4L"
     ], help="Background subdirectory names under the base path (will be split into DY/TTbar/VV/VVV).")
     p.add_argument("--treename-in", default="Events", help="Input tree name (default: %(default)s)")
     p.add_argument("--treename-out", default="mva", help="Output tiny tree name (default: %(default)s)")
@@ -142,6 +144,23 @@ def snapshot(df, outname, treename_out, weight_branch, keep_extra):
             cols_out.push_back(b)
     df.Snapshot(treename_out, outname, cols_out)
 
+# ----------------------------------
+# Combine backgrounds into one file 
+# ----------------------------------
+def chain_and_snapshot(file_list, out_path, treename, weight_branch, keep_extra):
+    if not file_list: 
+        print(f"[WARN] no files to combine for {out_path}")
+        return
+    vs = ROOT.std.vector("string")()
+    for f in file_list:
+        if os.path.exists(f): vs.push_back(f)
+    if vs.empty():
+        print(f"[WARN] none of the inputs exist for {out_path}")
+        return
+    rdf = ROOT.RDataFrame(treename, vs)
+    snapshot(rdf, out_path, treename, weight_branch, KEEP)
+
+
 # --------------------------
 # Main
 # --------------------------
@@ -177,17 +196,19 @@ if __name__ == "__main__":
         sl = s.lower()
         return any(k.lower() in sl for k in keys)
 
-    dy_subdirs   = [sd for sd in all_bgs if match_any(sd, ["dy","ewk"])]
+    dy_subdirs   = [sd for sd in all_bgs if match_any(sd, ["dy"])]
+    ewk_subdirs  = [sd for sd in all_bgs if match_any(sd, ["ewk"])]
     tt_subdirs   = [sd for sd in all_bgs if match_any(sd, ["tt"])]
     # diboson: WW/WZ/ZZ channels, excluding explicit tribosons
     vv_subdirs   = [sd for sd in all_bgs if match_any(sd, ["ww","wz","zz"]) and sd not in ["WWW","WWZ","WZZ","ZZZ"]]
     vvv_subdirs  = [sd for sd in all_bgs if sd in ["WWW","WWZ","WZZ","ZZZ"]]
 
     CATS = [
-        ("DY",    dy_subdirs),
-        ("TTbar", tt_subdirs),
-        ("VV",    vv_subdirs),
-        ("VVV",   vvv_subdirs),
+        ("DY",      dy_subdirs),
+        ("EWK",     ewk_subdirs),
+        ("TT",      tt_subdirs),
+        ("VV",      vv_subdirs),
+        ("VVV",     vvv_subdirs),
     ]
 
     print(">>> Background category mapping:")
@@ -227,5 +248,25 @@ if __name__ == "__main__":
             print("      wrote:", all_out)
 
         rep_cat.Print()
+    
+    # --- gather per-category outputs we just wrote ---
+    cats = [name for name, _ in CATS]  # DY, EWK, TT, VV, VVV, etc.
+    train_bkgs = [os.path.join(outdir, f"{args.era}_train_{c}.root") for c in cats]
+    test_bkgs  = [os.path.join(outdir, f"{args.era}_test_{c}.root")  for c in cats]
+    all_bkgs   = [os.path.join(outdir, f"{args.era}_all_{c}.root")   for c in cats]
+
+    # --- make overall background snapshots ---
+    chain_and_snapshot(train_bkgs,
+                       os.path.join(outdir, f"{args.era}_train_background.root"),
+                       args.treename_out, args.weight_branch, KEEP)
+
+    chain_and_snapshot(test_bkgs,
+                       os.path.join(outdir, f"{args.era}_test_background.root"),
+                       args.treename_out, args.weight_branch, KEEP)
+
+    if args.make_all:
+        chain_and_snapshot(all_bkgs,
+                           os.path.join(outdir, f"{args.era}_all_background.root"),
+                           args.treename_out, args.weight_branch, KEEP)
 
     print("Done. Wrote signal and per-category background files into", outdir)

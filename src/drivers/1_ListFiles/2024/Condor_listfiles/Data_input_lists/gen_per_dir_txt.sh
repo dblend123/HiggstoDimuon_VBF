@@ -3,11 +3,11 @@ set -euo pipefail
 
 # Base dir that contains per-process folders (each with part*.list)
 # Pass as arg 1, or it’ll use this default.
-BASEDIR="${1:-/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22023/Data_listfiles}"
+BASEDIR="${1:-/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Data_listfiles}"
 
 # Optional: suffix appended to each tag (leave empty for none)
 # Example values: MCRun2022EE, MCRun23C, MCRun24v15, etc.
-SUFFIX="${SUFFIX:-MCRun22023}"
+SUFFIX="${SUFFIX:-DataRun2024}"
 
 # Optional: alias map (folder name -> short tag prefix).
 # If a folder isn’t listed here, its folder name is used as-is.

@@ -1,0 +1,43 @@
+== Job started: Tue Nov  4 08:40:50 PM CET 2025
+Host: b9p23p1046.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/WZZ/part003.list'  tag='WZZ_003MCRun2024'  sample='WZZ'
+ERA (4th arg): '2024'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_3300981
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/WZZ/part003.list' -> using local: '/pool/condor/dir_3300981/part003.list'
+Using Condor proxy: /pool/condor/dir_3300981/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_3300981/part003.list
+Input list has 7 lines
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/WZZ-5F_TuneCP5_13p6TeV_amcatnlo-pythia8/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/100000/1906a350-7c99-4dc4-bc49-c449816fb98d.root ...
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/WZZ-5F_TuneCP5_13p6TeV_amcatnlo-pythia8/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/2560000/82be1ecc-b76a-43bb-95db-a2d9be509d54.root ...
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/WZZ-5F_TuneCP5_13p6TeV_amcatnlo-pythia8/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/2560000/cf4835f5-1262-49dd-8092-f8be1eb1deb3.root ...
+Using skimmer: my_skim
+866116774c4348101376b1ab709e1120  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: WZZ_003MCRun2024
+Running: ./my_skim '/pool/condor/dir_3300981/part003.list' '-1'
+Requested ALL events
+Writing: ./skims/Skimmed_1906a350-7c99-4dc4-bc49-c449816fb98d.root
+Writing: ./skims/Skimmed_82be1ecc-b76a-43bb-95db-a2d9be509d54.root
+Writing: ./skims/Skimmed_cf4835f5-1262-49dd-8092-f8be1eb1deb3.root
+Writing: ./skims/Skimmed_56e3d0cc-182a-486d-8652-3c49718b731a.root
+Writing: ./skims/Skimmed_bd19f7dc-37f8-4314-801f-a91957ff6998.root
+Writing: ./skims/Skimmed_0c6efc19-5e11-4b21-bd8b-d8d11373f1ea.root
+Writing: ./skims/Skimmed_dc378c66-68a3-4dc5-9ffe-be349ac8e11b.root
+
+Done. Files skimmed: 7  |  Events kept: 88520
+my_skim exit code: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024
+Found 7 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024/Skimmed_0c6efc19-5e11-4b21-bd8b-d8d11373f1ea.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024/Skimmed_1906a350-7c99-4dc4-bc49-c449816fb98d.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024/Skimmed_56e3d0cc-182a-486d-8652-3c49718b731a.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024/Skimmed_82be1ecc-b76a-43bb-95db-a2d9be509d54.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024/Skimmed_bd19f7dc-37f8-4314-801f-a91957ff6998.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024/Skimmed_cf4835f5-1262-49dd-8092-f8be1eb1deb3.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/WZZ/WZZ_003MCRun2024/Skimmed_dc378c66-68a3-4dc5-9ffe-be349ac8e11b.root
+Done staging.
+== Job finished: Tue Nov  4 08:43:23 PM CET 2025
