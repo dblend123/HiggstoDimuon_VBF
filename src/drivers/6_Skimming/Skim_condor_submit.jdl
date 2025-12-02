@@ -153,10 +153,10 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # ===== 2024 DATA queue =====
 
 # # Muon0
-# sample    = DATA_2024_Muon0
-# queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
+sample    = DATA_2024_Muon0
+queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
-sample    = DATA_2024_Muon1
-queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+# sample    = DATA_2024_Muon1
+# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
 

@@ -306,7 +306,7 @@ namespace analysis
             analysis::processing::JetSet&  setJet_PreSelection;
             analysis::processing::JetSet&  corr_setJet_PreSelection;
 
-            analysis::processing::MuonSet& setDM_PreSelection_BB;
+            /*analysis::processing::MuonSet& setDM_PreSelection_BB;
             analysis::processing::MuonSet& corr_setDM_PreSelection_BB;
             analysis::processing::JetSet& setJet_PreSelection_BB;
 
@@ -328,7 +328,7 @@ namespace analysis
 
             analysis::processing::MuonSet& setDM_PreSelection_EE;
             analysis::processing::MuonSet& corr_setDM_PreSelection_EE;
-            analysis::processing::JetSet& setJet_PreSelection_EE;
+            analysis::processing::JetSet& setJet_PreSelection_EE;*/
 
             // pre-dijet
             analysis::processing::JetSet& setJet_PreDiJet_VBF;
@@ -340,7 +340,7 @@ namespace analysis
             analysis::processing::JetSet&  setJet_VBF;
             analysis::processing::JetSet&  corr_setJet_VBF;
 
-            analysis::processing::MuonSet& setDM_VBF_BB;
+            /*analysis::processing::MuonSet& setDM_VBF_BB;
             analysis::processing::MuonSet& corr_setDM_VBF_BB;
             analysis::processing::JetSet& setJet_VBF_BB;
 
@@ -362,7 +362,7 @@ namespace analysis
 
             analysis::processing::MuonSet& setDM_VBF_EE;
             analysis::processing::MuonSet& corr_setDM_VBF_EE;
-            analysis::processing::JetSet& setJet_VBF_EE;
+            analysis::processing::JetSet& setJet_VBF_EE;*/
         };
     }
 }

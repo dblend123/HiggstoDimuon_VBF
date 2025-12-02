@@ -1,5 +1,5 @@
-# Args: $1=inputList $2=tag $3=sample $4=weights $5=maxEvents $6=era $7=muCorr
-arguments               = $(inputList) $(tag) $(sample) $(weights) $(maxEvents) $(era) $(muCorr)
+# Args: $1=inputList $2=tag $3=sample $4=weights $5=maxEvents $6=era $7=muCorr 
+arguments  = $(inputList) $(tag) $(sample) $(weights) $(maxEvents) $(era) $(muCorr) $(noPU) $(noScaleSmear) $(noMuonSF) $(noJERC)  $(noJetVeto)  $(noGolden)  $(noFlags)  $(noFSR)  $(noBtagSF) $(noJetCriteria)
 
 executable              = run_job.sh
 output                  = HTCondor/outs/$(tag)_$(ClusterId).out
@@ -50,13 +50,21 @@ request_cpus            = 1
 request_memory          = 2000
 request_disk            = 4000
 
-maxEvents   = -1
-muCorr      = none # kit, roch, none
-era         = 12022
-# era       = 22022
-# era       = 12023
-# era       = 22023
-# era       = 2024
+maxEvents   	    = -1
+# muCorr options: kit, roch, none
+muCorr      	    = none  
+# true --> Will not run corrections 
+noJERC  			= true
+noJetCriteria       = true
+noJetVeto  			= true
+noBtagSF			= true
+noScaleSmear  	    = true
+noMuonSF  			= true
+noFSR  				= true
+noPU		        = true
+noGolden  			= true
+noFlags  			= true
+era         	    = 22023
 
 # Base path to listfiles
 path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/Condor_listfiles/Skimmed_input_lists/
@@ -69,54 +77,54 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 #queue inputList, tag from $(path)/DY_input_lists.txt
 
 # # EWK
-# sample    = EWK
-# queue inputList, tag from $(path)/EWK_input_lists.txt
+#sample    = EWK
+#queue inputList, tag from $(path)/EWK_input_lists.txt
  
 # # TT
-# sample    = TT
-# queue inputList, tag from $(path)/TT_input_lists.txt
+#sample = TT
+#queue inputList, tag from $(path)/TT_input_lists.txt
  
 # # WWW
-# sample    = WWW
-# queue inputList, tag from $(path)/WWW_input_lists.txt
+#sample    = WWW
+#queue inputList, tag from $(path)/WWW_input_lists.txt
 
 # # WWZ
-# sample    = WWZ
-# queue inputList, tag from $(path)/WWZ_input_lists.txt
+#sample    = WWZ
+#queue inputList, tag from $(path)/WWZ_input_lists.txt
  
 # # WZZ
-# sample    = WZZ
-# queue inputList, tag from $(path)/WZZ_input_lists.txt
+#sample    = WZZ
+#queue inputList, tag from $(path)/WZZ_input_lists.txt
  
 # # WZto2L2Q
-# sample    = WZto2L2Q
-# queue inputList, tag from $(path)/WZto2L2Q_input_lists.txt
+#sample    = WZto2L2Q
+#queue inputList, tag from $(path)/WZto2L2Q_input_lists.txt
 
 # # WZto3LNu
-# sample    = WZto3LNu
-# queue inputList, tag from $(path)/WZto3LNu_input_lists.txt
+#sample    = WZto3LNu
+#queue inputList, tag from $(path)/WZto3LNu_input_lists.txt
  
 # # ZZZ
-# sample    = ZZZ
-# queue inputList, tag from $(path)/ZZZ_input_lists.txt
+#sample    = ZZZ
+#queue inputList, tag from $(path)/ZZZ_input_lists.txt
  
 # # ZZto2L2Nu
-# sample    = ZZto2L2Nu
-# queue inputList, tag from $(path)/ZZto2L2Nu_input_lists.txt
+#sample    = ZZto2L2Nu
+#queue inputList, tag from $(path)/ZZto2L2Nu_input_lists.txt
  
 # # ZZto2L2Q
-# sample    = ZZto2L2Q
-# queue inputList, tag from $(path)/ZZto2L2Q_input_lists.txt
+#sample    = ZZto2L2Q
+#queue inputList, tag from $(path)/ZZto2L2Q_input_lists.txt
  
 # # ZZto4L
-# sample    = ZZto4L
-# queue inputList, tag from $(path)/ZZto4L_input_lists.txt
+#sample    = ZZto4L
+#queue inputList, tag from $(path)/ZZto4L_input_lists.txt
 
 # ===== Signal =====
 
 # # VBF
-sample    = VBF
-queue inputList, tag from $(path)/VBF_input_lists.txt
+#sample    = VBF
+#queue inputList, tag from $(path)/VBF_input_lists.txt
 
 # ===== 12022 DATA queue =====
 
@@ -141,8 +149,8 @@ queue inputList, tag from $(path)/VBF_input_lists.txt
 
 # # D
 # # Muon0/1
-# sample    = DATA
-# queue inputList, tag from $(path)/DATA_input_lists.txt
+sample    = DATA
+queue inputList, tag from $(path)/DATA_input_lists.txt
 
 # ===== 2024 DATA queue =====
 

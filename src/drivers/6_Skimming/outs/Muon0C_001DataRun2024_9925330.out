@@ -1,0 +1,33 @@
+== Job started: Tue Nov 25 12:54:47 AM CET 2025
+Host: b9p17p5668.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Data_listfiles/Muon0/Muon0_Cpart001.list'  tag='Muon0C_001DataRun2024'  sample='DATA_2024_Muon0'
+ERA (4th arg): '2024'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1173969
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Data_listfiles/Muon0/Muon0_Cpart001.list' -> using local: '/pool/condor/dir_1173969/Muon0_Cpart001.list'
+Using Condor proxy: /pool/condor/dir_1173969/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1173969/Muon0_Cpart001.list
+Input list has 3 lines
+root://cms-xrd-global.cern.ch//store/data/Run2024C/Muon0/NANOAOD/MINIv6NANOv15-v1/2530000/8c84cba9-7159-4a79-9ec6-82e29fe20bc1.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2024C/Muon0/NANOAOD/MINIv6NANOv15-v1/2530000/390b1d89-09d1-406f-8f6c-417d59419d65.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2024C/Muon0/NANOAOD/MINIv6NANOv15-v1/2530000/48f9e5c3-dcd9-4af5-8385-7feb24e5db85.root ...
+Using skimmer: my_skim
+91ad8d4583956d4672e18e350d422635  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: Muon0C_001DataRun2024
+Running: ./my_skim '/pool/condor/dir_1173969/Muon0_Cpart001.list' '-1'
+Requested ALL events
+Writing: ./skims/Skimmed_8c84cba9-7159-4a79-9ec6-82e29fe20bc1.root
+Writing: ./skims/Skimmed_390b1d89-09d1-406f-8f6c-417d59419d65.root
+Writing: ./skims/Skimmed_48f9e5c3-dcd9-4af5-8385-7feb24e5db85.root
+
+Done. Files skimmed: 3  |  Events kept: 887993
+my_skim exit code: 139
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0C_001DataRun2024
+Found 3 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0C_001DataRun2024/Skimmed_390b1d89-09d1-406f-8f6c-417d59419d65.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0C_001DataRun2024/Skimmed_48f9e5c3-dcd9-4af5-8385-7feb24e5db85.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2024/DATA_2024_Muon0/Muon0C_001DataRun2024/Skimmed_8c84cba9-7159-4a79-9ec6-82e29fe20bc1.root
