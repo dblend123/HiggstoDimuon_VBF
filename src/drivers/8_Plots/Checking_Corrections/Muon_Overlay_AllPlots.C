@@ -4,6 +4,7 @@
 
 #include "TFile.h"
 #include "TH1.h"
+#include "THStack.h"
 #include "TCanvas.h"
 #include "TPad.h"
 #include "TLegend.h"
@@ -114,7 +115,9 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   pad1->Draw(); pad2->Draw();
 
   // top
-  pad1->cd(); pad1->SetLogy();
+  pad1->cd(); 
+  pad1->SetLogy();
+
   TH1* h_data_draw = (TH1*)h_data->Clone(("h_data_draw_"+TString(var.c_str())).Data());
   h_data_draw->SetDirectory(nullptr);
   if (doBlindMass && var=="DiMuonMass") {
@@ -159,37 +162,51 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
                << "------------------------------------------\n";
   }
 
+  // ---------- STACKED MC IN TOP PAD ----------
+  // Build a stack for the MC backgrounds (order = bottom -> top in the stack)
+  THStack* hs = new THStack(("hs_"+var).c_str(), "");
+
+  // Choose stacking order to taste; here: EWK, VVV, VV, TT, DY
+  hs->Add(h_EWK);
+  hs->Add(h_VVV);
+  hs->Add(h_VV);
+  hs->Add(h_TT);
+  hs->Add(h_DY);
+
+  // Y max: consider stack, data, and signal
   const double ymax = std::max({
-    h_data->GetMaximum(), h_DY->GetMaximum(), h_EWK->GetMaximum(), h_TT->GetMaximum(),
-    h_VV->GetMaximum(), h_VVV->GetMaximum(), h_signal->GetMaximum()
+    h_data_draw->GetMaximum(),
+    hs->GetMaximum("nostack"),
+    h_signal->GetMaximum()
   }) * 1.8;
 
-  h_data_draw->SetTitle("");
-  h_data_draw->GetYaxis()->SetTitle("Events");
-  h_data_draw->GetYaxis()->SetTitleSize(0.05);
-  h_data_draw->GetYaxis()->SetLabelSize(0.04);
-  h_data_draw->GetYaxis()->SetTitleOffset(1.2);
-  h_data_draw->SetMaximum(ymax);
-  h_data_draw->SetMinimum(0.1);
-  h_data_draw->GetXaxis()->SetTitle(xTitle);
-  h_data_draw->Draw("E1");
+  // Draw stack first so it owns the axes
+  hs->Draw("HIST");
+  hs->SetMaximum(ymax);
+  hs->SetMinimum(0.1);
 
-  h_DY->Draw("HIST SAME"); 
-  h_TT->Draw("HIST SAME");
-  h_VV->Draw("HIST SAME"); 
-  h_EWK->Draw("HIST SAME"); 
-  h_VVV->Draw("HIST SAME"); 
+  hs->GetYaxis()->SetTitle("Events");
+  hs->GetYaxis()->SetTitleSize(0.05);
+  hs->GetYaxis()->SetLabelSize(0.04);
+  hs->GetYaxis()->SetTitleOffset(1.2);
+  hs->GetXaxis()->SetTitle(xTitle);
+
+  // Then draw signal and data
   h_signal->Draw("HIST SAME");
   h_data_draw->Draw("E1 SAME");
-  
+
+  // Blinded window vertical lines (using pad's current y range so they always show up)
   if (blind) {
-    const double y0 = 0.1, y1 = ymax;
-    TLine v1(110.0, y0, 110.0, y1);
-    TLine v2(150.0, y0, 150.0, y1);
-    v1.SetLineStyle(2); v2.SetLineStyle(2);
-    v1.SetLineWidth(3); v2.SetLineWidth(3);
-    v1.SetLineColor(kGray+2); v2.SetLineColor(kGray+2);
-    v1.Draw("SAME"); v2.Draw("SAME");
+    pad1->Update();
+    double y0 = gPad->GetUymin();
+    double y1 = gPad->GetUymax();
+
+    TLine* v1 = new TLine(110.0, y0, 110.0, y1);
+    TLine* v2 = new TLine(150.0, y0, 150.0, y1);
+    v1->SetLineStyle(2); v2->SetLineStyle(2);
+    v1->SetLineWidth(3); v2->SetLineWidth(3);
+    v1->SetLineColor(kGray+2); v2->SetLineColor(kGray+2);
+    v1->Draw("SAME"); v2->Draw("SAME");
   }
 
   TLegend leg(0.60, 0.50, 0.88, 0.88);
@@ -232,23 +249,36 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   h_ratio->GetXaxis()->SetLabelSize(0.12);
   h_ratio->GetXaxis()->SetTitleSize(0.12);
   h_ratio->GetXaxis()->SetTitle(xTitle);
-  h_ratio->SetMinimum(0.0);
-  h_ratio->SetMaximum(2.0);
+  h_ratio->SetMinimum(0.8);
+  h_ratio->SetMaximum(1.2);
   h_ratio->SetLineColor(kBlack);
   h_ratio->SetMarkerStyle(20);
   h_ratio->Draw("E1");
 
-  TLine line(h_ratio->GetXaxis()->GetXmin(),1.0,h_ratio->GetXaxis()->GetXmax(),1.0);
-  line.SetLineStyle(2); line.Draw("SAME");
+  // Horizontal line at Data/MC = 1 with proper x-range
+  pad2->Update();
+  {
+    double rxmin = gPad->GetUxmin();
+    double rxmax = gPad->GetUxmax();
+    TLine* line = new TLine(rxmin, 1.0, rxmax, 1.0);
+    line->SetLineStyle(2);
+    line->SetLineWidth(2);
+    line->SetLineColor(kBlack);
+    line->Draw("SAME");
+  }
+
+  // Blinded region vertical lines in ratio pad
   if (blind) {
-    const double y0 = h_ratio->GetMinimum();
-    const double y1 = h_ratio->GetMaximum();
-    TLine v1(110.0, y0, 110.0, y1);
-    TLine v2(150.0, y0, 150.0, y1);
-    v1.SetLineStyle(2); v2.SetLineStyle(2);
-    v1.SetLineWidth(3); v2.SetLineWidth(3);
-    v1.SetLineColor(kGray+2); v2.SetLineColor(kGray+2);
-    v1.Draw("SAME"); v2.Draw("SAME");
+    pad2->Update();
+    double rymin = gPad->GetUymin();
+    double rymax = gPad->GetUymax();
+
+    TLine* v1r = new TLine(110.0, rymin, 110.0, rymax);
+    TLine* v2r = new TLine(150.0, rymin, 150.0, rymax);
+    v1r->SetLineStyle(2); v2r->SetLineStyle(2);
+    v1r->SetLineWidth(3); v2r->SetLineWidth(3);
+    v1r->SetLineColor(kGray+2); v2r->SetLineColor(kGray+2);
+    v1r->Draw("SAME"); v2r->Draw("SAME");
   }
 
   gSystem->Exec("mkdir -p " + outdir);
@@ -261,6 +291,7 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   delete h_WZ2L2Q; delete h_WZ3L; delete h_ZZ2L2N; delete h_ZZ2L2Q; delete h_ZZ4L;
   delete h_WWW; delete h_WWZ; delete h_WZZ; delete h_ZZZ; delete h_signal;
   delete h_VV; delete h_VVV; delete h_data_draw; delete h_mctot; delete h_ratio;
+  delete hs;
 }
 
 // ---------- driver ----------
@@ -343,7 +374,7 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   // Save in original-like structure under fixed era directory:
   //   /eos/user/d/dblend/StackedPlots/12022/Muons/<CorrType>/<ConfigName>/
   // ---------------------------------------------------------
-  TString outdir = "/eos/user/d/dblend/StackedPlots/12022/Muons/" + corrType + "/" + configName + "/";
+  TString outdir = "/eos/user/d/dblend/StackedPlots/" + era + "/Muons/" + corrType + "/" + configName + "/";
   gSystem->Exec("mkdir -p " + outdir);
   std::ofstream summary((outdir + "OverlayRatios_All.txt").Data());
 
@@ -371,5 +402,4 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   }
 }
 // ============================================================================
-
 

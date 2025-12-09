@@ -21,11 +21,11 @@ namespace analysis
                     _isTracker = 0;
 					_isStandAlone = 0;
 					_isGlobal = 0;
-					_isTight = 0;
-					_isMedium = 0;
-					_isLoose = 0;
+					_tightId = 0;
+					_mediumId = 0;
+					_looseId = 0;
 
-					_isPF = 0;
+					_isPFcand = 0;
 
 					_normChi2 = 0; 
 					_d0BS = 0;
@@ -83,11 +83,11 @@ namespace analysis
 				Track _track;
 				bool _isStandAlone;
 				bool _isGlobal;
-				bool _isTight;
-				bool _isMedium;
-				bool _isLoose;
+				bool _tightId;
+				bool _mediumId;
+				bool _looseId;
 
-				bool _isPF;
+				bool _isPFcand;
 
 				float _normChi2;
 				float _d0BS;

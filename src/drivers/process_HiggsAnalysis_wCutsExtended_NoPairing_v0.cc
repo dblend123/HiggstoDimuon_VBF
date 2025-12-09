@@ -1165,43 +1165,49 @@ inline float muCorrScale(const Muon& mu, bool isMC) {
     return 1.0f;
 }
 
-// Convenience: corrected BS-constrained pT following the same policy
 inline float correctedBsPt(const Muon& mu, bool isMC) {
     return mu._bsConstrainedPt * muCorrScale(mu, isMC);
 }
 
 bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
 {
-    int numPassingMuons = 0;
+    int nMuons20 = 0;
 
-    // Check muons
+    // Count muons with pT>20, |eta|<2.4, global||tracker
     for (const auto& mu : *muons) {
-        float corrected_pt = mu._pt * muCorrScale(mu, isMC);
+        float ptCorr = mu._pt * muCorrScale(mu, isMC);
 
-        if (corrected_pt > 20.0 && std::abs(mu._eta) < 2.4) {
-            if (mu._isGlobal && mu._isTracker && mu._isMedium && mu._pfRelIso04_all <= _leadmuonIso) {
-                numPassingMuons++;
-                if (numPassingMuons > 2) return false; // Veto: more than 2 passing muons
-            }
-        }
+        if (ptCorr <= 20.0f)       continue;
+        if (std::abs(mu._eta) >= 2.4f) continue;
+        if (!(mu._isGlobal || mu._isTracker)) continue;
+
+        ++nMuons20;
     }
 
-    // Check electrons
+    // Require exactly 2 muons above 20 GeV
+    if (nMuons20 != 2) {
+        return false;
+    }
+
+    // Electron veto: pT>20, |eta|<2.5, loose ID
     for (const auto& el : *electrons) {
-        if (el._pt > 20.0 && std::abs(el._eta) < 2.5 && el._cutBased >= 1) {
-            return false; // Veto: found a passing electron
+        if (el._pt > 20.0f &&
+            std::abs(el._eta) < 2.5f &&
+            el._cutBased >= 1)
+        {
+            return false;
         }
     }
 
-    return true; // Passed: ≤2 good muons AND no good electrons
+    return true;
 }
 
-bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
+/*bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
 {
     // If we don't have trigger objects on DATA, fall back to a simple pT check.
     if (trig->size()==0) {
         if (!isMC) {
-            float corrected_pt = correctedBsPt(m, /*isMC=*/false);
+            float corrected_pt = correctedBsPt(m, false);
             return (corrected_pt >= 26.0f);
         }
         return false;
@@ -1220,6 +1226,92 @@ bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
         }
     }
     return false;
+}*/
+
+bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
+{
+    static int debugCounter = 0;
+    const int maxDebug = 50;
+    bool debug = (debugCounter < maxDebug);
+    ++debugCounter;
+
+    if (debug) {
+        std::cout << "\n[passMuonHLT] ===== Call " << debugCounter << " =====\n";
+        std::cout << "  isMC = " << isMC << "\n";
+    }
+
+    if (!trig) {
+        if (debug) std::cout << "  [ERROR] trig pointer is null -> return false\n";
+        return false;
+    }
+
+    if (debug) {
+        std::cout << "  Number of trigger objects: " << trig->size() << "\n";
+    }
+
+    if (trig->size() == 0) {
+        if (debug) std::cout << "  [WARN] No trigger objects in event -> return false\n";
+        return false;
+    }
+
+    float corrected_pt = correctedBsPt(m, isMC);
+    if (debug) {
+        std::cout << "  Muon: pt_corr = " << corrected_pt
+                  << ", eta = " << m._eta
+                  << ", phi = " << m._phi << "\n";
+    }
+
+    if (corrected_pt < 26.0f) {
+        if (debug) std::cout << "  Muon fails pT > 26 GeV requirement -> return false\n";
+        return false;
+    }
+
+    int idx = 0;
+    for (auto it = trig->begin(); it != trig->end(); ++it, ++idx) {
+
+        if (debug) {
+            std::cout << "    [TrigObj " << idx << "] "
+                      << "id = " << it->_id
+                      << ", pt = " << it->_pt
+                      << ", eta = " << it->_eta
+                      << ", phi = " << it->_phi
+                      << ", filterBits(dec) = " << it->_filterBits
+                      << ", filterBits(hex) = 0x" << std::hex << it->_filterBits << std::dec
+                      << "\n";
+        }
+
+        // Only require that this is a muon trigger object.
+        if (std::abs(it->_id) != 13) {
+            if (debug) std::cout << "      -> skip: abs(id) != 13\n";
+            continue;
+        }
+
+        // ΔR matching between offline muon and trigger object
+        float deta = m._eta - it->_eta;
+        float dphi = std::fabs(m._phi - it->_phi);
+        if (dphi > M_PI) dphi = 2.0f * M_PI - dphi;
+        float dR = std::sqrt(deta * deta + dphi * dphi);
+
+        if (debug) {
+            std::cout << "      deta = " << deta
+                      << ", dphi = " << dphi
+                      << ", dR = " << dR << "\n";
+        }
+
+        if (dR < 0.3f) {
+            if (debug) {
+                std::cout << "      ==> MATCH: dR < 0.3, muon PASSES HLT match\n";
+            }
+            return true;
+        } else if (debug) {
+            std::cout << "      -> no match: dR >= 0.3\n";
+        }
+    }
+
+    if (debug) {
+        std::cout << "  No trigger object matched this muon -> return false\n";
+    }
+    return false;
 }
 
 bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
@@ -1229,7 +1321,7 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
 	    if ((m._isGlobal || m._isTracker) 
             && corrected_pt > _leadmuonPt 
             && TMath::Abs(m._eta) < _leadmuonEta 
-            && m._isMedium 
+            && m._mediumId
             && m._pfRelIso04_all <= _leadmuonIso)
 		    return true;
     }
@@ -1238,7 +1330,7 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
 	    if ((m._isGlobal || m._isTracker) 
             && corrected_pt > _subleadmuonPt 
             && TMath::Abs(m._eta) < _subleadmuonEta 
-            && m._isMedium 
+            && m._mediumId
             && m._pfRelIso04_all <= _subleadmuonIso)
 		    return true;
     }
@@ -1255,14 +1347,23 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
     float lead_pt_corr      = std::max(pt1_corr, pt2_corr);
     float sublead_pt_corr   = std::min(pt1_corr, pt2_corr);
 
-    if (m1._charge != m2._charge
-        && passMuon(leadmuon, lead_pt_corr, kLead)
-        && passMuon(subleadmuon, sublead_pt_corr, kSubLead))
-    {
-        if (passMuonHLT(trigObjs, m1, __isMC) || passMuonHLT(trigObjs, m2, __isMC))
-            return true;
-    }
-    return false;
+    // OS + kinematic/ID/iso
+    bool osOK   = (m1._charge != m2._charge);
+    bool leadOK = passMuon(leadmuon,    lead_pt_corr,    kLead);
+    bool subOK  = passMuon(subleadmuon, sublead_pt_corr, kSubLead);
+
+    if (!osOK || !leadOK || !subOK)
+        return false;
+
+    // HLT: require at least one muon matched to trigger with pt>26 (this is inside passMuonHLT)
+    bool hlt1OK = passMuonHLT(trigObjs, m1, __isMC);
+    bool hlt2OK = passMuonHLT(trigObjs, m2, __isMC);
+    bool hltOK  = (hlt1OK || hlt2OK);
+
+    if (!hltOK)
+        return false;
+
+    return true;
 }
 
 // -------------------------------------
@@ -2166,7 +2267,8 @@ void process()
     SET_BRANCH_UCHAR_ARRAY(Muon_miniIsoId);
     SET_BRANCH_BOOL_ARRAY(Muon_tightId);
     SET_BRANCH_BOOL_ARRAY(Muon_mediumId);
-    //SET_BRANCH_BOOL_ARRAY(Muon_isPFcand);
+    SET_BRANCH_BOOL_ARRAY(Muon_looseId);
+    SET_BRANCH_BOOL_ARRAY(Muon_isPFcand);
     SET_BRANCH_FLOAT_ARRAY(Muon_dxy);
     SET_BRANCH_FLOAT_ARRAY(Muon_dz);
     SET_BRANCH_FLOAT_ARRAY(Muon_pfRelIso04_all);
@@ -2357,6 +2459,11 @@ void process()
         ROOT_CHAIN->SetBranchAddress("TrigObj_filterBits", TrigObj_filterBits_arr);
         std::cerr << "[INFO] TrigObj binding = LEAFLIST mode (counter=nTrigObj, max=" << TO_MAX << ")\n";
     }
+        long long n_afterGolden = 0;
+        long long n_afterFlags  = 0;
+        long long n_afterVtx    = 0;
+        long long n_afterVeto   = 0;
+        long long n_afterPair   = 0;
 
     for (uint32_t i=0; i<numEntries && __continueRunning; i++)
 	{   
@@ -2388,9 +2495,10 @@ void process()
             mu._charge          = Muon_charge[i];
             mu._isGlobal        = Muon_isGlobal[i];
             mu._isTracker       = Muon_isTracker[i];
-            mu._isTight         = Muon_tightId[i];
-            mu._isMedium        = Muon_mediumId[i];
-            //mu._isPF          = Muon_isPFcand[i];
+            mu._tightId         = Muon_tightId[i];
+            mu._mediumId        = Muon_mediumId[i];
+            mu._looseId         = Muon_looseId[i];
+            mu._isPFcand        = Muon_isPFcand[i];
             mu._dxy             = Muon_dxy[i];
             mu._dz              = Muon_dz[i];
             mu._pfRelIso04_all  = Muon_pfRelIso04_all[i];
@@ -2537,45 +2645,54 @@ void process()
           << " total=" << Dataweight << "\n";
           }
 
+       
        if (!__isMC && !g_lumiMask.empty()) {
             const unsigned run  = static_cast<unsigned>(event->_run);               // adapt to your names
-            const unsigned lumi = static_cast<unsigned>(event->_lumi);   // e.g. event._lumi
+            const unsigned lumi = static_cast<unsigned>(event->_lumi);              // e.g. event._lumi
             if (!passGolden(run, lumi)) {
                 continue; // skip non-certified lumisections
             }
        }
+       ++n_afterGolden;
 
+    
         //	Selections
         if (!passFlagFilters(flags, !__isMC)) continue;
-        if (!passVertex(vertices)) continue;
+        ++n_afterFlags;
+        //if (!passVertex(vertices)) continue;
+        ++n_afterVtx;
         if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
+        ++n_afterVeto;
 
+        bool anyPair = false;
         // Prepare The Pairs Of Muons
         for (auto it = muons->begin(); it != muons->end(); ++it) {
             for (auto jt = (it + 1); jt != muons->end(); ++jt) {
             
             if (!passMuons(*it, *jt, trigobjs)) continue;
-            
+            anyPair = true;
+
             categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight);
             break;
         }
-        break;
+        if (anyPair) break;
     }
-
+    if (!anyPair) continue;
+    ++n_afterPair;
+    
     // Update the progress bar every `updateInterval` iterations
     if (i % updateInterval == 0 || i == numEntries - 1) {
             showProgressBar(i + 1, numEntries);
         }
     }
 
-    std::cout << std::fixed;
-    std::cout << "[SUMMARY] events=" << n_events
-          << " neg_frac=" << (n_events ? double(n_neg)/n_events : 0.0)
-          << " <PU>=" << (sum_w_nominal ? (sum_w_pu / sum_w_nominal) : 0.0)
-          << " sum_w_nom(lumi*xsec≈)=" << sum_w_nominal
-          << " sum_w_pu=" << sum_w_pu
+    std::cout << "[CUTFLOW] total="      << n_events
+          << " afterGolden="         << n_afterGolden
+          << " afterFlags="          << n_afterFlags
+          << " afterVertex="         << n_afterVtx
+          << " afterVetoAddLeptons=" << n_afterVeto
+          << " afterPair="           << n_afterPair
           << std::endl;
-
     
     std::cout << std::endl; // Move to the next line after the progress bar is complete
 

@@ -2,10 +2,10 @@
 // from a list of skimmed NanoAOD ROOT files.
 //
 // Usage:
-//   root -l -q 'makeJSONfromList.C("DATA_22023.list","seenLS_22023.json")'
+//   root -l -q 'makeJSONfromList.C("Muon_12022.list","seenLS_12022.json")'
 // Then:
 //   brilcalc lumi --normtag /cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json \
-//                 -u /fb -i seenLS_22023.json
+//                 -u /fb -i seenLS_12022.json
 
 #include "TChain.h"
 #include "TBranch.h"
