@@ -249,8 +249,8 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   h_ratio->GetXaxis()->SetLabelSize(0.12);
   h_ratio->GetXaxis()->SetTitleSize(0.12);
   h_ratio->GetXaxis()->SetTitle(xTitle);
-  h_ratio->SetMinimum(0.8);
-  h_ratio->SetMaximum(1.2);
+  h_ratio->SetMinimum(0.0);
+  h_ratio->SetMaximum(2.0);
   h_ratio->SetLineColor(kBlack);
   h_ratio->SetMarkerStyle(20);
   h_ratio->Draw("E1");
@@ -336,11 +336,12 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   }
 
   const std::vector<std::string> vars = {
-    "DiMuonMass","DiMuonpt","DiMuoneta","DiMuonrapidity",
+    "DiMuonMass","DiMuonMass_Z","DiMuonpt","DiMuoneta","DiMuonrapidity",
     "Muon1pt","Muon2pt","Muon1eta","Muon2eta",
     "Muon1PTdDM","Muon2PTdDM","CollinsSoper","cosCollinsSoper","pt_balance"
   };
-  const std::string dir = "corr_DM_VBF/";
+  //const std::string dir = "corr_DM_VBF/";
+  const std::string dir = "corr_DM_Pre-Selection/";
 
   // Open data
   std::unique_ptr<TFile> f_data(TFile::Open(base + "DATA/DATA_all.root"));
@@ -381,6 +382,7 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   for (const auto& v : vars) {
     const bool doBlind = (v == "DiMuonMass");
     const char* xlab = (v=="DiMuonMass") ? "m_{#mu#mu} [GeV]" :
+                       (v=="DiMuonMass_Z") ? "m_{#mu#mu} [GeV]" :
                        (v=="DiMuonpt") ? "p_{T}(#mu#mu) [GeV]" :
                        (v=="DiMuoneta") ? "#eta(#mu#mu)" :
                        (v=="DiMuonrapidity") ? "y(#mu#mu)" :

@@ -154,6 +154,16 @@ struct SampleConfig {
     double sumw = 0.0;        // genEventSumw
 };
 
+// --- Jet Debug Counters ---
+static unsigned long long jets_in               = 0;
+static unsigned long long jets_pass             = 0;
+static unsigned long long jets_after_vetoMap    = 0;
+static unsigned long long jets_after_id         = 0;
+static unsigned long long jets_after_pt         = 0;
+static unsigned long long jets_after_eta        = 0;
+static unsigned long long jets_after_dR1        = 0;
+static unsigned long long jets_after_dR2        = 0;
+
 std::string g_weightsFile = "None";  // set via --weights
 std::string g_sampleName  = "DATA";  // set via --sample
 
@@ -1202,36 +1212,10 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
     return true;
 }
 
-/*bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
-{
-    // If we don't have trigger objects on DATA, fall back to a simple pT check.
-    if (trig->size()==0) {
-        if (!isMC) {
-            float corrected_pt = correctedBsPt(m, false);
-            return (corrected_pt >= 26.0f);
-        }
-        return false;
-    }
-
-    float corrected_pt = correctedBsPt(m, isMC);
-    if (corrected_pt < 26.0f) return false;
-
-    for (TrigObjs::const_iterator it=trig->begin(); it!=trig->end(); ++it) {
-        if (it->_id == 13 && ((it->_filterBits & (1 << 0)) != 0)) { // TrkIsoVVL
-            float deta = m._eta - it->_eta;
-            float dphi = std::fabs(m._phi - it->_phi);
-            if (dphi > M_PI) dphi = 2 * M_PI - dphi;
-            float dR = std::sqrt(deta * deta + dphi * dphi);
-            if (dR < 0.3) return true;
-        }
-    }
-    return false;
-}*/
-
 bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
 {
     static int debugCounter = 0;
-    const int maxDebug = 50;
+    const int maxDebug = 1;
     bool debug = (debugCounter < maxDebug);
     ++debugCounter;
 
@@ -1391,7 +1375,7 @@ bool passJetIDfromJSON(const Jet& jet,
 {
     if (!jetIdCorrections) {
         std::cerr << "[WARN] JetID corrections not loaded, falling back to NanoAOD jetId bits.\n";
-        // NanoAOD: 1=loose, 2=tight, 4=tightLepVeto. Keep your previous behavior:
+        // NanoAOD: 2=loose, 4=tight, 6=tightLepVeto. Keep your previous behavior:
         if (wp == JetIDWP::TightLeptonVeto) return ( (jet._jetId & 4) == 4 );
         return ( (jet._jetId & 2) == 2 ); // Tight
     }
@@ -1609,6 +1593,10 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     TLorentzVector p4dimuon = p4m1 + p4m2;    
     TLorentzVector corr_p4dimuon = corr_p4m1 + corr_p4m2;
     
+    // -------------------------------------
+    //         COLLINS-SOPER ANGLE 
+    // -------------------------------------
+    
     double dphi = p4m1.DeltaPhi(p4m2);
 
     // Collins-Soper Angles
@@ -1653,7 +1641,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     std::vector<TLorentzVector> p4jets;
     p4jets.reserve(jets->size());
 
-    // NEW: build the Jet list that mirrors p4jets for b-tag SFs
+    // Build the Jet list that mirrors p4jets for b-tag SFs
     std::vector<analysis::core::Jet> btagJets;
     btagJets.reserve(jets->size());
 
@@ -1662,8 +1650,13 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     const float pnetM = pnetWPThreshold("M");
 
     for (const auto& j : *jets) {
-        // veto map
-        if (isVetoedJet(j._eta, j._phi)) continue;
+        ++jets_in;
+        
+        if (!g_disableJetVeto) {
+            if (isVetoedJet(j._eta, j._phi)) 
+                continue;
+            ++jets_after_vetoMap;
+        }
 
         // gen matching for JER
         float genJetPt = 0.f;
@@ -1678,26 +1671,49 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         int runNum = __isMC ? 0 : static_cast<int>(event._run);
         float corr_pt = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet, runNum);
         float corr_mass = j._mass * (corr_pt / std::max(1e-6f, j._pt));
-
-        // *** Jet criteria cuts (toggle-able) ***
+        
+        static int n=0;
+        if (n++ < 20) {
+            std::cerr << "[JETDBG] jetId raw=" << int(j._jetId)
+            << " pt=" << j._pt
+            << " corr_pt=" << corr_pt
+            << " factor=" << (corr_pt / std::max(1e-6f, j._pt))
+            << " eta=" << j._eta << "\n";
+        }
+        
         if (!g_disableJetCriteria) {
-            if ( (j._jetId & 1) != 1 ) continue;
-            if (corr_pt <= 25.f) continue;
-            if (std::abs(j._eta) >= 4.7f) continue;
-            if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) < 0.4) continue;
-            if (jetMuondR(j._eta, j._phi, mu2._eta, mu2._phi) < 0.4) continue;
             
+            if (j._jetId < 4)
+                continue;
+            ++jets_after_id;
+
+            if (corr_pt <= 25.f)
+                continue;
+            ++jets_after_pt;
+
+            if (std::abs(j._eta) >= 4.7f)
+                continue;
+            ++jets_after_eta;
+
+            if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) <= 0.4)
+                continue;
+            ++jets_after_dR1;
+            
+            if (jetMuondR(j._eta, j._phi, mu2._eta, mu2._phi) <= 0.4)
+                continue;
+            ++jets_after_dR2;
+
             //const bool passJetID = passJetIDfromJSON(j, JetAlgo::AK4PUPPI, JetIDWP::Tight);
             //if (!passJetID) continue;
         }
+        ++jets_pass;
 
         // keep the kinematics for later use
         TLorentzVector p4; 
         p4.SetPtEtaPhiM(corr_pt, j._eta, j._phi, corr_mass);
         p4jets.push_back(p4);
 
-        // IMPORTANT: push a copy of the *Jet* we just accepted,
-        // and overwrite its pt with the corrected pt so SFs see corrected kinematics
+        // Pushing a copy of the *Jet* we just accepted, and overwrite its pt with the corrected pt so SFs see corrected kinematics
         analysis::core::Jet jSF = j;
         jSF._pt = corr_pt;
         btagJets.push_back(jSF);
@@ -1707,15 +1723,44 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         if (pn >= pnetM) ++n_medium_bjets;
         else if (pn >= pnetL) ++n_loose_bjets;
     }
-
+    
     std::sort(p4jets.begin(), p4jets.end(), [](const TLorentzVector& a, const TLorentzVector& b){ return a.Pt() > b.Pt(); });
 
-    if (!g_disableJetCriteria) {
-        if (p4jets.size() < 2) return;
+    const bool has1jet = (p4jets.size() >= 1);
+    const bool has2jet = (p4jets.size() >= 2);
+
+    // Defaults for “inclusive” running (0/1 jet events won’t crash)
+    float jet1eta   = -99.f, jet2eta = -99.f;
+    float jet1pt    = -1.f,  jet2pt  = -1.f;
+    float dijetpt   = -1.f,  dijetdeta = -1.f, dijetmass = -1.f, dijetdphi = -1.f;
+
+    TLorentzVector p4lead, p4sub, dijet;
+
+    if (has1jet) {
+      p4lead = p4jets[0];
+      jet1eta = p4lead.Eta();
+      jet1pt  = p4lead.Pt();
     }
-    
+
+    if (has2jet) {
+      p4sub = p4jets[1];
+      jet2eta = p4sub.Eta();
+      jet2pt  = p4sub.Pt();
+
+      dijet = p4lead + p4sub;
+      dijetpt   = dijet.Pt();
+      dijetdeta = TMath::Abs(p4lead.Eta() - p4sub.Eta());
+      dijetmass = dijet.M();
+
+      const float dphi_signed = p4lead.DeltaPhi(p4sub);
+      dijetdphi = std::fabs(dphi_signed);
+    }
+
+    float PTdDM1 = corr_p4m1.Pt() / corr_p4dimuon.M();
+    float PTdDM2 = corr_p4m2.Pt() / corr_p4dimuon.M();
+
     //  Choosing Largest Dijet Mass Pair
-    double best_mjj = -1.0;
+    /*double best_mjj = -1.0;
     int i_best = -1, j_best = -1;
 
     for (size_t i = 0; i < p4jets.size(); ++i) {
@@ -1729,33 +1774,11 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         }
     }
 
-    // safety (shouldn't happen if size>=2)
     if (i_best < 0 || j_best < 0) return;
-
     TLorentzVector jA = p4jets[i_best];
     TLorentzVector jB = p4jets[j_best];
-
-    // order the chosen pair by pT (so "lead/sub" still mean pT-ordered)
     TLorentzVector p4lead = (jA.Pt() >= jB.Pt()) ? jA : jB;
-    TLorentzVector p4sub  = (jA.Pt()  <  jB.Pt()) ? jA : jB;
-
-    TLorentzVector dijet = p4lead + p4sub;
-    
-    float dijetdeta      = TMath::Abs(p4lead.Eta() - p4sub.Eta());
-    float jet1eta        = p4lead.Eta();
-    float jet2eta        = p4sub.Eta();
-    
-    float dijetmass      = dijet.M();
-    
-    float dijetpt        = dijet.Pt();
-    float jet1pt         = p4lead.Pt();
-    float jet2pt         = p4sub.Pt();
-   
-    float dphi_signed    = p4lead.DeltaPhi(p4sub);   
-    float dijetdphi      = std::fabs(dphi_signed); 
-    
-    float PTdDM1         = (corr_p4m1.Pt())/(corr_p4dimuon.M());
-    float PTdDM2         = (corr_p4m2.Pt())/(corr_p4dimuon.M()); 
+    TLorentzVector p4sub  = (jA.Pt()  <  jB.Pt()) ? jA : jB;*/
 
     // -------------------------------------
     //          SF && WEIGHTS  
@@ -1771,7 +1794,11 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     //        PRE-SELECTION HISTOGRAMS  
     // -------------------------------------
    
-    //RIGHT NOW THIS INCLUDES THE 1 VBF SELECTION: EXLUDING ADDITINOAL MUONS/ELECTRONS 
+    //if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
+        //pass_bjet_veto = false;
+    
+    //if (pass_bjet_veto) {
+
     FILL_MUON_HIST(hists.setDM_PreSelection, noWeight);   
     FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection, totalWeight); 
     FILL_JET_HIST(hists.setJet_PreSelection, noWeight); 
@@ -1822,18 +1849,17 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_EE, totalWeight);
         FILL_JET_HIST(hists.setJet_PreSelection_EE, totalWeight); 
     }*/
-
-    if (p4lead.Pt() < _leadJetPt) return;      // leading threshold
-    if (p4sub.Pt() < _subleadJetPt) return;   // subleading threshold
-    
+    //}
     // -------------------------------------
     //          VBF HISTOGRAMS  
     // -------------------------------------
     
-    if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
-        pass_bjet_veto = false;
+    if (p4lead.Pt() < _leadJetPt) return;      // leading threshold
+    if (p4sub.Pt() < _subleadJetPt) return;   // subleading threshold
+    //if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
+        //pass_bjet_veto = false;
     
-    if (pass_bjet_veto) {
+    //if (pass_bjet_veto) {
 
         //  PRE-DIJET CUTS 
         FILL_JET_HIST(hists.setJet_PreDiJet_VBF, noWeight); 
@@ -1942,7 +1968,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
                 FILL_JET_HIST(hists.setJet_VBF_EE, totalWeight); 
             }*/
 		}
-    }
+    //}
 }
 
 //*******************************************************************
@@ -2459,11 +2485,13 @@ void process()
         ROOT_CHAIN->SetBranchAddress("TrigObj_filterBits", TrigObj_filterBits_arr);
         std::cerr << "[INFO] TrigObj binding = LEAFLIST mode (counter=nTrigObj, max=" << TO_MAX << ")\n";
     }
-        long long n_afterGolden = 0;
-        long long n_afterFlags  = 0;
-        long long n_afterVtx    = 0;
-        long long n_afterVeto   = 0;
-        long long n_afterPair   = 0;
+
+// --- DEBUG COUNTERS ---
+long long n_afterGolden = 0;
+long long n_afterFlags  = 0;
+long long n_afterVtx    = 0;
+long long n_afterVeto   = 0;
+long long n_afterPair   = 0;
 
     for (uint32_t i=0; i<numEntries && __continueRunning; i++)
 	{   
@@ -2628,24 +2656,22 @@ void process()
         const double w_nom = base * genWeight;
         const double w_pu  = w_nom * pileupWeight;
 
-        sum_w_nominal += w_nom;
-        sum_w_pu      += w_pu;
-        n_events++;
-        if (genWeight < 0) n_neg++;
+sum_w_nominal += w_nom;
+sum_w_pu      += w_pu;
+n_events++;
+if (genWeight < 0) n_neg++;
 
 
-          if (i < 50) {
-          std::cout << std::setprecision(10) 
-          << " genWeight=" << genWeight
-          //<< " Generator_weight=" << Generator_weight
-          << " Generator_weight=" << Generator_weight_branch
-          << " Pileup_nTrueInt=" << Pileup_nTrueInt
-          << " pileupWeight=" << pileupWeight
-          << " base=" << base
-          << " total=" << Dataweight << "\n";
-          }
+/*if (i < 50) {
+std::cout << std::setprecision(10) 
+<< " genWeight=" << genWeight
+<< " Generator_weight=" << Generator_weight_branch
+<< " Pileup_nTrueInt=" << Pileup_nTrueInt
+<< " pileupWeight=" << pileupWeight
+<< " base=" << base
+<< " total=" << Dataweight << "\n";
+}*/
 
-       
        if (!__isMC && !g_lumiMask.empty()) {
             const unsigned run  = static_cast<unsigned>(event->_run);               // adapt to your names
             const unsigned lumi = static_cast<unsigned>(event->_lumi);              // e.g. event._lumi
@@ -2686,14 +2712,22 @@ void process()
         }
     }
 
-    std::cout << "[CUTFLOW] total="      << n_events
-          << " afterGolden="         << n_afterGolden
-          << " afterFlags="          << n_afterFlags
-          << " afterVertex="         << n_afterVtx
-          << " afterVetoAddLeptons=" << n_afterVeto
-          << " afterPair="           << n_afterPair
-          << std::endl;
+std::cout << "\n[CUTFLOW] Total Events = "      << n_events          << " | "
+<< " afterGolden = "                     << n_afterGolden     << " | "
+<< " afterFlags = "                      << n_afterFlags      << " | "
+<< " afterVertex = "                     << n_afterVtx        << " | "
+<< " afterVetoAddLeptons = "             << n_afterVeto       << " | "
+<< " afterPair = "                       << n_afterPair       
+<< std::endl;
     
+std::cout << "\n[JET CUT-FLOW] Total Jets = "    << jets_in       << " | "
+<< "  pass jetId = " << jets_after_id      << " | "
+<< "  pass pt = "    << jets_after_pt      << " | "
+<< "  pass eta = "   << jets_after_eta     << " | "
+<< "  pass dR1 = "   << jets_after_dR1     << " | "
+<< "  pass dR2 = "   << jets_after_dR2
+<< std::endl;
+
     std::cout << std::endl; // Move to the next line after the progress bar is complete
 
 	outroot->Write();
@@ -2707,77 +2741,6 @@ void sigHandler(int sig)
 	cout << "### Signal: " << sig << " caughter. Exiting..." << endl;
 	__continueRunning = false;
 }
-
-/*void printCuts()
-{
-        std::cout << endl
-        << "Pre-Selection Criteria:" << std::endl
-        << "----------------------------------------------------------------------" << std::endl
-        << "    Muons:" << std::endl
-        << "    -------------" << std::endl
-        << "        Muon size >= 2" << std::endl
-        << "        Charge of Muon1 != Charge of Muon2" << std::endl
-        << "        >=1 muon matched to HLT trigger muon and have pT > 26 GeV" << std::endl
-        << std::endl
-        << "    Jets:" << std::endl
-        << "    -------------" << std::endl
-        << "        Jet size >= 2" << std::endl
-        << "        pT > 25" << std::endl
-        << "        Abs(Eta) < 4.7" << std::endl
-        << "        tightId = true" << std::endl
-        << "        Isolated from selected muons by dR(µ, j) > 0.4" << std::endl
-        << std::endl
-        << "    Electrons:" << std::endl
-        << "    -------------" << std::endl
-        << "        Electron size = 0" << std::endl
-        << std::endl
-        << "    Vertices:" << std::endl
-        << "    -------------" << std::endl
-        << "        Z < 24" << std::endl
-        << "        Ndof > 4" << std::endl
-        << "        Rho <= 3" << std::endl
-        << std::endl
-        << "    Leading Muon:" << std::endl
-        << "    -------------" << std::endl
-        << "    isGlobal && isTracker = true" << std::endl
-        << "    mediumId = true" << std::endl
-        << "    pfRelIso04_all < 0.15" << std::endl
-        << "    pT > " << _leadmuonPt << " GeV" << std::endl
-        << "    Abs(Eta) < " << _leadmuonEta << std::endl
-        << std::endl
-        << "    Sub-Leading Muon:" << std::endl
-        << "    -----------------" << std::endl
-        << "    isGlobal && isTracker = true" << std::endl
-        << "    mediumId = true" << std::endl
-        << "    pfRelIso04_all < 0.25" << std::endl
-        << "    pT > " << _subleadmuonPt << " GeV" << std::endl
-        << "    Abs(Eta) < " << _subleadmuonEta << std::endl
-        << std::endl
-        << std::endl
-        << "VBF-Selection Criteria:" << std::endl
-        << "----------------------------------------------------------------------" << std::endl
-        << "    Events:" << std::endl
-        << "    -------------" << std::endl
-        << "        Excluding events w/ additional muon (electron) with pT > 20 GeV and |η| < 2.4 (2.5)" << std::endl
-        << std::endl
-        << "    Jets:" << std::endl
-        << "    -------------" << std::endl
-        << "        At most one b-tagged loose jet and no b-tagged-medium jets" << std::endl
-        << std::endl
-        << "        Leading Jet:" << std::endl
-        << "        ------------" << std::endl
-        << "        pT > " << _leadJetPt << " GeV" << std::endl
-        << std::endl
-        << "        Sub-Leading Jet:" << std::endl
-        << "        ----------------" << std::endl
-        << "        pT > " << _subleadJetPt << " GeV" << std::endl
-        << std::endl
-        << "        Di-Jet:" << std::endl
-        << "        -------" << std::endl
-        << "        Mass > " << _dijetMass_VBF << " GeV" << std::endl
-        << "        Abs(Eta) > " << _dijetdEta_VBF << std::endl
-        << std::endl;
-}*/
 
 int main(int argc, char** argv)
 {
@@ -2946,16 +2909,16 @@ int main(int argc, char** argv)
         g_selected_lumi     = 0.0;
     }
 
-        std::cout << std::fixed
-      << "[WEIGHTS] era=" << g_era
-      << " sample=" << g_sampleName
-      << " picked_lumi_key=" << g_selected_lumi_key
-      << " lumi=" << g_selected_lumi
-      << " xsec=" << g_sectionSamples[g_era][g_sampleName].xsec
-      << " sumw=" << g_sectionSamples[g_era][g_sampleName].sumw
-      << " base=" << sampleBaseWeight(g_sampleName)
-      << std::endl;
-    }
+std::cout << std::fixed
+<< "[WEIGHTS] era=" << g_era
+<< " sample=" << g_sampleName
+<< " picked_lumi_key=" << g_selected_lumi_key
+<< " lumi=" << g_selected_lumi
+<< " xsec=" << g_sectionSamples[g_era][g_sampleName].xsec
+<< " sumw=" << g_sectionSamples[g_era][g_sampleName].sumw
+<< " base=" << sampleBaseWeight(g_sampleName)
+<< std::endl;
+}
 
     //printCuts();
 
