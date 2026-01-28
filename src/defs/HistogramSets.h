@@ -301,6 +301,9 @@ namespace analysis
             //analysis::processing::MuonSet& setDM_PostFsr;
 
             //Pre-Selection blocks
+            analysis::processing::MuonSet& corr_setDM_PreSelection_Z0j;
+            analysis::processing::MuonSet& corr_setDM_PreSelection_Z1j;
+            analysis::processing::MuonSet& corr_setDM_PreSelection_Z2j;
             analysis::processing::MuonSet& setDM_PreSelection;
             analysis::processing::MuonSet& corr_setDM_PreSelection;
             analysis::processing::JetSet&  setJet_PreSelection;

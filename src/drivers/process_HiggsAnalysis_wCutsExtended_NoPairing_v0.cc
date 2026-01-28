@@ -1726,6 +1726,10 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     
     std::sort(p4jets.begin(), p4jets.end(), [](const TLorentzVector& a, const TLorentzVector& b){ return a.Pt() > b.Pt(); });
 
+    const bool is0jet = (p4jets.size() == 0);
+    const bool is1jet = (p4jets.size() == 1);
+    const bool is2jet = (p4jets.size() >= 2);
+    
     const bool has1jet = (p4jets.size() >= 1);
     const bool has2jet = (p4jets.size() >= 2);
 
@@ -1789,6 +1793,23 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     float btagjet_SF     = getBTagSF_PNet_WP_forVeto(btagJets, "L", "M", "central");
     float totalWeight    = Dataweight * mu1_SF * mu2_SF * btagjet_SF;
     float noWeight       = 1.0;
+    
+    // -------------------------------------
+    //          Z-PT REWEIGHTING  
+    // -------------------------------------
+   
+    if (corr_p4dimuon.M() > 70 && corr_p4dimuon.M() < 110) {
+        if (is0jet) {
+            FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_Z0j, totalWeight); 
+        }
+        else if (is1jet) {
+            FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_Z1j, totalWeight); 
+        }
+        else if (is2jet) {
+            FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_Z2j, totalWeight); 
+        }
+    }
+
     
     // -------------------------------------
     //        PRE-SELECTION HISTOGRAMS  
@@ -2152,6 +2173,9 @@ void process()
     kj.Write();
 
     // Pre-Selection blocks
+    MuonSet     corr_setDM_PreSelection_Z0j(outroot, "corr_DM_Pre-Selection_Z0j");
+    MuonSet     corr_setDM_PreSelection_Z1j(outroot, "corr_DM_Pre-Selection_Z1j");
+    MuonSet     corr_setDM_PreSelection_Z2j(outroot, "corr_DM_Pre-Selection_Z2j");
     MuonSet     setDM_PreSelection(outroot, "DM_Pre-Selection");
     MuonSet     corr_setDM_PreSelection(outroot, "corr_DM_Pre-Selection");
     JetSet      setJet_PreSelection(outroot, "Jet_Pre-Selection");
@@ -2206,7 +2230,8 @@ void process()
     HistSetCollection hists = {
     
     // Pre-Selection blocks
-    setDM_PreSelection,    corr_setDM_PreSelection,    setJet_PreSelection, corr_setJet_PreSelection,
+    corr_setDM_PreSelection_Z0j, corr_setDM_PreSelection_Z1j, corr_setDM_PreSelection_Z2j, 
+    setDM_PreSelection, corr_setDM_PreSelection, setJet_PreSelection, corr_setJet_PreSelection,
     /*setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB,
     setDM_PreSelection_BO, corr_setDM_PreSelection_BO, setJet_PreSelection_BO,
     setDM_PreSelection_BE, corr_setDM_PreSelection_BE, setJet_PreSelection_BE,
