@@ -187,9 +187,9 @@ def train_one(era, base_dir, bkg_cat, sig_extra_weight_branch=None, outdir_root=
             eval_set=[(x_va, y_va)],
             sample_weight_eval_set=[w_va],
             verbose=False)
-        outdir = os.path.join(outdir_root, str(era))
-        os.makedirs(outdir, exist_ok=True)
-        bdt.save_model(os.path.join(outdir, f"{era}_xgb_{bkg_cat}.json"))
+    outdir = os.path.join(outdir_root, str(era))
+    os.makedirs(outdir, exist_ok=True)
+    bdt.save_model(os.path.join(outdir, f"{era}_xgb_{bkg_cat}.json"))
     
     raw = bdt.get_booster().get_score(importance_type="gain")
     feat_gain = {VARIABLES[i]: raw.get(f"f{i}", 0.0) for i in range(len(VARIABLES))}
