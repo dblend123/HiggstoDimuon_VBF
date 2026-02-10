@@ -180,6 +180,8 @@ if __name__ == "__main__":
 
     df_sig = build_df([signal_file], args.treename_in, force_define=args.force_define)
     df_sig = add_split_flags(df_sig)
+    # Ensure signal also has a 'fold' column so training/testing can slice properly
+    df_sig = add_fold(df_sig)
     rep_sig = df_sig.Report()
 
     # Write signal train/test (unchanged)
@@ -187,6 +189,13 @@ if __name__ == "__main__":
     test_sig_out  = os.path.join(outdir, f"{args.era}_test_signal.root")
     snapshot(df_sig.Filter("is_train"), train_sig_out, args.treename_out, args.weight_branch, KEEP)
     snapshot(df_sig.Filter("!is_train"), test_sig_out,  args.treename_out, args.weight_branch, KEEP)
+
+    # Write an _all_ combined signal file (with 'fold') for convenience
+    if args.make_all:
+        all_sig_out = os.path.join(outdir, f"{args.era}_all_signal.root")
+        snapshot(df_sig, all_sig_out, args.treename_out, args.weight_branch, KEEP)
+        print("      wrote:", all_sig_out)
+
     rep_sig.Print()
 
     # Partition background subdirs into DY / TTbar / VV / VVV
