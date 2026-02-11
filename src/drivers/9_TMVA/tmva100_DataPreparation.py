@@ -142,7 +142,37 @@ def snapshot(df, outname, treename_out, weight_branch, keep_extra):
     for b in keep_extra:
         if b in df.GetColumnNames():
             cols_out.push_back(b)
-    df.Snapshot(treename_out, outname, cols_out)
+    
+    # Create output directory if needed
+    os.makedirs(os.path.dirname(outname) if os.path.dirname(outname) else ".", exist_ok=True)
+    
+    try:
+        df.Snapshot(treename_out, outname, cols_out)
+        
+        # Validate the output file was written successfully
+        if not os.path.exists(outname):
+            raise RuntimeError(f"Snapshot failed to create output file {outname}")
+        
+        file_size = os.path.getsize(outname)
+        if file_size < 500:
+            raise RuntimeError(f"Snapshot output file is too small ({file_size} bytes). Likely incomplete write.")
+        
+        # Double-check the file is valid ROOT
+        test_file = ROOT.TFile.Open(outname, "READ")
+        if not test_file or test_file.IsZombie():
+            if test_file:
+                test_file.Close()
+            raise RuntimeError(f"Output file {outname} is not a valid ROOT file (zombie state)")
+        test_file.Close()
+        
+        print(f"      wrote: {outname} ({file_size} bytes)")
+    except Exception as e:
+        print(f"[ERROR] Failed to snapshot to {outname}: {e}")
+        # Clean up partial file
+        if os.path.exists(outname):
+            os.remove(outname)
+            print(f"[info] Cleaned up partial file {outname}")
+        raise
 
 # ----------------------------------
 # Combine backgrounds into one file 
