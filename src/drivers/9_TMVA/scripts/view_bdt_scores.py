@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# view_bdt_scores_improved.py
-# Enhanced analysis of BDT scores with better diagnostics
+# view_bdt_scores.py
+# analysis of BDT scores
 
 import ROOT
 import numpy as np
@@ -389,7 +389,7 @@ def main():
     print(f"\nLoading combined file: {args.input}")
     data_combined, cols_combined = load_data(args.input, args.treename)
     print(f"  Loaded {len(data_combined['bdt_score']):,} events")
-    print(f"  Available columns: {', '.join(sorted(cols_combined))}")
+    print(f"  Available columns: {', '.join(sorted([str(c) for c in cols_combined]))}")
     
     # Print statistics for combined
     print_statistics(data_combined, "(Combined)")
