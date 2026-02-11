@@ -210,7 +210,34 @@ def train_one(era, base_dir, bkg_cat, sig_extra_weight_branch=None, outdir_root=
     ROOT.gSystem.Load("libTMVA")
     out_model = os.path.join(outdir, f"{era}_tmva101_{bkg_cat}.root")
     print(f"[info] Saving model to {out_model}")
-    ROOT.TMVA.Experimental.SaveXGBoost(bdt, "myBDT", out_model, num_inputs=x_tr.shape[1])
+    
+    try:
+        ROOT.TMVA.Experimental.SaveXGBoost(bdt, "myBDT", out_model, num_inputs=x_tr.shape[1])
+        
+        # Verify the file was written successfully
+        if not os.path.exists(out_model):
+            raise RuntimeError(f"SaveXGBoost did not create output file {out_model}")
+        
+        file_size = os.path.getsize(out_model)
+        if file_size < 1000:
+            raise RuntimeError(f"SaveXGBoost output file is too small ({file_size} bytes). File may be corrupted.")
+        
+        # Double-check it's a valid ROOT file
+        test_file = ROOT.TFile.Open(out_model, "READ")
+        if not test_file or test_file.IsZombie():
+            if test_file:
+                test_file.Close()
+            raise RuntimeError(f"Output file {out_model} is not a valid ROOT file (zombie state)")
+        test_file.Close()
+        
+        print(f"[info] Model successfully saved: {out_model} ({file_size} bytes)")
+    except Exception as e:
+        print(f"[ERROR] Failed to save model: {e}")
+        # Clean up partial file
+        if os.path.exists(out_model):
+            os.remove(out_model)
+            print(f"[info] Cleaned up partial file {out_model}")
+        raise
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
@@ -231,3 +258,8 @@ if __name__ == "__main__":
             train_one(args.era, base_dir, cat, sig_extra_weight_branch=args.sig_extra_weight_branch, outdir_root=args.outdir)
         except FileNotFoundError as e:
             print(f"[WARN] Skipping {cat}: {e}")
+        except Exception as e:
+            print(f"[ERROR] Training failed for {cat}: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
