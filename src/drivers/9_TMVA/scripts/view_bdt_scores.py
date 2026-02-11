@@ -1,305 +1,429 @@
 #!/usr/bin/env python3
-# view_bdt_scores.py
-# View and analyze BDT scores from the scored ROOT file
+# view_bdt_scores_improved.py
+# Enhanced analysis of BDT scores with better diagnostics
 
 import ROOT
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import argparse
+import os
 
 def parse_args():
-    p = argparse.ArgumentParser(description="View BDT scores from scored ROOT file")
-    p.add_argument("--input", required=True, help="Scored ROOT file")
+    p = argparse.ArgumentParser(description="Analyze BDT scores with detailed diagnostics")
+    p.add_argument("--input", required=True, help="Scored ROOT file (combined signal+background)")
     p.add_argument("--treename", default="mva", help="Tree name")
     p.add_argument("--output", default="bdt_score_analysis.pdf", help="Output PDF")
-    p.add_argument("--n-show", type=int, default=20, help="Number of events to print")
+    p.add_argument("--signal-file", help="Optional: separate signal-only file to compare")
+    p.add_argument("--bkg-file", help="Optional: separate background-only file to compare")
     return p.parse_args()
 
-def main():
-    args = parse_args()
+def load_data(filename, treename):
+    """Load BDT scores and other variables from ROOT file"""
+    df = ROOT.RDataFrame(treename, filename)
     
-    print("="*80)
-    print("BDT SCORE ANALYSIS")
-    print("="*80)
-    print(f"\nInput file: {args.input}")
+    # Get available columns
+    cols = list(df.GetColumnNames())
     
-    # Open file
-    f = ROOT.TFile.Open(args.input)
-    if not f or f.IsZombie():
-        print(f"ERROR: Cannot open {args.input}")
-        return
+    # Essential columns
+    if 'bdt_score' not in cols:
+        raise ValueError(f"No 'bdt_score' branch in {filename}")
     
-    tree = f.Get(args.treename)
-    if not tree:
-        print(f"ERROR: Cannot find tree '{args.treename}'")
-        f.Close()
-        return
+    # Load columns that exist
+    cols_to_load = ['bdt_score']
+    optional = ['weight', 'fold', 'm_mumu', 'pt_mumu', 'njets', 'z', 'pt_balance', 
+                'deta_jj', 'dphi_mumu_jj', 'mu1_pt_over_m', 'mu2_pt_over_m']
     
-    n_entries = tree.GetEntries()
-    print(f"Total entries: {n_entries:,}")
+    for col in optional:
+        if col in cols:
+            cols_to_load.append(col)
     
-    # Check if bdt_score exists
-    branches = [b.GetName() for b in tree.GetListOfBranches()]
-    if 'bdt_score' not in branches:
-        print("ERROR: No 'bdt_score' branch found!")
-        print(f"Available branches: {branches[:10]}...")
-        f.Close()
-        return
+    arrays = df.AsNumpy(cols_to_load)
     
-    print("\n✓ Found 'bdt_score' branch")
+    # Convert to dict of numpy arrays
+    data = {}
+    for col in cols_to_load:
+        data[col] = np.asarray(arrays[col], dtype=float)
     
-    # Load data using RDataFrame for efficiency
-    df = ROOT.RDataFrame(args.treename, args.input)
+    # Add weights if not present
+    if 'weight' not in data:
+        data['weight'] = np.ones(len(data['bdt_score']))
     
-    # Get columns we need
-    cols_to_get = ['bdt_score']
+    return data, cols
+
+def print_statistics(data, label=""):
+    """Print detailed statistics about BDT scores"""
+    scores = data['bdt_score']
+    weights = data.get('weight', np.ones(len(scores)))
     
-    # Add optional columns if they exist
-    optional_cols = ['weight', 'isSignal', 'fold', 'm_mumu', 'pt_mumu', 'njets']
-    for col in optional_cols:
-        if col in branches:
-            cols_to_get.append(col)
+    print(f"\n{'='*80}")
+    print(f"BDT SCORE STATISTICS {label}")
+    print(f"{'='*80}")
     
-    print(f"Loading columns: {cols_to_get}")
-    
-    arrays = df.AsNumpy(cols_to_get)
-    scores = np.asarray(arrays['bdt_score'], dtype=float)
-    
-    # Get weights if available
-    if 'weight' in arrays:
-        weights = np.asarray(arrays['weight'], dtype=float)
-        has_weights = True
-    else:
-        weights = np.ones(len(scores))
-        has_weights = False
-    
-    # Get signal/background labels if available
-    if 'isSignal' in arrays:
-        labels = np.asarray(arrays['isSignal'], dtype=int)
-        has_labels = True
-    else:
-        labels = None
-        has_labels = False
-    
-    # Print statistics
-    print("\n" + "="*80)
-    print("BDT SCORE STATISTICS")
-    print("="*80)
-    print(f"\nOverall statistics:")
-    print(f"  Count:      {len(scores):,}")
+    print(f"\nBasic stats:")
+    print(f"  Events:     {len(scores):,}")
     print(f"  Mean:       {scores.mean():.6f}")
+    print(f"  Weighted:   {np.average(scores, weights=weights):.6f}")
     print(f"  Std Dev:    {scores.std():.6f}")
+    print(f"  Median:     {np.median(scores):.6f}")
     print(f"  Min:        {scores.min():.6f}")
     print(f"  Max:        {scores.max():.6f}")
-    print(f"  Median:     {np.median(scores):.6f}")
+    
     print(f"\nPercentiles:")
-    for p in [1, 5, 10, 25, 50, 75, 90, 95, 99]:
+    percentiles = [1, 5, 10, 25, 50, 75, 90, 95, 99]
+    for p in percentiles:
         print(f"  {p:2d}th:       {np.percentile(scores, p):.6f}")
     
-    if has_labels:
-        sig_mask = labels == 1
-        bkg_mask = labels == 0
+    print(f"\nScore distribution:")
+    bins = [(0.0, 0.2), (0.2, 0.5), (0.5, 0.8), (0.8, 0.95), (0.95, 1.0)]
+    for low, high in bins:
+        mask = (scores >= low) & (scores < high)
+        frac = mask.sum() / len(scores) * 100
+        print(f"  [{low:.2f}, {high:.2f}): {mask.sum():8,} events ({frac:5.2f}%)")
+    
+    # Weight statistics if available
+    if 'weight' in data:
+        w = data['weight']
+        print(f"\nWeight statistics:")
+        print(f"  Sum:      {w.sum():.4e}")
+        print(f"  Mean:     {w.mean():.4e}")
+        print(f"  Negative: {(w < 0).sum():,} ({100*(w < 0).sum()/len(w):.2f}%)")
+        print(f"  Zero:     {(w == 0).sum():,} ({100*(w == 0).sum()/len(w):.2f}%)")
+
+def create_diagnostic_plots(data_combined, data_sig, data_bkg, output_pdf):
+    """Create comprehensive diagnostic plots"""
+    
+    with PdfPages(output_pdf) as pdf:
         
-        print(f"\n" + "-"*80)
-        print("SIGNAL vs BACKGROUND")
-        print("-"*80)
-        print(f"\nSignal events: {sig_mask.sum():,}")
-        print(f"  Mean score: {scores[sig_mask].mean():.6f}")
-        print(f"  Std Dev:    {scores[sig_mask].std():.6f}")
-        print(f"  Median:     {np.median(scores[sig_mask]):.6f}")
+        # ========== PAGE 1: Score distributions ==========
+        fig = plt.figure(figsize=(11, 14))
         
-        print(f"\nBackground events: {bkg_mask.sum():,}")
-        print(f"  Mean score: {scores[bkg_mask].mean():.6f}")
-        print(f"  Std Dev:    {scores[bkg_mask].std():.6f}")
-        print(f"  Median:     {np.median(scores[bkg_mask]):.6f}")
+        # Plot 1: Overall distribution (linear)
+        ax1 = plt.subplot(4, 1, 1)
+        scores_comb = data_combined['bdt_score']
+        weights_comb = data_combined.get('weight', np.ones(len(scores_comb)))
         
-        # Calculate separation
-        separation = abs(scores[sig_mask].mean() - scores[bkg_mask].mean())
-        print(f"\nSeparation (|mean_sig - mean_bkg|): {separation:.6f}")
-    
-    # Show some example events
-    print(f"\n" + "="*80)
-    print(f"FIRST {args.n_show} EVENTS")
-    print("="*80)
-    
-    tree.GetEntry(0)  # Reset to first entry
-    
-    print(f"\n{'Event':<8s} {'BDT Score':<12s}", end="")
-    if has_labels:
-        print(f" {'Label':<8s}", end="")
-    if has_weights:
-        print(f" {'Weight':<12s}", end="")
-    if 'm_mumu' in arrays:
-        print(f" {'m_mumu':<10s}", end="")
-    if 'pt_mumu' in arrays:
-        print(f" {'pt_mumu':<10s}", end="")
-    if 'njets' in arrays:
-        print(f" {'njets':<6s}", end="")
-    print()
-    print("-"*80)
-    
-    for i in range(min(args.n_show, n_entries)):
-        tree.GetEntry(i)
-        print(f"{i:<8d} {tree.bdt_score:<12.6f}", end="")
-        if has_labels:
-            label_str = "Signal" if labels[i] == 1 else "Bkg"
-            print(f" {label_str:<8s}", end="")
-        if has_weights:
-            print(f" {weights[i]:<12.6e}", end="")
-        if 'm_mumu' in arrays:
-            print(f" {arrays['m_mumu'][i]:<10.3f}", end="")
-        if 'pt_mumu' in arrays:
-            print(f" {arrays['pt_mumu'][i]:<10.3f}", end="")
-        if 'njets' in arrays:
-            print(f" {int(arrays['njets'][i]):<6d}", end="")
-        print()
-    
-    # Create plots
-    print(f"\n" + "="*80)
-    print(f"CREATING PLOTS -> {args.output}")
-    print("="*80)
-    
-    with PdfPages(args.output) as pdf:
-        
-        # Page 1: Overall score distribution
-        fig, axes = plt.subplots(2, 1, figsize=(10, 8))
-        
-        # Linear scale
-        ax = axes[0]
-        if has_labels:
-            ax.hist(scores[sig_mask], bins=50, range=(0, 1), 
-                   weights=weights[sig_mask], alpha=0.5, 
-                   label=f'Signal (n={sig_mask.sum():,})', color='blue', density=True)
-            ax.hist(scores[bkg_mask], bins=50, range=(0, 1), 
-                   weights=weights[bkg_mask], alpha=0.5, 
-                   label=f'Background (n={bkg_mask.sum():,})', color='red', density=True)
+        if data_sig is not None and data_bkg is not None:
+            scores_sig = data_sig['bdt_score']
+            scores_bkg = data_bkg['bdt_score']
+            weights_sig = data_sig.get('weight', np.ones(len(scores_sig)))
+            weights_bkg = data_bkg.get('weight', np.ones(len(scores_bkg)))
+            
+            ax1.hist(scores_sig, bins=50, range=(0, 1), weights=weights_sig,
+                    alpha=0.5, label=f'Signal (n={len(scores_sig):,})', 
+                    color='blue', density=True, histtype='stepfilled')
+            ax1.hist(scores_bkg, bins=50, range=(0, 1), weights=weights_bkg,
+                    alpha=0.5, label=f'Background (n={len(scores_bkg):,})', 
+                    color='red', density=True, histtype='stepfilled')
+            
+            # Add vertical lines for means
+            ax1.axvline(np.average(scores_sig, weights=weights_sig), 
+                       color='blue', linestyle='--', linewidth=2, alpha=0.7,
+                       label=f'Signal mean: {np.average(scores_sig, weights=weights_sig):.3f}')
+            ax1.axvline(np.average(scores_bkg, weights=weights_bkg), 
+                       color='red', linestyle='--', linewidth=2, alpha=0.7,
+                       label=f'Bkg mean: {np.average(scores_bkg, weights=weights_bkg):.3f}')
         else:
-            ax.hist(scores, bins=50, range=(0, 1), weights=weights, 
-                   alpha=0.7, label=f'All events (n={len(scores):,})', color='green', density=True)
+            ax1.hist(scores_comb, bins=50, range=(0, 1), weights=weights_comb,
+                    alpha=0.7, label=f'All events (n={len(scores_comb):,})', 
+                    color='green', density=True)
         
-        ax.set_xlabel('BDT Score', fontsize=12)
-        ax.set_ylabel('Normalized Events', fontsize=12)
-        ax.set_title('BDT Score Distribution', fontsize=14, fontweight='bold')
-        ax.legend(fontsize=10)
-        ax.grid(True, alpha=0.3)
-        ax.set_xlim(0, 1)
+        ax1.set_xlabel('BDT Score', fontsize=12)
+        ax1.set_ylabel('Normalized Density', fontsize=12)
+        ax1.set_title('BDT Score Distribution (Linear Scale)', fontsize=13, fontweight='bold')
+        ax1.legend(fontsize=9, loc='upper left')
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(0, 1)
         
-        # Log scale
-        ax = axes[1]
-        if has_labels:
-            ax.hist(scores[sig_mask], bins=50, range=(0, 1), 
-                   weights=weights[sig_mask], alpha=0.5, 
-                   label=f'Signal', color='blue', density=True)
-            ax.hist(scores[bkg_mask], bins=50, range=(0, 1), 
-                   weights=weights[bkg_mask], alpha=0.5, 
-                   label=f'Background', color='red', density=True)
+        # Plot 2: Log scale
+        ax2 = plt.subplot(4, 1, 2)
+        if data_sig is not None and data_bkg is not None:
+            ax2.hist(scores_sig, bins=50, range=(0, 1), weights=weights_sig,
+                    alpha=0.5, label='Signal', color='blue', density=True, histtype='stepfilled')
+            ax2.hist(scores_bkg, bins=50, range=(0, 1), weights=weights_bkg,
+                    alpha=0.5, label='Background', color='red', density=True, histtype='stepfilled')
         else:
-            ax.hist(scores, bins=50, range=(0, 1), weights=weights, 
-                   alpha=0.7, label=f'All events', color='green', density=True)
+            ax2.hist(scores_comb, bins=50, range=(0, 1), weights=weights_comb,
+                    alpha=0.7, label='All events', color='green', density=True)
         
-        ax.set_xlabel('BDT Score', fontsize=12)
-        ax.set_ylabel('Normalized Events (log scale)', fontsize=12)
-        ax.set_title('BDT Score Distribution (Log Scale)', fontsize=14, fontweight='bold')
-        ax.legend(fontsize=10)
-        ax.grid(True, alpha=0.3)
-        ax.set_xlim(0, 1)
-        ax.set_yscale('log')
+        ax2.set_xlabel('BDT Score', fontsize=12)
+        ax2.set_ylabel('Normalized Density (log)', fontsize=12)
+        ax2.set_title('BDT Score Distribution (Log Scale)', fontsize=13, fontweight='bold')
+        ax2.legend(fontsize=9)
+        ax2.grid(True, alpha=0.3)
+        ax2.set_xlim(0, 1)
+        ax2.set_yscale('log')
+        ax2.set_ylim(bottom=1e-3)
+        
+        # Plot 3: Cumulative distributions
+        ax3 = plt.subplot(4, 1, 3)
+        if data_sig is not None and data_bkg is not None:
+            # Signal efficiency vs threshold
+            thresholds = np.linspace(0, 1, 200)
+            sig_eff = [np.sum(weights_sig[scores_sig >= t]) / np.sum(weights_sig) for t in thresholds]
+            bkg_eff = [np.sum(weights_bkg[scores_bkg >= t]) / np.sum(weights_bkg) for t in thresholds]
+            
+            ax3.plot(thresholds, sig_eff, 'b-', linewidth=2, label='Signal efficiency')
+            ax3.plot(thresholds, bkg_eff, 'r-', linewidth=2, label='Background efficiency')
+            ax3.plot(thresholds, np.array(sig_eff) / (np.array(bkg_eff) + 1e-10), 
+                    'g--', linewidth=2, label='S/B improvement')
+            
+            # Mark interesting points
+            ax3.axvline(0.5, color='gray', linestyle=':', alpha=0.5)
+            ax3.axvline(0.865, color='purple', linestyle='--', linewidth=2, 
+                       alpha=0.7, label='Optimal cut (0.865)')
+            
+            ax3.set_xlabel('BDT Score Threshold', fontsize=12)
+            ax3.set_ylabel('Efficiency / S/B', fontsize=12)
+            ax3.set_title('Signal/Background Efficiency vs Threshold', fontsize=13, fontweight='bold')
+            ax3.legend(fontsize=9)
+            ax3.grid(True, alpha=0.3)
+            ax3.set_xlim(0, 1)
+        else:
+            # Just show cumulative distribution
+            sorted_scores = np.sort(scores_comb)
+            cumsum = np.arange(1, len(sorted_scores) + 1) / len(sorted_scores)
+            ax3.plot(sorted_scores, cumsum, 'g-', linewidth=2)
+            ax3.set_xlabel('BDT Score', fontsize=12)
+            ax3.set_ylabel('Cumulative Fraction', fontsize=12)
+            ax3.set_title('Cumulative Distribution', fontsize=13, fontweight='bold')
+            ax3.grid(True, alpha=0.3)
+        
+        # Plot 4: Score bins summary
+        ax4 = plt.subplot(4, 1, 4)
+        bins = [(0.0, 0.2, 'Very Bkg-like'), (0.2, 0.5, 'Bkg-enriched'), 
+                (0.5, 0.8, 'Mixed'), (0.8, 0.95, 'Sig-enriched'), 
+                (0.95, 1.0, 'Very Sig-like')]
+        
+        if data_sig is not None and data_bkg is not None:
+            sig_counts = []
+            bkg_counts = []
+            labels = []
+            
+            for low, high, label in bins:
+                sig_mask = (scores_sig >= low) & (scores_sig < high)
+                bkg_mask = (scores_bkg >= low) & (scores_bkg < high)
+                sig_counts.append(np.sum(weights_sig[sig_mask]))
+                bkg_counts.append(np.sum(weights_bkg[bkg_mask]))
+                labels.append(f'{label}\n[{low:.2f},{high:.2f})')
+            
+            x = np.arange(len(labels))
+            width = 0.35
+            
+            ax4.bar(x - width/2, sig_counts, width, label='Signal', color='blue', alpha=0.7)
+            ax4.bar(x + width/2, bkg_counts, width, label='Background', color='red', alpha=0.7)
+            
+            ax4.set_xlabel('BDT Score Range', fontsize=12)
+            ax4.set_ylabel('Weighted Events', fontsize=12)
+            ax4.set_title('Event Distribution by Score Range', fontsize=13, fontweight='bold')
+            ax4.set_xticks(x)
+            ax4.set_xticklabels(labels, fontsize=9)
+            ax4.legend(fontsize=10)
+            ax4.grid(True, alpha=0.3, axis='y')
+            ax4.set_yscale('log')
+        else:
+            counts = []
+            labels = []
+            for low, high, label in bins:
+                mask = (scores_comb >= low) & (scores_comb < high)
+                counts.append(mask.sum())
+                labels.append(f'{label}\n[{low:.2f},{high:.2f})')
+            
+            ax4.bar(labels, counts, color='green', alpha=0.7)
+            ax4.set_xlabel('BDT Score Range', fontsize=12)
+            ax4.set_ylabel('Events', fontsize=12)
+            ax4.set_title('Event Distribution by Score Range', fontsize=13, fontweight='bold')
+            ax4.tick_params(axis='x', labelsize=9)
+            ax4.grid(True, alpha=0.3, axis='y')
         
         plt.tight_layout()
         pdf.savefig(fig, bbox_inches='tight')
         plt.close()
         
-        # Page 2: Score vs other variables
-        if 'm_mumu' in arrays and 'pt_mumu' in arrays:
-            fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        # ========== PAGE 2: Score vs Physics Variables ==========
+        if 'm_mumu' in data_combined and 'pt_mumu' in data_combined:
+            fig = plt.figure(figsize=(11, 14))
             
-            m_mumu = np.asarray(arrays['m_mumu'], dtype=float)
-            pt_mumu = np.asarray(arrays['pt_mumu'], dtype=float)
+            m_mumu = data_combined['m_mumu']
+            pt_mumu = data_combined['pt_mumu']
+            scores = data_combined['bdt_score']
             
-            # Score vs m_mumu
-            ax = axes[0, 0]
-            if has_labels:
-                ax.scatter(m_mumu[sig_mask], scores[sig_mask], 
-                          alpha=0.3, s=1, label='Signal', c='blue')
-                ax.scatter(m_mumu[bkg_mask], scores[bkg_mask], 
-                          alpha=0.3, s=1, label='Background', c='red')
-            else:
-                ax.scatter(m_mumu, scores, alpha=0.3, s=1, c='green')
-            ax.set_xlabel('m_μμ [GeV]', fontsize=10)
-            ax.set_ylabel('BDT Score', fontsize=10)
-            ax.set_title('BDT Score vs Dimuon Mass', fontsize=11)
-            if has_labels:
-                ax.legend(fontsize=8, markerscale=5)
-            ax.grid(True, alpha=0.3)
+            # Plot 1: Score vs m_mumu (2D histogram)
+            ax1 = plt.subplot(3, 2, 1)
+            h = ax1.hist2d(m_mumu, scores, bins=[100, 50], 
+                          range=[[100, 150], [0, 1]], cmap='YlOrRd', cmin=1)
+            plt.colorbar(h[3], ax=ax1, label='Events')
+            ax1.axvline(125, color='blue', linestyle='--', linewidth=2, label='Higgs mass')
+            ax1.set_xlabel('m_μμ [GeV]', fontsize=11)
+            ax1.set_ylabel('BDT Score', fontsize=11)
+            ax1.set_title('BDT Score vs Dimuon Mass', fontsize=12, fontweight='bold')
+            ax1.legend(fontsize=9)
+            ax1.grid(True, alpha=0.3)
             
-            # Score vs pt_mumu
-            ax = axes[0, 1]
-            if has_labels:
-                ax.scatter(pt_mumu[sig_mask], scores[sig_mask], 
-                          alpha=0.3, s=1, label='Signal', c='blue')
-                ax.scatter(pt_mumu[bkg_mask], scores[bkg_mask], 
-                          alpha=0.3, s=1, label='Background', c='red')
-            else:
-                ax.scatter(pt_mumu, scores, alpha=0.3, s=1, c='green')
-            ax.set_xlabel('pT_μμ [GeV]', fontsize=10)
-            ax.set_ylabel('BDT Score', fontsize=10)
-            ax.set_title('BDT Score vs Dimuon pT', fontsize=11)
-            if has_labels:
-                ax.legend(fontsize=8, markerscale=5)
-            ax.grid(True, alpha=0.3)
-            
-            # m_mumu distribution colored by score
-            ax = axes[1, 0]
-            sc = ax.scatter(m_mumu, np.random.uniform(-0.1, 0.1, len(m_mumu)), 
-                          c=scores, s=5, alpha=0.5, cmap='RdYlBu_r', vmin=0, vmax=1)
-            ax.set_xlabel('m_μμ [GeV]', fontsize=10)
-            ax.set_ylabel('Random (for visibility)', fontsize=10)
-            ax.set_title('Dimuon Mass colored by BDT Score', fontsize=11)
-            plt.colorbar(sc, ax=ax, label='BDT Score')
-            ax.grid(True, alpha=0.3)
-            
-            # Score distribution in mass windows
-            ax = axes[1, 1]
+            # Plot 2: Score in mass windows
+            ax2 = plt.subplot(3, 2, 2)
             mass_windows = [
-                (110, 120, 'Low mass'),
-                (120, 130, 'Signal region'),
-                (130, 140, 'High mass')
+                (110, 120, 'Low [110-120]', 'orange'),
+                (120, 130, 'Signal [120-130]', 'green'),
+                (130, 140, 'High [130-140]', 'purple')
             ]
-            for m_low, m_high, label in mass_windows:
+            for m_low, m_high, label, color in mass_windows:
                 mask = (m_mumu >= m_low) & (m_mumu < m_high)
+                if mask.sum() > 10:
+                    ax2.hist(scores[mask], bins=30, range=(0, 1), 
+                           alpha=0.5, label=label, density=True, 
+                           histtype='stepfilled', color=color)
+            ax2.set_xlabel('BDT Score', fontsize=11)
+            ax2.set_ylabel('Normalized Density', fontsize=11)
+            ax2.set_title('BDT Score in Different Mass Windows', fontsize=12, fontweight='bold')
+            ax2.legend(fontsize=9)
+            ax2.grid(True, alpha=0.3)
+            
+            # Plot 3: Mean score vs mass
+            ax3 = plt.subplot(3, 2, 3)
+            mass_bins = np.linspace(100, 150, 26)
+            mass_centers = (mass_bins[:-1] + mass_bins[1:]) / 2
+            mean_scores = []
+            for i in range(len(mass_bins) - 1):
+                mask = (m_mumu >= mass_bins[i]) & (m_mumu < mass_bins[i+1])
                 if mask.sum() > 0:
-                    ax.hist(scores[mask], bins=30, range=(0, 1), 
-                           alpha=0.5, label=f'{label} ({m_low}-{m_high} GeV)', 
-                           density=True, histtype='step', linewidth=2)
-            ax.set_xlabel('BDT Score', fontsize=10)
-            ax.set_ylabel('Normalized Events', fontsize=10)
-            ax.set_title('BDT Score in Different Mass Windows', fontsize=11)
-            ax.legend(fontsize=8)
-            ax.grid(True, alpha=0.3)
+                    mean_scores.append(scores[mask].mean())
+                else:
+                    mean_scores.append(np.nan)
+            ax3.plot(mass_centers, mean_scores, 'o-', linewidth=2, markersize=5)
+            ax3.axvline(125, color='blue', linestyle='--', linewidth=2, alpha=0.5)
+            ax3.set_xlabel('m_μμ [GeV]', fontsize=11)
+            ax3.set_ylabel('Mean BDT Score', fontsize=11)
+            ax3.set_title('Mean BDT Score vs Mass', fontsize=12, fontweight='bold')
+            ax3.grid(True, alpha=0.3)
+            
+            # Plot 4: Score vs pT
+            ax4 = plt.subplot(3, 2, 4)
+            h = ax4.hist2d(pt_mumu, scores, bins=[50, 50], 
+                          range=[[0, 300], [0, 1]], cmap='YlOrRd', cmin=1)
+            plt.colorbar(h[3], ax=ax4, label='Events')
+            ax4.set_xlabel('pT_μμ [GeV]', fontsize=11)
+            ax4.set_ylabel('BDT Score', fontsize=11)
+            ax4.set_title('BDT Score vs Dimuon pT', fontsize=12, fontweight='bold')
+            ax4.grid(True, alpha=0.3)
+            
+            # Plot 5: Score distribution by pT bins
+            ax5 = plt.subplot(3, 2, 5)
+            pt_windows = [
+                (0, 50, 'Low pT [0-50]', 'red'),
+                (50, 100, 'Med pT [50-100]', 'orange'),
+                (100, 200, 'High pT [100-200]', 'green'),
+                (200, 500, 'Very High pT [200+]', 'blue')
+            ]
+            for pt_low, pt_high, label, color in pt_windows:
+                mask = (pt_mumu >= pt_low) & (pt_mumu < pt_high)
+                if mask.sum() > 10:
+                    ax5.hist(scores[mask], bins=30, range=(0, 1), 
+                           alpha=0.5, label=label, density=True, 
+                           histtype='stepfilled', color=color)
+            ax5.set_xlabel('BDT Score', fontsize=11)
+            ax5.set_ylabel('Normalized Density', fontsize=11)
+            ax5.set_title('BDT Score by pT Range', fontsize=12, fontweight='bold')
+            ax5.legend(fontsize=9)
+            ax5.grid(True, alpha=0.3)
+            
+            # Plot 6: njets if available
+            ax6 = plt.subplot(3, 2, 6)
+            if 'njets' in data_combined:
+                njets = data_combined['njets']
+                for nj in [2, 3, 4, 5]:
+                    mask = (njets == nj)
+                    if mask.sum() > 10:
+                        ax6.hist(scores[mask], bins=30, range=(0, 1), 
+                               alpha=0.5, label=f'{nj} jets (n={mask.sum():,})', 
+                               density=True, histtype='stepfilled')
+                ax6.set_xlabel('BDT Score', fontsize=11)
+                ax6.set_ylabel('Normalized Density', fontsize=11)
+                ax6.set_title('BDT Score by Jet Multiplicity', fontsize=12, fontweight='bold')
+                ax6.legend(fontsize=9)
+                ax6.grid(True, alpha=0.3)
+            else:
+                ax6.text(0.5, 0.5, 'njets not available', 
+                        ha='center', va='center', fontsize=14)
+                ax6.axis('off')
             
             plt.tight_layout()
             pdf.savefig(fig, bbox_inches='tight')
             plt.close()
+        
+        # ========== PAGE 3: Feature correlations with score ==========
+        fig = plt.figure(figsize=(11, 14))
+        
+        feature_vars = ['pt_mumu', 'z', 'pt_balance', 'deta_jj', 'dphi_mumu_jj']
+        available_features = [f for f in feature_vars if f in data_combined]
+        
+        if len(available_features) >= 4:
+            for idx, feat in enumerate(available_features[:6]):
+                ax = plt.subplot(3, 2, idx + 1)
+                
+                feat_vals = data_combined[feat]
+                scores = data_combined['bdt_score']
+                
+                # 2D histogram
+                h = ax.hist2d(feat_vals, scores, bins=[50, 50], cmap='YlOrRd', cmin=1)
+                plt.colorbar(h[3], ax=ax, label='Events')
+                ax.set_xlabel(feat, fontsize=11)
+                ax.set_ylabel('BDT Score', fontsize=11)
+                ax.set_title(f'BDT Score vs {feat}', fontsize=11, fontweight='bold')
+                ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close()
+        
+        print(f"✓ Created diagnostic PDF: {output_pdf}")
+
+def main():
+    args = parse_args()
     
-    print(f"✓ Saved plots to {args.output}")
+    print("="*80)
+    print("ENHANCED BDT SCORE ANALYSIS")
+    print("="*80)
     
-    f.Close()
+    # Load combined file
+    print(f"\nLoading combined file: {args.input}")
+    data_combined, cols_combined = load_data(args.input, args.treename)
+    print(f"  Loaded {len(data_combined['bdt_score']):,} events")
+    print(f"  Available columns: {', '.join(sorted(cols_combined))}")
     
-    print("\n" + "="*80)
+    # Print statistics for combined
+    print_statistics(data_combined, "(Combined)")
+    
+    # Optionally load separate signal/background files
+    data_sig = None
+    data_bkg = None
+    
+    if args.signal_file and os.path.exists(args.signal_file):
+        print(f"\nLoading signal file: {args.signal_file}")
+        data_sig, _ = load_data(args.signal_file, args.treename)
+        print_statistics(data_sig, "(Signal only)")
+    
+    if args.bkg_file and os.path.exists(args.bkg_file):
+        print(f"\nLoading background file: {args.bkg_file}")
+        data_bkg, _ = load_data(args.bkg_file, args.treename)
+        print_statistics(data_bkg, "(Background only)")
+    
+    # Create plots
+    print(f"\n{'='*80}")
+    print("CREATING DIAGNOSTIC PLOTS")
+    print("="*80)
+    create_diagnostic_plots(data_combined, data_sig, data_bkg, args.output)
+    
+    print(f"\n{'='*80}")
     print("SUMMARY")
     print("="*80)
-    print(f"\n✓ BDT scores successfully loaded from: {args.input}")
-    print(f"✓ Score range: [{scores.min():.6f}, {scores.max():.6f}]")
-    print(f"✓ Mean score: {scores.mean():.6f}")
-    if has_labels:
-        print(f"✓ Signal mean: {scores[sig_mask].mean():.6f}")
-        print(f"✓ Background mean: {scores[bkg_mask].mean():.6f}")
+    print(f"\n✓ Analysis complete!")
     print(f"✓ Plots saved to: {args.output}")
-    print("\nNext steps:")
-    print("  1. Check the plots to verify score distributions look reasonable")
-    print("  2. Apply score cuts for your analysis (e.g., score > 0.8)")
-    print("  3. Use scores for further analysis or plotting")
+    print(f"\nNext steps:")
+    print(f"  1. Review the multi-page PDF with comprehensive diagnostics")
+    print(f"  2. Check if BDT score peaks at signal mass (125 GeV)")
+    print(f"  3. Verify high-pT events have higher scores (VBF signature)")
+    print(f"  4. Apply score cuts for your analysis")
     print("="*80 + "\n")
 
 if __name__ == "__main__":
