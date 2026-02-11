@@ -9,8 +9,8 @@
 #   --background Outputs/2024/2024_scored_background.root \
 #   --treename mva \
 #   --output hmumu_full_analysis.pdf \
-#   --lumi 35.9 \
-#   --signal-xsec 0.0483
+#   --lumi 104.80585 \
+#   --signal-xsec 0.000909568
 
 # # Advanced run (with individual background components for stacking)
 # python3 comprehensive_hmumu_analysis.py \
@@ -23,7 +23,7 @@
 #                     Outputs/2024/2024_scored_VVV.root \
 #   --treename mva \
 #   --output hmumu_full_analysis.pdf \
-#   --lumi 0.13015 \
+#   --lumi 104.80585 \
 #   --signal-xsec 0.000909568
 
 
