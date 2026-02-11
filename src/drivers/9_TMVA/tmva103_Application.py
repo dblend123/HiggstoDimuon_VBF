@@ -33,7 +33,23 @@ if __name__ == "__main__":
     if ROOT.gSystem.AccessPathName(args.model_file, ROOT.kReadPermission):
         ROOT.Error("tmva103", f"Model file not found or unreadable: {args.model_file}")
         raise SystemExit(1)
-    model = ROOT.TMVA.Experimental.RBDT[""](args.model_name, args.model_file)
+    
+    # Validate that model file is readable and not corrupted
+    test_file = ROOT.TFile.Open(args.model_file, "READ")
+    if not test_file or test_file.IsZombie():
+        ROOT.Error("tmva103", f"Model file is corrupted or incomplete: {args.model_file}")
+        ROOT.Error("tmva103", "Please retrain the model by running tmva101_Training.py")
+        if test_file:
+            test_file.Close()
+        raise SystemExit(1)
+    test_file.Close()
+    
+    try:
+        model = ROOT.TMVA.Experimental.RBDT[""](args.model_name, args.model_file)
+    except Exception as e:
+        ROOT.Error("tmva103", f"Failed to load model from {args.model_file}: {str(e)}")
+        ROOT.Error("tmva103", "Please retrain the model by running tmva101_Training.py")
+        raise SystemExit(1)
 
     # Build an RDataFrame to pull NumPy arrays efficiently
     flist = ROOT.std.vector("string")()
