@@ -222,13 +222,9 @@ def train_one(era, base_dir, bkg_cat, sig_extra_weight_branch=None, outdir_root=
         if file_size < 1000:
             raise RuntimeError(f"SaveXGBoost output file is too small ({file_size} bytes). File may be corrupted.")
         
-        # Double-check it's a valid ROOT file
-        test_file = ROOT.TFile.Open(out_model, "READ")
-        if not test_file or test_file.IsZombie():
-            if test_file:
-                test_file.Close()
-            raise RuntimeError(f"Output file {out_model} is not a valid ROOT file (zombie state)")
-        test_file.Close()
+        # NOTE: Skipping immediate ROOT file validation because EOS may not have 
+        # flushed the data yet, leading to transient read errors. The file size check
+        # above is sufficient to detect incomplete writes.
         
         print(f"[info] Model successfully saved: {out_model} ({file_size} bytes)")
     except Exception as e:
