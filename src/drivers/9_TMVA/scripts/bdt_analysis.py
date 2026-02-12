@@ -49,6 +49,18 @@ def list_branches(path, treename):
     f.Close()
     return names
 
+
+def infer_mass_branch(path, treename, preferred):
+    if preferred != "auto":
+        return preferred
+    cols = set(list_branches(path, treename))
+    mass_candidates = ["m_mumu", "m", "mass", "mll", "mlljj", "mllg"]
+    for c in mass_candidates:
+        if c in cols:
+            return c
+    return None
+
+
 def discover_eras(outputs_dir, requested):
     if requested:
         return requested
