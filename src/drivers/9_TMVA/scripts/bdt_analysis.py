@@ -105,7 +105,8 @@ def rank_features(signal, backgrounds):
     ranking.sort(key=lambda x: x[1], reverse=True)
 
     for i, (f, val) in enumerate(ranking[:10], 1):
-        print(f"{i:2d}. {f:20s}  separation metric = {val:.4f}")
+        print(f"{i:2d}. {str(f):20}  separation metric = {float(val):.4f}")
+
 
     return ranking
 
