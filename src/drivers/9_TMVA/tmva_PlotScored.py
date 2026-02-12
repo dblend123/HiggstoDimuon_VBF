@@ -1,25 +1,60 @@
 #!/usr/bin/env python3
 # Auto-plot BDT score shapes and significance per era + combined.
-# Discovers test files in DataPreparation_Files/, computes scores on the fly.
+# Supports either:
+#   (A) discovering test files in a directory (default behavior), or
+#   (B) explicit --signal and --backgrounds file paths.
+#
+# Outputs:
+#   <out_prefix>_shapes.(pdf|png)
+#   <out_prefix>_Z.(pdf|png)
+#   <out_prefix>_ZA.(pdf|png)
 
 import os, glob, numpy as np, ROOT
+import argparse
 
-# ----------------- CONFIG (match training) -----------------
+# ----------------- CONFIG DEFAULTS (match training) -----------------
 from tmva100_DataPreparation import VARIABLES
 
-TREENAME = "mva"
-WEIGHT_BRANCH = "weight"
+DEFAULT_TREENAME       = "mva"
+DEFAULT_WEIGHT_BRANCH  = "weight"
 
-PREP_DIR = "DataPreparation_Files"   # where test_*.root live
-MODEL_FILE = "tmva101.root"
-MODEL_NAME = "myBDT"
+DEFAULT_PREP_DIR       = "DataPreparation_Files"   # where *_test_{signal,background}.root live
+DEFAULT_MODEL_FILE     = "tmva101.root"
+DEFAULT_MODEL_NAME     = "myBDT"
 
-NBINS = 60
-XRANGE = (0.0, 1.0)
-OUT_TAG = "tmva"  # base label in file names
-# -----------------------------------------------------------
+NBINS   = 60
+XRANGE  = (0.0, 1.0)
+# -------------------------------------------------------------------
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Plot BDT score shapes and significance; discover files by era or take explicit inputs."
+    )
+    # Discovery-mode directory
+    p.add_argument("--prep-dir", default=DEFAULT_PREP_DIR,
+                   help=f"Directory containing *_test_signal.root and *_test_background.root pairs (default: {DEFAULT_PREP_DIR})")
+    # Explicit files (override discovery mode if provided)
+    p.add_argument("--signal", help="Explicit path to a *_test_signal.root file")
+    p.add_argument("--backgrounds", nargs="+",
+                   help="One or more explicit background ROOT files (merged logically)")
+
+    # Model / tree / weight
+    p.add_argument("--model-file", default=DEFAULT_MODEL_FILE,
+                   help=f"TMVA model file (default: {DEFAULT_MODEL_FILE})")
+    p.add_argument("--model-name", default=DEFAULT_MODEL_NAME,
+                   help=f"TMVA method name inside the model file (default: {DEFAULT_MODEL_NAME})")
+    p.add_argument("--treename", default=DEFAULT_TREENAME,
+                   help=f"TTree name (default: {DEFAULT_TREENAME})")
+    p.add_argument("--weight-branch", default=DEFAULT_WEIGHT_BRANCH,
+                   help=f"Weight branch name (default: {DEFAULT_WEIGHT_BRANCH})")
+
+    # Output
+    p.add_argument("--out-prefix", default="ALL_tmva",
+                   help="Prefix for output files (default: ALL_tmva)")
+    return p.parse_args()
+
 def load_test_pairs(prep_dir):
-    import glob, os
+    # Returns pairs = [(era, sig_file, bkg_file), ...]
     pairs = []
     for sig in sorted(glob.glob(os.path.join(prep_dir, "*_test_signal.root"))):
         era = os.path.basename(sig).replace("_test_signal.root", "")
@@ -112,39 +147,68 @@ def plot_significance(sig_scores, sig_w, bkg_scores, bkg_w, outprefix):
 
     print(f"[{outprefix}] S0={S0:.2f}, B0={B0:.2f} | best Z: cut={cZ:.3f}, Z={Zbest:.2f} | best ZA: cut={cZA:.3f}, ZA={ZAbest:.2f}")
 
+def discover_or_use_explicit(args):
+    """
+    Returns:
+      - If explicit files provided: ([(era, sig, bkg)], out_prefix)
+      - Else discovery pairs from prep-dir: ([(era, sig, bkg), ...], out_prefix)
+    """
+    if args.signal or args.backgrounds:
+        if not (args.signal and args.backgrounds):
+            raise SystemExit("If you use explicit file mode, provide BOTH --signal and --backgrounds.")
+        # Use a virtual 'era' label for explicit mode
+        era = "EXPLICIT"
+        # If multiple backgrounds are passed, we will read them all and concatenate arrays later
+        return ([(era, args.signal, args.backgrounds)], args.out_prefix)
+
+    # Discovery mode: find *_test_signal.root and *_test_background.root in prep-dir
+    pairs = load_test_pairs(args.prep_dir)
+    return (pairs, args.out_prefix)
+
 if __name__ == "__main__":
+    args = parse_args()
+
     ROOT.gSystem.Load("libTMVA")
-    if ROOT.gSystem.AccessPathName(MODEL_FILE, ROOT.kReadPermission):
-        raise SystemExit(f"Model file not readable: {MODEL_FILE}")
-    bdt = ROOT.TMVA.Experimental.RBDT[""](MODEL_NAME, MODEL_FILE)
+    if ROOT.gSystem.AccessPathName(args.model_file, ROOT.kReadPermission):
+        raise SystemExit(f"Model file not readable: {args.model_file}")
 
-    pairs = load_test_pairs(PREP_DIR)  # [(era, sig, bkg), ...]
+    # Load the trained TMVA model
+    bdt = ROOT.TMVA.Experimental.RBDT[""](args.model_name, args.model_file)
 
-    # Accumulate ALL eras
+    pairs, outprefix = discover_or_use_explicit(args)
+
+    # Accumulate ALL eras (or explicit set)
     all_sig_scores, all_sig_w = [], []
     all_bkg_scores, all_bkg_w = [], []
 
     for era, sig, bkg in pairs:
-        # pull arrays (vars + weight)
-        sig_arrays = arrays_from_file(sig, TREENAME, VARIABLES + [WEIGHT_BRANCH])
-        bkg_arrays = arrays_from_file(bkg, TREENAME, VARIABLES + [WEIGHT_BRANCH])
-
+        # ----- signal -----
+        sig_arrays = arrays_from_file(sig, args.treename, VARIABLES + [args.weight_branch])
         xs_sig, w_sig = sig_arrays[:-1], sanitize_weights(sig_arrays[-1])
-        xs_bkg, w_bkg = bkg_arrays[:-1], sanitize_weights(bkg_arrays[-1])
-
         s_sig = compute_scores(bdt, xs_sig)
-        s_bkg = compute_scores(bdt, xs_bkg)
-
         all_sig_scores.append(s_sig); all_sig_w.append(w_sig)
-        all_bkg_scores.append(s_bkg); all_bkg_w.append(w_bkg)
+
+        # ----- background(s) -----
+        if isinstance(bkg, (list, tuple)):  # explicit multi-file background
+            era_bkg_scores, era_bkg_w = [], []
+            for bfile in bkg:
+                bkg_arrays = arrays_from_file(bfile, args.treename, VARIABLES + [args.weight_branch])
+                xs_bkg, w_bkg = bkg_arrays[:-1], sanitize_weights(bkg_arrays[-1])
+                s_bkg = compute_scores(bdt, xs_bkg)
+                era_bkg_scores.append(s_bkg); era_bkg_w.append(w_bkg)
+            all_bkg_scores.append(np.concatenate(era_bkg_scores))
+            all_bkg_w.append(np.concatenate(era_bkg_w))
+        else:
+            bkg_arrays = arrays_from_file(bkg, args.treename, VARIABLES + [args.weight_branch])
+            xs_bkg, w_bkg = bkg_arrays[:-1], sanitize_weights(bkg_arrays[-1])
+            s_bkg = compute_scores(bdt, xs_bkg)
+            all_bkg_scores.append(s_bkg); all_bkg_w.append(w_bkg)
 
     # Single combined arrays
     sS = np.concatenate(all_sig_scores); wS = np.concatenate(all_sig_w)
     sB = np.concatenate(all_bkg_scores); wB = np.concatenate(all_bkg_w)
 
-    outprefix = "ALL_tmva"
     plot_shapes(sS, wS, sB, wB, outprefix)
     plot_significance(sS, wS, sB, wB, outprefix)
 
-    print("[done] Wrote ALL_tmva_shapes.(pdf|png) and ALL_tmva_{Z,ZA}.(pdf|png)")
-
+    print(f"[done] Wrote {outprefix}_shapes.(pdf|png) and {outprefix}_{{Z,ZA}}.(pdf|png)")
