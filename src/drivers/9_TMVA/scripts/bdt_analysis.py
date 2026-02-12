@@ -3,11 +3,15 @@
 import argparse
 import glob
 import os
+import sys
 
 import numpy as np
 import ROOT
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+
+# Add parent directory to path so we can import tmva100_DataPreparation
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tmva100_DataPreparation import VARIABLES
 

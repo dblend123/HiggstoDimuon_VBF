@@ -207,6 +207,7 @@ if [ "$SKIP_ANALYSIS" = false ]; then
     echo "----------------------------------------"
     
     # Use the tmva_PlotScored.py script with appropriate parameters for this era
+    # example output: [2024_tmva] S0=19.93, B0=115380.69 | best Z: cut=0.987, Z=0.29 | best ZA: cut=0.987, ZA=0.29]
     python3 tmva_PlotScored.py \
         --prep-dir "DataPreparation_Files/${ERA}" \
         --model-file "Outputs/Training/${ERA}/${ERA}_tmva101_background.root" \
@@ -230,7 +231,7 @@ if [ "$SKIP_ANALYSIS" = false ]; then
         --treename "mva" \
         --bdt-branch "bdt_score" \
         --weight-branch "weight" \
-        --mass-branch "m" \
+        --mass-branch "m_mumu" \
         --mass-min 110 \
         --mass-max 150 \
         --alpha 1e-3 \
