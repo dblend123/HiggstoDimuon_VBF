@@ -23,8 +23,8 @@ def parse_args():
     p.add_argument("--bdt-branch", default="bdt_score")
     p.add_argument("--weight-branch", default="weight")
     p.add_argument("--mass-branch", default="m")
-    p.add_argument("--mass-min", type=float, default=110.0)
-    p.add_argument("--mass-max", type=float, default=150.0)
+    p.add_argument("--mass-min", type=float, default=110)
+    p.add_argument("--mass-max", type=float, default=150)
     p.add_argument("--bdt-bins", default=",".join([f"{x:.2f}" for x in DEFAULT_BDT_BINS]))
     p.add_argument("--alpha", type=float, default=1e-3, help="KS p-value threshold")
     p.add_argument("--dthr-pct", type=float, default=0.20, help="KS D(%) threshold")
@@ -44,17 +44,6 @@ def list_branches(path, treename):
     names = [br.GetName() for br in t.GetListOfBranches()]
     f.Close()
     return names
-
-
-def infer_mass_branch(path, treename, preferred):
-    if preferred != "auto":
-        return preferred
-    cols = set(list_branches(path, treename))
-    for c in MASS_CANDIDATES:
-        if c in cols:
-            return c
-    return None
-
 
 def discover_eras(outputs_dir, requested):
     if requested:
