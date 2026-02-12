@@ -117,7 +117,7 @@ def rank_features(signal, backgrounds):
     ranking.sort(key=lambda x: x[1], reverse=True)
 
     for i, (feat, val) in enumerate(ranking[:10], 1):
-        print(f"{i:2d}. {feat:20}  Δcorr = {val:.4f}")
+        print(f"{i:2d}. {str(feat):20}  Δcorr = {float(val):.4f}")
 
     return ranking
 
