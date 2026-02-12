@@ -224,7 +224,7 @@ if [ "$SKIP_ANALYSIS" = false ]; then
     echo "Step 6: Comprehensive BDT analysis for era ${ERA}"
     echo "----------------------------------------"
     
-    python3 bdt_analysis.py \
+    python3 scripts/bdt_analysis.py \
         --outputs-dir "Outputs" \
         --eras ${ERA} \
         --treename "mva" \
