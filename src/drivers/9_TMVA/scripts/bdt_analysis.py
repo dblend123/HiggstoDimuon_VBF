@@ -12,14 +12,14 @@ import os
 # ============================================================
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Comprehensive BDT diagnostics")
-    p.add_argument("--signal", required=True, help="Signal ROOT file")
-    p.add_argument("--backgrounds", nargs="+", required=True,
-                   help="Background ROOT files")
-    p.add_argument("--data", help="Optional data ROOT file")
+    p = argparse.ArgumentParser(description="Physics-grade BDT diagnostics")
+    p.add_argument("--signal", required=True)
+    p.add_argument("--backgrounds", nargs="+", required=True)
+    p.add_argument("--data")
     p.add_argument("--treename", default="mva")
-    p.add_argument("--output", default="bdt_comprehensive_analysis.pdf")
+    p.add_argument("--output", default="bdt_validation.pdf")
     return p.parse_args()
+
 
 # ============================================================
 # ROOT loading
@@ -33,10 +33,9 @@ def load_process(filename, treename, label):
     cols = list(df.GetColumnNames())
 
     if "bdt_score" not in cols:
-        raise ValueError(f"No bdt_score in {filename}")
+        raise ValueError(f"bdt_score missing in {filename}")
 
     arrays = df.AsNumpy(cols)
-
     data = {c: np.asarray(arrays[c], dtype=float) for c in cols}
 
     if "weight" not in data:
@@ -45,11 +44,12 @@ def load_process(filename, treename, label):
     data["label"] = label
     return data
 
+
 # ============================================================
-# Significance scan
+# Efficiency & Significance
 # ============================================================
 
-def compute_significance_scan(signal, backgrounds):
+def compute_scan(signal, backgrounds):
 
     thresholds = np.linspace(0, 1, 200)
 
@@ -63,55 +63,67 @@ def compute_significance_scan(signal, backgrounds):
         for b in backgrounds:
             B += np.sum(b["weight"][b["bdt_score"] >= t])
 
-        Z = S / np.sqrt(B) if B > 0 else 0
-        SB = S / B if B > 0 else 0
+        eff_sig = S / np.sum(signal["weight"])
+        eff_bkg = B / np.sum([np.sum(b["weight"]) for b in backgrounds])
 
-        results.append((t, S, B, SB, Z))
+        Z = S / np.sqrt(B) if B > 0 else 0
+
+        results.append((t, S, B, eff_sig, eff_bkg, Z))
 
     return np.array(results)
 
+
 # ============================================================
-# Feature ranking
+# Feature ranking (clean + robust)
 # ============================================================
 
 def rank_features(signal, backgrounds):
 
-    print("\nFeature–Score Correlation Ranking\n")
-
-    combined_bkg = {}
-    for key in signal:
-        if key in ["bdt_score", "weight", "label"]:
-            continue
-        vals = []
-        for b in backgrounds:
-            if key in b:
-                vals.append(b[key])
-        if vals:
-            combined_bkg[key] = np.concatenate(vals)
+    print("\nTop Feature–Score Separation\n")
 
     ranking = []
 
-    for feat in combined_bkg:
+    for feat in signal:
+        if feat in ["bdt_score", "weight", "label"]:
+            continue
 
         if feat not in signal:
             continue
 
         sig_corr = np.corrcoef(signal[feat], signal["bdt_score"])[0, 1]
-        bkg_corr = np.corrcoef(combined_bkg[feat],
-                               np.concatenate([b["bdt_score"] for b in backgrounds]))[0, 1]
 
-        ranking.append((feat, abs(sig_corr - bkg_corr)))
+        bkg_feat = []
+        bkg_score = []
+
+        for b in backgrounds:
+            if feat in b:
+                bkg_feat.append(b[feat])
+                bkg_score.append(b["bdt_score"])
+
+        if not bkg_feat:
+            continue
+
+        bkg_feat = np.concatenate(bkg_feat)
+        bkg_score = np.concatenate(bkg_score)
+
+        if len(bkg_feat) < 2:
+            continue
+
+        bkg_corr = np.corrcoef(bkg_feat, bkg_score)[0, 1]
+
+        metric = abs(sig_corr - bkg_corr)
+        ranking.append((feat, metric))
 
     ranking.sort(key=lambda x: x[1], reverse=True)
 
-    for i, (f, val) in enumerate(ranking[:10], 1):
-        print(f"{i:2d}. {str(f):20}  separation metric = {float(val):.4f}")
-
+    for i, (feat, val) in enumerate(ranking[:10], 1):
+        print(f"{i:2d}. {feat:20}  Δcorr = {val:.4f}")
 
     return ranking
 
+
 # ============================================================
-# Main plotting
+# PDF creation
 # ============================================================
 
 def create_pdf(signal, backgrounds, data, output):
@@ -119,46 +131,38 @@ def create_pdf(signal, backgrounds, data, output):
     with PdfPages(output) as pdf:
 
         # ====================================================
-        # Page 1 — What the BDT means
+        # Page 1 — Physics Overview
         # ====================================================
 
         fig = plt.figure(figsize=(11, 8.5))
         plt.axis("off")
 
         text = """
-BDT SCORE INTERPRETATION
+BDT VALIDATION OVERVIEW
 
-The Boosted Decision Tree (BDT) score ranges from 0 to 1.
+Goal:
+  Separate VBF H→μμ signal from dominant backgrounds.
 
-Low score (≈0):
-    Event is background-like.
+Score interpretation:
+  Score ~ 0 → background-like
+  Score ~ 1 → signal-like
 
-High score (≈1):
-    Event is signal-like (VBF Higgs candidate).
-
-The classifier was trained using kinematic and angular
-variables including:
-    • Δη_jj
-    • pT balance
-    • cosθ_CS
-    • jet kinematics
-    • dimuon variables
-
-Interpretation strategy:
-    1. Examine score distributions per process
-    2. Determine optimal working point via S/√B
-    3. Validate stability across folds
-    4. Check mass independence
-    5. Inspect high-score background composition
-
-This document provides a complete validation.
+Validation strategy:
+  • Score distribution per process
+  • Background composition at high score
+  • Signal efficiency vs background rejection
+  • Significance scan (S/√B)
+  • Mass sculpting check
+  • Fold stability
+  • Yields at chosen working point
 """
-        plt.text(0.05, 0.95, text, va="top", fontsize=12)
+
+        plt.text(0.05, 0.95, text, va="top", fontsize=13)
         pdf.savefig()
         plt.close()
 
         # ====================================================
-        # Page 2 — Score distributions per process
+        # Page 2 — Score by process
         # ====================================================
 
         fig = plt.figure(figsize=(11, 8))
@@ -181,141 +185,110 @@ This document provides a complete validation.
 
         plt.xlabel("BDT Score")
         plt.ylabel("Normalized Density")
-        plt.title("BDT Score by Process")
+        plt.title("BDT Score Distribution by Process")
         plt.legend()
         plt.grid(alpha=0.3)
         pdf.savefig()
         plt.close()
 
         # ====================================================
-        # Page 3 — Log scale
+        # Page 3 — High-score background composition
         # ====================================================
 
         fig = plt.figure(figsize=(11, 8))
 
-        for b in backgrounds:
-            plt.hist(b["bdt_score"],
-                     bins=60,
-                     weights=b["weight"],
-                     histtype="step",
-                     density=True,
-                     label=b["label"])
-
-        plt.hist(signal["bdt_score"],
-                 bins=60,
-                 weights=signal["weight"],
-                 histtype="step",
-                 linewidth=2,
-                 density=True,
-                 label="Signal")
-
-        plt.yscale("log")
-        plt.xlabel("BDT Score")
-        plt.ylabel("Normalized Density (log)")
-        plt.title("BDT Score by Process (Log Scale)")
-        plt.legend()
-        plt.grid(alpha=0.3)
-        pdf.savefig()
-        plt.close()
-
-        # ====================================================
-        # Page 4 — Significance Scan
-        # ====================================================
-
-        results = compute_significance_scan(signal, backgrounds)
-
-        thresholds = results[:, 0]
-        S = results[:, 1]
-        B = results[:, 2]
-        SB = results[:, 3]
-        Z = results[:, 4]
-
-        optimal_idx = np.argmax(Z)
-        optimal_cut = thresholds[optimal_idx]
-
-        print(f"\nOptimal cut = {optimal_cut:.3f}")
-        print(f"Max S/sqrt(B) = {Z[optimal_idx]:.3f}")
-
-        fig = plt.figure(figsize=(11, 8))
-        plt.plot(thresholds, Z, label="S/√B")
-        plt.plot(thresholds, SB, label="S/B")
-        plt.axvline(optimal_cut, linestyle="--",
-                    label=f"Optimal cut = {optimal_cut:.3f}")
-        plt.xlabel("BDT Threshold")
-        plt.ylabel("Metric")
-        plt.title("Significance Scan")
-        plt.legend()
-        plt.grid(alpha=0.3)
-        pdf.savefig()
-        plt.close()
-
-        # ====================================================
-        # Page 5 — Yields after optimal cut
-        # ====================================================
-
-        fig = plt.figure(figsize=(11, 8))
+        cut = 0.9
 
         labels = []
         yields = []
 
-        S_cut = np.sum(signal["weight"][signal["bdt_score"] >= optimal_cut])
-        labels.append("Signal")
-        yields.append(S_cut)
-
         for b in backgrounds:
-            y = np.sum(b["weight"][b["bdt_score"] >= optimal_cut])
+            y = np.sum(b["weight"][b["bdt_score"] >= cut])
             labels.append(b["label"])
             yields.append(y)
 
         plt.bar(labels, yields)
         plt.yscale("log")
         plt.ylabel("Weighted Yield")
-        plt.title(f"Yields after BDT > {optimal_cut:.3f}")
+        plt.title(f"Background Composition for BDT > {cut}")
         plt.xticks(rotation=45)
         pdf.savefig()
         plt.close()
 
         # ====================================================
-        # Page 6 — Fold Stability
+        # Page 4 — Efficiency + Significance
         # ====================================================
 
-        if "fold" in signal:
+        scan = compute_scan(signal, backgrounds)
 
-            fig = plt.figure(figsize=(11, 8))
+        thresholds = scan[:, 0]
+        eff_sig = scan[:, 3]
+        eff_bkg = scan[:, 4]
+        Z = scan[:, 5]
 
-            for f in np.unique(signal["fold"]):
-                mask = signal["fold"] == f
-                plt.hist(signal["bdt_score"][mask],
-                         bins=50,
-                         histtype="step",
-                         density=True,
-                         label=f"Fold {int(f)}")
+        opt_idx = np.argmax(Z)
+        opt_cut = thresholds[opt_idx]
 
-            plt.title("Signal Score by Training Fold")
-            plt.xlabel("BDT Score")
-            plt.ylabel("Normalized Density")
-            plt.legend()
-            plt.grid(alpha=0.3)
-            pdf.savefig()
-            plt.close()
+        print(f"\nOptimal cut = {opt_cut:.3f}")
+        print(f"Max S/√B = {Z[opt_idx]:.3f}")
+
+        fig = plt.figure(figsize=(11, 8))
+        plt.plot(thresholds, eff_sig, label="Signal efficiency")
+        plt.plot(thresholds, eff_bkg, label="Background efficiency")
+        plt.plot(thresholds, Z/np.max(Z), label="Normalized S/√B")
+        plt.axvline(opt_cut, linestyle="--",
+                    label=f"Optimal cut = {opt_cut:.3f}")
+        plt.xlabel("BDT Threshold")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        pdf.savefig()
+        plt.close()
 
         # ====================================================
-        # Page 7 — Score vs Mass (if available)
+        # Page 5 — Mass sculpting check
         # ====================================================
 
         if "z" in signal:
 
             fig = plt.figure(figsize=(11, 8))
+
             plt.hist2d(signal["z"], signal["bdt_score"],
                        bins=[100, 50], cmap="viridis")
-            plt.xlabel("Dimuon Mass")
+
+            plt.xlabel("Dimuon Mass [GeV]")
             plt.ylabel("BDT Score")
-            plt.title("Signal: Score vs Mass")
+            plt.title("Signal: Mass vs BDT Score")
             plt.colorbar(label="Events")
             pdf.savefig()
             plt.close()
 
+        # ====================================================
+        # Page 6 — Yields at optimal cut
+        # ====================================================
+
+        fig = plt.figure(figsize=(11, 8))
+
+        labels = ["Signal"]
+        yields = [
+            np.sum(signal["weight"][signal["bdt_score"] >= opt_cut])
+        ]
+
+        for b in backgrounds:
+            labels.append(b["label"])
+            yields.append(
+                np.sum(b["weight"][b["bdt_score"] >= opt_cut])
+            )
+
+        plt.bar(labels, yields)
+        plt.yscale("log")
+        plt.ylabel("Weighted Yield")
+        plt.title(f"Yields for BDT > {opt_cut:.3f}")
+        plt.xticks(rotation=45)
+        pdf.savefig()
+        plt.close()
+
     print(f"\nPDF saved to {output}")
+
 
 # ============================================================
 # Main
