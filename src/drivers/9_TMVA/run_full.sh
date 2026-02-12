@@ -3,7 +3,7 @@
 # Comprehensive TMVA BDT Training and Analysis Script
 # This script runs the complete BDT workflow for a specified era
 source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
-
+voms-proxy-init -voms cms
 # Function to display usage
 usage() {
     echo "Usage: $0 -e <era> [--skip-training] [--skip-testing] [--skip-scoring] [--skip-analysis]"
