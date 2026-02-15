@@ -43,6 +43,8 @@ def parse_args():
                    help="ERA:PROC:/path/mc1.root[,/path/mc2.root]  (repeat)")
     p.add_argument("--datamc-nbins", type=int, default=40)
     p.add_argument("--datamc-logy", action="store_true")
+    p.add_argument("--lumi", type=float, default=None,
+                   help="Luminosity in fb^-1; if set, MC is rescaled to match data counts. For 2024, the value is 104.80585 fb^-1.")
 
     # Optional model-based scan (tmva_ScanYields.py logic)
     p.add_argument("--model-file", default="tmva101.root")
@@ -715,6 +717,30 @@ def plot_scan_curves(pdf, title, cuts, z_vals, za_vals, best_z, best_za):
     plt.close(fig)
 
 
+def rescale_mc_to_data(data_count, mc_groups, logger):
+    """
+    Auto-rescale MC weights to match data counts.
+    Assumes MC has NOT been normalized by cross-section × luminosity.
+    """
+    if data_count <= 0 or not mc_groups:
+        return mc_groups, 1.0
+    
+    mc_total_weight = sum(float(w.sum()) for _, _, w in mc_groups)
+    if mc_total_weight <= 0:
+        logger.warning("MC total weight is 0; cannot rescale")
+        return mc_groups, 1.0
+    
+    scale = data_count / mc_total_weight
+    logger.info("MC rescale: data_count=%.0f, mc_total_weight=%.1f → scale=%.6f",
+                data_count, mc_total_weight, scale)
+    
+    scaled = []
+    for proc, scores, weights in mc_groups:
+        scaled.append((proc, scores, weights * scale))
+    
+    return scaled, scale
+
+
 def read_feature_importance(outputs_dir, era):
     pat = os.path.join(outputs_dir, "Training", era, f"{era}_featureimportance_*.txt")
     files = sorted(glob.glob(pat))
@@ -1144,6 +1170,12 @@ def main():
                         if not mc_groups:
                             continue
 
+                        # Rescale MC to data counts if requested
+                        if args.lumi is not None:
+                            mc_groups, scale_used = rescale_mc_to_data(data_scores.size, mc_groups, logger)
+                            logger.info("%s: Rescaled MC groups with lumi=%.1f fb^-1; scale=%.6f", 
+                                        era, args.lumi, scale_used)
+                        
                         bins = np.linspace(0, 1, args.datamc_nbins + 1)
                         plot_datamc(
                             pdf,
