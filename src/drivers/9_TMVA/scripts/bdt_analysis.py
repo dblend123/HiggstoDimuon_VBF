@@ -35,6 +35,28 @@ def parse_args():
     p.add_argument("--dthr-pct", type=float, default=0.20, help="KS D(%) threshold")
     p.add_argument("--abs-weights", action="store_true", help="Use |weight| for yields/significance")
     p.add_argument("--output", default="bdt_analysis.pdf")
+
+    # Optional Data/MC summary (same format as tmva_DataMC_BDT.py)
+    p.add_argument("--data-era", action="append", default=[],
+                   help="ERA:/path/data1.root[,/path/data2.root]")
+    p.add_argument("--mc-era", action="append", default=[],
+                   help="ERA:PROC:/path/mc1.root[,/path/mc2.root]  (repeat)")
+    p.add_argument("--datamc-nbins", type=int, default=40)
+    p.add_argument("--datamc-logy", action="store_true")
+
+    # Optional model-based scan (tmva_ScanYields.py logic)
+    p.add_argument("--model-file", default="tmva101.root")
+    p.add_argument("--model-name", default="myBDT")
+    p.add_argument("--scan-sig", nargs="+", default=[], help="Signal inputs (files/dirs/globs)")
+    p.add_argument("--scan-bkg", nargs="+", default=[], help="Background inputs (files/dirs/globs)")
+    p.add_argument("--scan-cuts", default="0.00:1.00:401",
+                   help="scan range as start:end:npoints, inclusive")
+
+    # Optional retrain-per-fold KS (tmva_KS_perfold.py logic)
+    p.add_argument("--retrain-ks", action="store_true")
+    p.add_argument("--ks-dir", default="DataPreparation_Files",
+                   help="Dir containing *_all_signal.root and *_all_background.root")
+
     return p.parse_args()
 
 
@@ -55,6 +77,17 @@ def infer_mass_branch(path, treename, preferred):
     if preferred != "auto":
         return preferred
     cols = set(list_branches(path, treename))
+    mass_candidates = ["m_mumu", "m", "mass", "mll", "mlljj", "mllg"]
+    for c in mass_candidates:
+        if c in cols:
+            return c
+    return None
+
+
+def resolve_mass_branch(path, treename, preferred):
+    cols = set(list_branches(path, treename))
+    if preferred != "auto" and preferred in cols:
+        return preferred
     mass_candidates = ["m_mumu", "m", "mass", "mll", "mlljj", "mllg"]
     for c in mass_candidates:
         if c in cols:
@@ -239,6 +272,16 @@ def parse_bins(spec):
     return [float(x) for x in spec.split(",")]
 
 
+def parse_group_map(items, flagname):
+    out = {}
+    for s in items:
+        if ":" not in s:
+            raise SystemExit(f"[error] {flagname} expects key:val, got '{s}'")
+        k, v = s.split(":", 1)
+        out.setdefault(k, []).append(v)
+    return out
+
+
 def refine_bins(base_bins, focus=None):
     bins = [float(b) for b in base_bins]
     if focus is not None and np.isfinite(focus):
@@ -253,6 +296,64 @@ def refine_bins(base_bins, focus=None):
     if bins and bins[-1] != 1.0:
         bins.append(1.0)
     return bins
+
+
+def canonical_proc(name):
+    s = name.lower()
+    if "dy" in s or "z" in s:
+        return "DY"
+    if "ewk" in s or "z+ewk" in s:
+        return "EWK"
+    if "top" in s or "tt" in s:
+        return "Top"
+    if "vv" in s or "dibos" in s:
+        return "Diboson"
+    if "ggh" in s:
+        return "ggH"
+    if "vbf" in s:
+        return "VBF"
+    return "Other"
+
+
+def proc_sort_key(name):
+    order = ["DY", "EWK", "Top", "Diboson", "Other", "ggH", "VBF"]
+    cn = canonical_proc(name)
+    return order.index(cn) if cn in order else len(order)
+
+
+def proc_color(name):
+    colors = {
+        "DY": "#f4a261",
+        "EWK": "#6a4c93",
+        "Top": "#2a9d8f",
+        "Diboson": "#457b9d",
+        "Other": "#8d99ae",
+        "ggH": "#7f7f7f",
+        "VBF": "#4caf50",
+    }
+    return colors.get(canonical_proc(name), "#7f7f7f")
+
+
+def expand_inputs(items):
+    files = []
+    for it in items:
+        if os.path.isdir(it):
+            files += sorted(glob.glob(os.path.join(it, "*.root")))
+        elif it.endswith(".root") and os.path.isfile(it):
+            files.append(it)
+        else:
+            files += sorted(glob.glob(it))
+    return files
+
+
+def parse_cuts(spec):
+    a, b, n = spec.split(":")
+    return np.linspace(float(a), float(b), int(n))
+
+
+def compute_scores_model(model, xs):
+    X = np.vstack(xs).T
+    return model.Compute(X.astype(np.float32, copy=False)).astype(np.float64, copy=False)
 
 
 def pick_top_cuts(thresholds, ams_vals, max_cuts=3, min_sep=0.02):
@@ -445,6 +546,36 @@ def plot_mass_sculpt_cuts(pdf, title, mass, score, weight, cuts):
     plt.close(fig)
 
 
+def plot_mass_sculpt_norm(pdf, title, mass, score, weight, bdt_bins, corr_val):
+    fig, ax = plt.subplots(figsize=(11, 7))
+    colors = plt.cm.viridis(np.linspace(0.1, 0.9, len(bdt_bins) - 1))
+    for i, (lo, hi) in enumerate(zip(bdt_bins[:-1], bdt_bins[1:])):
+        mask = (score >= lo) & (score < hi)
+        if not np.any(mask):
+            continue
+        m = mass[mask]
+        w = weight[mask]
+        ax.hist(m, bins=40, weights=w, histtype="step",
+                linewidth=2, color=colors[i], density=True,
+                label=f"{lo:.2f} <= BDT < {hi:.2f}")
+    ax.set_xlabel("Mass [GeV]")
+    ax.set_ylabel("A.U.")
+    ax.set_title(title)
+    ax.grid(alpha=0.3)
+    ax.legend(fontsize=8)
+    if np.isfinite(corr_val):
+        ax.text(
+            0.02, 0.95,
+            f"Weighted corr(mass, BDT) = {corr_val:.3f}",
+            transform=ax.transAxes,
+            fontsize=10,
+            va="top",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+        )
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def plot_ams(pdf, title, effs, ams_vals, best_summary):
     fig, ax = plt.subplots(figsize=(11, 7))
     ax.plot(effs, ams_vals, linewidth=2)
@@ -507,6 +638,83 @@ def plot_feature_grid(pdf, title, features, data_map, bdt_bins, mass_branch=None
     plt.close(fig)
 
 
+def plot_datamc(pdf, title, data_scores, mc_groups, bins, logy):
+    fig, (ax_top, ax_bot) = plt.subplots(
+        2, 1, figsize=(11, 9), sharex=True,
+        gridspec_kw={"height_ratios": [3, 1]}
+    )
+
+    mc_hists = []
+    mc_labels = []
+    mc_colors = []
+    mc_sum = np.zeros(len(bins) - 1, dtype=np.float64)
+
+    for name, scores, weights in mc_groups:
+        hist, _ = np.histogram(scores, bins=bins, weights=weights)
+        mc_hists.append(hist)
+        mc_labels.append(canonical_proc(name))
+        mc_colors.append(proc_color(name))
+        mc_sum += hist
+
+    ax_top.hist(
+        [bins[:-1]] * len(mc_hists),
+        bins=bins,
+        weights=mc_hists,
+        stacked=True,
+        color=mc_colors,
+        label=mc_labels,
+        histtype="stepfilled",
+        alpha=0.85,
+    )
+    data_hist, _ = np.histogram(data_scores, bins=bins)
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+    ax_top.errorbar(bin_centers, data_hist, yerr=np.sqrt(np.maximum(data_hist, 1.0)),
+                    fmt="o", color="black", label="Data")
+    ax_top.set_ylabel("Events / bin")
+    ax_top.set_title(title)
+    ax_top.grid(alpha=0.3)
+    if logy:
+        ax_top.set_yscale("log")
+    ax_top.legend(fontsize=8, ncol=2)
+
+    ratio = np.divide(data_hist, mc_sum, out=np.zeros_like(data_hist, dtype=np.float64), where=mc_sum > 0)
+    ratio_err = np.divide(np.sqrt(np.maximum(data_hist, 1.0)), mc_sum, out=np.zeros_like(data_hist, dtype=np.float64), where=mc_sum > 0)
+    ax_bot.axhline(1.0, color="gray", linestyle="--", linewidth=1)
+    ax_bot.errorbar(bin_centers, ratio, yerr=ratio_err, fmt="o", color="black")
+    ax_bot.set_xlabel("BDT score")
+    ax_bot.set_ylabel("Data/MC")
+    ax_bot.set_ylim(0.5, 1.5)
+    ax_bot.grid(alpha=0.3)
+
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def plot_scan_curves(pdf, title, cuts, z_vals, za_vals, best_z, best_za):
+    fig, ax = plt.subplots(figsize=(11, 7))
+    ax.plot(cuts, z_vals, linewidth=2, label="Z = S/sqrt(S+B)")
+    ax.plot(cuts, za_vals, linewidth=2, label="ZA (asymptotic)")
+    ax.axvline(best_z["cut"], color="tab:red", linestyle="--", linewidth=1.5)
+    ax.axvline(best_za["cut"], color="tab:green", linestyle=":", linewidth=1.5)
+    ax.set_xlabel("BDT score cut")
+    ax.set_ylabel("Significance")
+    ax.set_title(title)
+    ax.grid(alpha=0.3)
+    ax.legend()
+    ax.text(
+        0.02, 0.95,
+        "Best cuts\n"
+        f"Z:  cut={best_z['cut']:.3f}, Z={best_z['val']:.3f}\n"
+        f"ZA: cut={best_za['cut']:.3f}, ZA={best_za['val']:.3f}",
+        transform=ax.transAxes,
+        fontsize=10,
+        va="top",
+        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+    )
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def read_feature_importance(outputs_dir, era):
     pat = os.path.join(outputs_dir, "Training", era, f"{era}_featureimportance_*.txt")
     files = sorted(glob.glob(pat))
@@ -551,6 +759,12 @@ def main():
     bdt_bins = parse_bins(args.bdt_bins)
     logger.info("Base BDT bins: %s", ", ".join([f"{b:.2f}" for b in bdt_bins]))
 
+    data_map_raw = parse_group_map(args.data_era, "--data-era") if args.data_era else {}
+    mc_map_raw = parse_group_map(args.mc_era, "--mc-era") if args.mc_era else {}
+    if data_map_raw or mc_map_raw:
+        logger.info("Data/MC inputs provided for eras: %s",
+                    ", ".join(sorted(set(list(data_map_raw.keys()) + list(mc_map_raw.keys())))))
+
     with PdfPages(args.output) as pdf:
         for era in eras:
             logger.info("--- Era %s ---", era)
@@ -568,7 +782,7 @@ def main():
                 print(f"[warn] {era}: no scored files found.")
                 continue
 
-            mass_branch = infer_mass_branch(main_ref, args.treename, args.mass_branch)
+            mass_branch = resolve_mass_branch(main_ref, args.treename, args.mass_branch)
             if mass_branch is None:
                 print(f"[warn] {era}: could not infer mass branch; mass-based plots will be skipped.")
                 logger.warning("%s: mass branch not found; skipping mass plots", era)
@@ -740,6 +954,31 @@ def main():
                             bkg_w,
                             suggested_cuts,
                         )
+                    corr_sig = weighted_corr(sig_mass, sig_scores, sig_w)
+                    corr_bkg = weighted_corr(bkg_mass, bkg_scores, bkg_w)
+                    plot_mass_sculpt_norm(
+                        pdf,
+                        f"{era}: Signal mass sculpting (normalized shapes)",
+                        sig_mass,
+                        sig_scores,
+                        sig_w,
+                        bdt_bins,
+                        corr_sig,
+                    )
+                    plot_mass_sculpt_norm(
+                        pdf,
+                        f"{era}: Background mass sculpting (normalized shapes)",
+                        bkg_mass,
+                        bkg_scores,
+                        bkg_w,
+                        bdt_bins,
+                        corr_bkg,
+                    )
+                    if np.isfinite(corr_sig) or np.isfinite(corr_bkg):
+                        logger.info(
+                            "%s: corr(mass, BDT) signal=%.4f background=%.4f",
+                            era, corr_sig, corr_bkg
+                        )
                     sig_mean, sig_rms = weighted_mean_std(sig_mass, sig_w)
                     bkg_mean, bkg_rms = weighted_mean_std(bkg_mass, bkg_w)
                     logger.info(
@@ -836,6 +1075,67 @@ def main():
                     print(f"[warn] {era}: fold branch missing; KS/CDF skipped.")
                     logger.warning("%s: fold branch missing; KS/CDF skipped", era)
 
+            # Optional Data/MC summary for this era
+            if era in data_map_raw and era in mc_map_raw:
+                data_files = []
+                for v in data_map_raw.get(era, []):
+                    data_files.extend([p for p in v.split(",") if p])
+                mc_entries = mc_map_raw.get(era, [])
+
+                if data_files and mc_entries:
+                    dm_mass_branch = resolve_mass_branch(data_files[0], args.treename, args.mass_branch)
+                    if dm_mass_branch is None:
+                        logger.warning("%s: Data/MC mass branch not found; skipping Data/MC plots", era)
+                    else:
+                        dm_mass_sel = (
+                            f"({dm_mass_branch}>={args.mass_min} && {dm_mass_branch}<={args.mass_max} "
+                            f"&& TMath::Finite({dm_mass_branch}))"
+                        )
+                        dm_sel = f"TMath::Finite({args.bdt_branch}) && {dm_mass_sel}"
+
+                        data_scores = load_arrays(
+                            data_files,
+                            args.treename,
+                            [args.bdt_branch],
+                            dm_sel,
+                        )[args.bdt_branch]
+
+                        mc_groups = []
+                        for entry in mc_entries:
+                            if ":" not in entry:
+                                raise SystemExit(f"[error] --mc-era needs ERA:PROC:files, got {entry}")
+                            proc, files = entry.split(":", 1)
+                            flist = [p for p in files.split(",") if p]
+                            mc_arr = load_arrays(
+                                flist,
+                                args.treename,
+                                [args.bdt_branch, args.weight_branch],
+                                dm_sel,
+                            )
+                            mc_scores = mc_arr[args.bdt_branch]
+                            mc_weights = sanitize_weights(mc_arr[args.weight_branch], args.abs_weights)
+                            mc_groups.append((proc, mc_scores, mc_weights))
+
+                        bins = np.linspace(0, 1, args.datamc_nbins + 1)
+                        plot_datamc(
+                            pdf,
+                            f"{era}: Data/MC BDT score ({args.mass_min:.0f}-{args.mass_max:.0f} GeV)",
+                            data_scores,
+                            mc_groups,
+                            bins,
+                            args.datamc_logy,
+                        )
+
+                        logger.info("%s: Data/MC summary in %.0f-%.0f GeV", era, args.mass_min, args.mass_max)
+                        logger.info("%s: Data entries=%d", era, data_scores.size)
+                        for proc, mc_scores, mc_weights in mc_groups:
+                            logger.info(
+                                "%s: MC %s entries=%d sum=%.3f",
+                                era, proc, mc_scores.size, float(mc_weights.sum())
+                            )
+            elif data_map_raw or mc_map_raw:
+                logger.info("%s: Data/MC not provided for this era; skipping", era)
+
             # Feature importance table
             path, items = read_feature_importance(outputs_dir, era)
             if items:
@@ -849,6 +1149,151 @@ def main():
                 logger.info("%s: Feature importance file: %s", era, os.path.basename(path))
                 for name, pct in items[:10]:
                     logger.info("%s: Feature %s gain=%.2f%%", era, name, pct)
+
+            # Optional retrain-per-fold KS (uses DataPreparation_Files)
+            if args.retrain_ks:
+                sig_all = os.path.join(args.ks_dir, f"{era}_all_signal.root")
+                bkg_all = os.path.join(args.ks_dir, f"{era}_all_background.root")
+                if os.path.exists(sig_all) and os.path.exists(bkg_all):
+                    try:
+                        from xgboost import XGBClassifier
+                        from tmva101_Training import load_folds
+                    except Exception as exc:
+                        logger.warning("%s: retrain KS skipped (missing deps): %s", era, exc)
+                    else:
+                        logger.info("%s: retrain-per-fold KS using %s", era, args.ks_dir)
+                        ks_rows = []
+                        for k in range(4):
+                            folds_tr = ((k + 1) % 4, (k + 2) % 4)
+                            folds_va = (k,)
+                            folds_te = ((k + 3) % 4,)
+                            (x_tr, y_tr, w_tr), (x_va, y_va, w_va), _ = load_folds(
+                                [sig_all], [bkg_all],
+                                folds_train=folds_tr, folds_valid=folds_va, folds_test=folds_te,
+                                sig_extra_weight_branch=None
+                            )
+
+                            bdt = XGBClassifier(
+                                objective="binary:logistic",
+                                eval_metric="logloss",
+                                tree_method="hist",
+                                missing=np.nan,
+                                max_bin=30,
+                                max_depth=4,
+                                learning_rate=0.1,
+                                n_estimators=1000,
+                                booster="gbtree",
+                                n_jobs=8,
+                                gamma=0,
+                                min_child_weight=0.03,
+                                max_delta_step=0,
+                                subsample=0.5,
+                                colsample_bytree=1,
+                                colsample_bylevel=1,
+                                reg_alpha=0,
+                                reg_lambda=1,
+                                scale_pos_weight=0.7,
+                                base_score=0.5,
+                                random_state=0,
+                                verbosity=0,
+                            )
+                            bdt.fit(x_tr, y_tr, sample_weight=w_tr)
+                            tr_s = bdt.predict_proba(np.asarray(x_tr[y_tr == 1], dtype=np.float32))[:, 1]
+                            va_s = bdt.predict_proba(np.asarray(x_va[y_va == 1], dtype=np.float32))[:, 1]
+
+                            D, p = ks_2samp(va_s, tr_s)
+                            D_pct = 100.0 * D
+                            passed = (p >= args.alpha) and (D_pct <= args.dthr_pct)
+                            ks_rows.append([
+                                str(k), f"{D_pct:.2f}%", f"{len(va_s):d}",
+                                f"{args.alpha:.3g}", f"{args.dthr_pct:.2f}%",
+                                "TRUE" if passed else "FALSE",
+                            ])
+                            logger.info(
+                                "%s: retrain KS fold %d D=%.3f%% p=%.3g pass=%s",
+                                era, k, D_pct, p, "TRUE" if passed else "FALSE"
+                            )
+                        plot_table(
+                            pdf,
+                            f"{era}: Retrain-per-fold KS summary",
+                            ["Fold", "KS statistic", "N events", "alpha", "Pass threshold", "KS pass"],
+                            ks_rows,
+                        )
+                else:
+                    logger.warning("%s: retrain KS inputs missing in %s", era, args.ks_dir)
+
+
+    # Optional model-based scan (global, not per-era)
+    if args.scan_sig and args.scan_bkg:
+        logger.info("Running model-based scan")
+        ROOT.gSystem.Load("libTMVA")
+        if ROOT.gSystem.AccessPathName(args.model_file, ROOT.kReadPermission):
+            raise SystemExit(f"Model file not readable: {args.model_file}")
+        model = ROOT.TMVA.Experimental.RBDT[""](args.model_name, args.model_file)
+
+        sig_files = expand_inputs(args.scan_sig)
+        bkg_files = expand_inputs(args.scan_bkg)
+        if not sig_files or not bkg_files:
+            raise SystemExit("No scan inputs found for signal/background.")
+
+        scan_mass_branch = resolve_mass_branch(sig_files[0], args.treename, args.mass_branch)
+        if scan_mass_branch is None and bkg_files:
+            scan_mass_branch = resolve_mass_branch(bkg_files[0], args.treename, args.mass_branch)
+        scan_sel = ""
+        if scan_mass_branch:
+            scan_sel = (
+                f"TMath::Finite({args.bdt_branch}) && "
+                f"({scan_mass_branch}>={args.mass_min} && {scan_mass_branch}<={args.mass_max} "
+                f"&& TMath::Finite({scan_mass_branch}))"
+            )
+
+        sig_arrs = load_arrays(sig_files, args.treename, VARIABLES + [args.weight_branch], scan_sel)
+        bkg_arrs = load_arrays(bkg_files, args.treename, VARIABLES + [args.weight_branch], scan_sel)
+        xs_s = [sig_arrs[v] for v in VARIABLES]
+        xs_b = [bkg_arrs[v] for v in VARIABLES]
+        w_s = sanitize_weights(sig_arrs[args.weight_branch], args.abs_weights)
+        w_b = sanitize_weights(bkg_arrs[args.weight_branch], args.abs_weights)
+
+        s_s = np.ravel(compute_scores_model(model, xs_s))
+        s_b = np.ravel(compute_scores_model(model, xs_b))
+
+        cuts = parse_cuts(args.scan_cuts)
+        rows = []
+        best_z = {"val": -1.0, "cut": 0.0}
+        best_za = {"val": -1.0, "cut": 0.0}
+        for c in cuts:
+            s = float(w_s[s_s >= c].sum())
+            b = float(w_b[s_b >= c].sum())
+            z = s / np.sqrt(s + b + 1e-12) if (s + b) > 0 else 0.0
+            za = ams(s, b)
+            rows.append([f"{c:.4f}", f"{s:.4f}", f"{b:.4f}", f"{z:.4f}", f"{za:.4f}"])
+            if z > best_z["val"]:
+                best_z = {"val": z, "cut": float(c)}
+            if za > best_za["val"]:
+                best_za = {"val": za, "cut": float(c)}
+
+        plot_scan_curves(
+            pdf,
+            f"Model-based scan (mass {args.mass_min:.0f}-{args.mass_max:.0f} GeV)",
+            cuts,
+            [float(r[3]) for r in rows],
+            [float(r[4]) for r in rows],
+            best_z,
+            best_za,
+        )
+        plot_table(
+            pdf,
+            "Model-based scan summary",
+            ["Cut", "S", "B", "Z", "ZA"],
+            rows[::max(1, int(len(rows) / 20))],
+            col_align=["right", "right", "right", "right", "right"],
+        )
+        logger.info(
+            "Scan best Z=%.3f at cut=%.4f; best ZA=%.3f at cut=%.4f",
+            best_z["val"], best_z["cut"], best_za["val"], best_za["cut"]
+        )
+    elif args.scan_sig or args.scan_bkg:
+        logger.warning("Scan skipped: provide both --scan-sig and --scan-bkg")
 
     logger.info("Wrote %s", args.output)
     print(f"[done] Wrote {args.output}")
