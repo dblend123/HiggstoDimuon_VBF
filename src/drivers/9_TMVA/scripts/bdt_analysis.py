@@ -4,6 +4,7 @@ import argparse
 import glob
 import os
 import sys
+import logging
 
 import numpy as np
 import ROOT
@@ -529,16 +530,30 @@ def read_feature_importance(outputs_dir, era):
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] %(message)s",
+    )
+    logger = logging.getLogger("bdt_analysis")
+
     args = parse_args()
+    logger.info("Starting BDT analysis")
+    logger.info("Outputs dir: %s", os.path.abspath(args.outputs_dir))
+    logger.info("Mass window: %.1f-%.1f GeV", args.mass_min, args.mass_max)
+    logger.info("BDT branch: %s | weight: %s | mass: %s", args.bdt_branch, args.weight_branch, args.mass_branch)
+    logger.info("Using abs weights: %s", str(args.abs_weights))
     outputs_dir = os.path.abspath(args.outputs_dir)
     eras = discover_eras(outputs_dir, args.eras)
     if not eras:
         raise SystemExit("No eras discovered. Check --outputs-dir or --eras.")
+    logger.info("Discovered eras: %s", ", ".join(eras))
 
     bdt_bins = parse_bins(args.bdt_bins)
+    logger.info("Base BDT bins: %s", ", ".join([f"{b:.2f}" for b in bdt_bins]))
 
     with PdfPages(args.output) as pdf:
         for era in eras:
+            logger.info("--- Era %s ---", era)
             files = find_scored_files(outputs_dir, era)
             sig_file = files["signal"]
             bkg_file = files["background"]
@@ -546,6 +561,7 @@ def main():
 
             if not sig_file or not bkg_file:
                 print(f"[warn] {era}: missing signal/background scored files; skipping signal-vs-background plots.")
+                logger.warning("%s: missing signal/background files", era)
 
             main_ref = sig_file or bkg_file or all_file
             if not main_ref:
@@ -555,6 +571,9 @@ def main():
             mass_branch = infer_mass_branch(main_ref, args.treename, args.mass_branch)
             if mass_branch is None:
                 print(f"[warn] {era}: could not infer mass branch; mass-based plots will be skipped.")
+                logger.warning("%s: mass branch not found; skipping mass plots", era)
+            else:
+                logger.info("%s: mass branch = %s", era, mass_branch)
 
             branches = [args.bdt_branch, args.weight_branch]
             if mass_branch:
@@ -581,6 +600,10 @@ def main():
                 bkg_scores = bkg[args.bdt_branch]
                 sig_w = sanitize_weights(sig[args.weight_branch], args.abs_weights)
                 bkg_w = sanitize_weights(bkg[args.weight_branch], args.abs_weights)
+                logger.info(
+                    "%s: S events=%d (sum=%.3f), B events=%d (sum=%.3f)",
+                    era, sig_scores.size, float(sig_w.sum()), bkg_scores.size, float(bkg_w.sum())
+                )
 
                 plot_score_hist(
                     pdf,
@@ -593,6 +616,7 @@ def main():
                 fpr, tpr = compute_roc(sig_scores, sig_w, bkg_scores, bkg_w)
                 auc = compute_auc(fpr, tpr)
                 plot_roc(pdf, f"{era}: ROC (weighted)", fpr, tpr, auc)
+                logger.info("%s: ROC AUC = %.4f", era, auc)
 
                 # AMS vs signal efficiency
                 effs = np.arange(0.01, 1.01, 0.01)
@@ -619,8 +643,24 @@ def main():
                     "s_over_b": float(s_vals[best_idx] / b_vals[best_idx]) if b_vals and b_vals[best_idx] > 0 else np.inf,
                 }
                 plot_ams(pdf, f"{era}: AMS vs signal efficiency", effs, ams_vals, best_summary)
+                logger.info(
+                    "%s: Best AMS=%.3f at eff=%.2f, cut=%.3f, S=%.3f, B=%.3f, S/B=%s",
+                    era,
+                    best_summary["ams"],
+                    best_summary["eff"],
+                    best_summary["thr"],
+                    best_summary["s"],
+                    best_summary["b"],
+                    format_ratio(best_summary["s_over_b"]),
+                )
 
                 suggested_cuts = pick_top_cuts(thr_vals, ams_vals, max_cuts=3, min_sep=0.02)
+                if suggested_cuts:
+                    logger.info(
+                        "%s: Suggested high-score cuts: %s",
+                        era,
+                        ", ".join([f"{c:.3f}" for c in suggested_cuts]),
+                    )
 
                 # Expected signal yield per BDT bin (mass window)
                 bins_yield = refine_bins(bdt_bins, best_summary["thr"])
@@ -656,6 +696,12 @@ def main():
                     rows,
                     col_align=["center", "right", "right", "right", "right", "right"],
                 )
+                logger.info("%s: Yield table bins=%d (refined near %.3f)", era, len(rows), best_summary["thr"])
+                for row in rows:
+                    logger.info(
+                        "%s: bin %s | S=%s | Sfrac=%s | S>=lo=%s | B=%s | S/B=%s",
+                        era, row[0], row[1], row[2], row[3], row[4], row[5]
+                    )
 
                 # Mass sculpting (TeV)
                 if mass_branch:
@@ -694,6 +740,12 @@ def main():
                             bkg_w,
                             suggested_cuts,
                         )
+                    sig_mean, sig_rms = weighted_mean_std(sig_mass, sig_w)
+                    bkg_mean, bkg_rms = weighted_mean_std(bkg_mass, bkg_w)
+                    logger.info(
+                        "%s: Mass summary S mean=%.2f RMS=%.2f | B mean=%.2f RMS=%.2f",
+                        era, sig_mean, sig_rms, bkg_mean, bkg_rms
+                    )
 
                 # Top-3 feature distributions from signal, by BDT bin
                 _, feat_items = read_feature_importance(outputs_dir, era)
@@ -728,6 +780,13 @@ def main():
                     mass_branch=mass_branch,
                     bin_stats=bin_stats,
                 )
+                logger.info("%s: Signal feature grid: %s", era, ", ".join(feature_grid[:4]))
+                for feat in feature_grid[:4]:
+                    if feat is None:
+                        continue
+                    corr = weighted_corr(sig_feat_map[feat], sig_feat_map["score"], sig_feat_map["weight"])
+                    if np.isfinite(corr):
+                        logger.info("%s: %s corr(score)=%.3f", era, feat, corr)
 
             # KS/CDF per fold using signal scores (if fold exists)
             if sig_file:
@@ -768,8 +827,14 @@ def main():
                         ["Fold", "KS statistic", "N events", "alpha", "Pass threshold", "KS pass"],
                         rows,
                     )
+                    for row in rows:
+                        logger.info(
+                            "%s: Fold %s KS=%s N=%s alpha=%s dthr=%s pass=%s",
+                            era, row[0], row[1], row[2], row[3], row[4], row[5]
+                        )
                 else:
                     print(f"[warn] {era}: fold branch missing; KS/CDF skipped.")
+                    logger.warning("%s: fold branch missing; KS/CDF skipped", era)
 
             # Feature importance table
             path, items = read_feature_importance(outputs_dir, era)
@@ -781,7 +846,11 @@ def main():
                     ["Feature", "Gain %"],
                     rows,
                 )
+                logger.info("%s: Feature importance file: %s", era, os.path.basename(path))
+                for name, pct in items[:10]:
+                    logger.info("%s: Feature %s gain=%.2f%%", era, name, pct)
 
+    logger.info("Wrote %s", args.output)
     print(f"[done] Wrote {args.output}")
 
 
