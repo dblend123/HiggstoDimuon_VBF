@@ -1087,11 +1087,24 @@ def main():
                     if dm_mass_branch is None:
                         logger.warning("%s: Data/MC mass branch not found; skipping Data/MC plots", era)
                     else:
+                        data_cols = set(list_branches(data_files[0], args.treename))
+                        if args.bdt_branch not in data_cols:
+                            logger.warning(
+                                "%s: Data/MC missing bdt branch '%s' in data; skipping Data/MC plots",
+                                era, args.bdt_branch
+                            )
+                            data_cols = None
+
                         dm_mass_sel = (
                             f"({dm_mass_branch}>={args.mass_min} && {dm_mass_branch}<={args.mass_max} "
                             f"&& TMath::Finite({dm_mass_branch}))"
                         )
-                        dm_sel = f"TMath::Finite({args.bdt_branch}) && {dm_mass_sel}"
+                        dm_sel = f"{dm_mass_sel}"
+                        if data_cols is not None:
+                            dm_sel = f"TMath::Finite({args.bdt_branch}) && {dm_mass_sel}"
+
+                        if data_cols is None:
+                            continue
 
                         data_scores = load_arrays(
                             data_files,
@@ -1106,6 +1119,15 @@ def main():
                                 raise SystemExit(f"[error] --mc-era needs ERA:PROC:files, got {entry}")
                             proc, files = entry.split(":", 1)
                             flist = [p for p in files.split(",") if p]
+                            if flist:
+                                mc_cols = set(list_branches(flist[0], args.treename))
+                                if args.bdt_branch not in mc_cols:
+                                    logger.warning(
+                                        "%s: Data/MC missing bdt branch '%s' in MC file %s; skipping Data/MC plots",
+                                        era, args.bdt_branch, flist[0]
+                                    )
+                                    mc_groups = []
+                                    break
                             mc_arr = load_arrays(
                                 flist,
                                 args.treename,
@@ -1115,6 +1137,9 @@ def main():
                             mc_scores = mc_arr[args.bdt_branch]
                             mc_weights = sanitize_weights(mc_arr[args.weight_branch], args.abs_weights)
                             mc_groups.append((proc, mc_scores, mc_weights))
+
+                        if not mc_groups:
+                            continue
 
                         bins = np.linspace(0, 1, args.datamc_nbins + 1)
                         plot_datamc(
