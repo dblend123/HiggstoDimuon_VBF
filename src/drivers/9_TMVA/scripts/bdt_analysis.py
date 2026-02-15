@@ -750,6 +750,8 @@ def main():
     logger.info("Mass window: %.1f-%.1f GeV", args.mass_min, args.mass_max)
     logger.info("BDT branch: %s | weight: %s | mass: %s", args.bdt_branch, args.weight_branch, args.mass_branch)
     logger.info("Using abs weights: %s", str(args.abs_weights))
+    logger.info("Output PDF: %s", args.output)
+    logger.info("KS thresholds: alpha=%g | D<=%.2f%%", args.alpha, args.dthr_pct)
     outputs_dir = os.path.abspath(args.outputs_dir)
     eras = discover_eras(outputs_dir, args.eras)
     if not eras:
@@ -764,6 +766,7 @@ def main():
     if data_map_raw or mc_map_raw:
         logger.info("Data/MC inputs provided for eras: %s",
                     ", ".join(sorted(set(list(data_map_raw.keys()) + list(mc_map_raw.keys())))))
+        logger.info("Data/MC bins: %d | logy=%s", args.datamc_nbins, str(args.datamc_logy))
 
     with PdfPages(args.output) as pdf:
         for era in eras:
@@ -1153,11 +1156,15 @@ def main():
 
                         logger.info("%s: Data/MC summary in %.0f-%.0f GeV", era, args.mass_min, args.mass_max)
                         logger.info("%s: Data entries=%d", era, data_scores.size)
+                        total_mc = 0.0
                         for proc, mc_scores, mc_weights in mc_groups:
+                            total_mc += float(mc_weights.sum())
                             logger.info(
                                 "%s: MC %s entries=%d sum=%.3f",
                                 era, proc, mc_scores.size, float(mc_weights.sum())
                             )
+                        if total_mc > 0:
+                            logger.info("%s: Data/MC total ratio = %.3f", era, data_scores.size / total_mc)
             elif data_map_raw or mc_map_raw:
                 logger.info("%s: Data/MC not provided for this era; skipping", era)
 
@@ -1256,6 +1263,9 @@ def main():
             raise SystemExit(f"Model file not readable: {args.model_file}")
         model = ROOT.TMVA.Experimental.RBDT[""](args.model_name, args.model_file)
 
+        logger.info("Scan model: %s (method %s)", args.model_file, args.model_name)
+        logger.info("Scan cuts: %s", args.scan_cuts)
+
         sig_files = expand_inputs(args.scan_sig)
         bkg_files = expand_inputs(args.scan_bkg)
         if not sig_files or not bkg_files:
@@ -1281,6 +1291,8 @@ def main():
 
         s_s = np.ravel(compute_scores_model(model, xs_s))
         s_b = np.ravel(compute_scores_model(model, xs_b))
+        logger.info("Scan inputs: S entries=%d (sum=%.3f), B entries=%d (sum=%.3f)",
+                s_s.size, float(w_s.sum()), s_b.size, float(w_b.sum()))
 
         cuts = parse_cuts(args.scan_cuts)
         rows = []
@@ -1297,6 +1309,13 @@ def main():
             if za > best_za["val"]:
                 best_za = {"val": za, "cut": float(c)}
 
+        logger.info("Scan best Z=%.3f at cut=%.4f; best ZA=%.3f at cut=%.4f",
+                    best_z["val"], best_z["cut"], best_za["val"], best_za["cut"])
+        logger.info("Scan table (coarse sampling):")
+        step = max(1, int(len(rows) / 10))
+        for r in rows[::step]:
+            logger.info("  cut=%s | S=%s | B=%s | Z=%s | ZA=%s", r[0], r[1], r[2], r[3], r[4])
+
         plot_scan_curves(
             pdf,
             f"Model-based scan (mass {args.mass_min:.0f}-{args.mass_max:.0f} GeV)",
@@ -1312,10 +1331,6 @@ def main():
             ["Cut", "S", "B", "Z", "ZA"],
             rows[::max(1, int(len(rows) / 20))],
             col_align=["right", "right", "right", "right", "right"],
-        )
-        logger.info(
-            "Scan best Z=%.3f at cut=%.4f; best ZA=%.3f at cut=%.4f",
-            best_z["val"], best_z["cut"], best_za["val"], best_za["cut"]
         )
     elif args.scan_sig or args.scan_bkg:
         logger.warning("Scan skipped: provide both --scan-sig and --scan-bkg")
