@@ -1110,6 +1110,13 @@ def main():
                 for v in data_map_raw.get(era, []):
                     data_files.extend([p for p in v.split(",") if p])
                 mc_entries = mc_map_raw.get(era, [])
+                
+                logger.info("%s: Data/MC inputs: %d data file(s), %d MC process(es)",
+                           era, len(data_files), len(mc_entries))
+                for i, f in enumerate(data_files[:3]):
+                    logger.info("%s:   Data file %d: %s", era, i+1, f)
+                if len(data_files) > 3:
+                    logger.info("%s:   ... and %d more data file(s)", era, len(data_files) - 3)
 
                 if data_files and mc_entries:
                     dm_mass_branch = resolve_mass_branch(data_files[0], args.treename, args.mass_branch)
@@ -1117,6 +1124,7 @@ def main():
                         logger.warning("%s: Data/MC mass branch not found; skipping Data/MC plots", era)
                     else:
                         data_cols = set(list_branches(data_files[0], args.treename))
+                        logger.info("%s: Data file branches: %s", era, ", ".join(sorted(data_cols)[:5]))
                         if args.bdt_branch not in data_cols:
                             logger.warning(
                                 "%s: Data/MC missing bdt branch '%s' in data; skipping Data/MC plots",
@@ -1131,6 +1139,9 @@ def main():
                         dm_sel = f"{dm_mass_sel}"
                         if data_cols is not None:
                             dm_sel = f"TMath::Finite({args.bdt_branch}) && {dm_mass_sel}"
+                        
+                        logger.info("%s: Data/MC selection: %s", era, dm_sel)
+                        logger.info("%s: Mass branch: %s [%.0f, %.0f] GeV", era, dm_mass_branch, args.mass_min, args.mass_max)
 
                         if data_cols is None:
                             continue
@@ -1141,6 +1152,10 @@ def main():
                             [args.bdt_branch],
                             dm_sel,
                         )[args.bdt_branch]
+                        
+                        data_mean, data_std = weighted_mean_std(data_scores, np.ones_like(data_scores))
+                        logger.info("%s: Data after selection: n_events=%d, mean(BDT)=%.4f, std(BDT)=%.4f",
+                                   era, data_scores.size, data_mean, data_std)
 
                         mc_groups = []
                         for entry in mc_entries:
@@ -1148,6 +1163,12 @@ def main():
                                 raise SystemExit(f"[error] --mc-era needs ERA:PROC:files, got {entry}")
                             proc, files = entry.split(":", 1)
                             flist = [p for p in files.split(",") if p]
+                            logger.info("%s: MC process '%s': %d file(s)", era, proc, len(flist))
+                            for i, f in enumerate(flist[:2]):
+                                logger.info("%s:   MC file %d: %s", era, i+1, f)
+                            if len(flist) > 2:
+                                logger.info("%s:   ... and %d more file(s)", era, len(flist) - 2)
+                            
                             if flist:
                                 mc_cols = set(list_branches(flist[0], args.treename))
                                 if args.bdt_branch not in mc_cols:
@@ -1165,18 +1186,49 @@ def main():
                             )
                             mc_scores = mc_arr[args.bdt_branch]
                             mc_weights = sanitize_weights(mc_arr[args.weight_branch], args.abs_weights)
+                            mc_sum = float(mc_weights.sum())
+                            mc_mean, mc_std = weighted_mean_std(mc_scores, mc_weights)
+                            logger.info("%s: MC '%s' after selection: n_events=%d, sum(weight)=%.3f, mean(BDT)=%.4f, std(BDT)=%.4f",
+                                       era, proc, mc_scores.size, mc_sum, mc_mean, mc_std)
                             mc_groups.append((proc, mc_scores, mc_weights))
 
                         if not mc_groups:
                             continue
+
+                        # Log pre-rescale statistics
+                        total_mc_pre = sum(float(w.sum()) for _, _, w in mc_groups)
+                        logger.info("%s: Total MC (pre-rescale): sum(weight)=%.3f, data/MC ratio=%.6f",
+                                   era, total_mc_pre, data_scores.size / max(total_mc_pre, 1e-12))
 
                         # Rescale MC to data counts if requested
                         if args.lumi is not None:
                             mc_groups, scale_used = rescale_mc_to_data(data_scores.size, mc_groups, logger)
                             logger.info("%s: Rescaled MC groups with lumi=%.1f fb^-1; scale=%.6f", 
                                         era, args.lumi, scale_used)
+                            total_mc_post = sum(float(w.sum()) for _, _, w in mc_groups)
+                            logger.info("%s: Total MC (post-rescale): sum(weight)=%.3f, data/MC ratio=%.6f",
+                                       era, total_mc_post, data_scores.size / max(total_mc_post, 1e-12))
                         
                         bins = np.linspace(0, 1, args.datamc_nbins + 1)
+                        
+                        # Compute and log bin-by-bin statistics
+                        data_hist, _ = np.histogram(data_scores, bins=bins)
+                        mc_hist_total = np.zeros(len(bins) - 1, dtype=np.float64)
+                        for _, mc_scores, mc_weights in mc_groups:
+                            mc_hist, _ = np.histogram(mc_scores, bins=bins, weights=mc_weights)
+                            mc_hist_total += mc_hist
+                        
+                        logger.info("%s: Bin-by-bin data/MC comparison (first 5 + last 2 bins):", era)
+                        for i in range(min(5, len(bins)-1)):
+                            ratio = data_hist[i] / max(mc_hist_total[i], 1e-12)
+                            logger.info("%s:   bin[%.2f-%.2f]: data=%d, mc=%.1f, ratio=%.3f",
+                                       era, bins[i], bins[i+1], int(data_hist[i]), mc_hist_total[i], ratio)
+                        if len(bins) > 7:
+                            for i in range(len(bins)-3, len(bins)-1):
+                                ratio = data_hist[i] / max(mc_hist_total[i], 1e-12)
+                                logger.info("%s:   bin[%.2f-%.2f]: data=%d, mc=%.1f, ratio=%.3f",
+                                           era, bins[i], bins[i+1], int(data_hist[i]), mc_hist_total[i], ratio)
+                        
                         plot_datamc(
                             pdf,
                             f"{era}: Data/MC BDT score ({args.mass_min:.0f}-{args.mass_max:.0f} GeV)",
@@ -1190,13 +1242,17 @@ def main():
                         logger.info("%s: Data entries=%d", era, data_scores.size)
                         total_mc = 0.0
                         for proc, mc_scores, mc_weights in mc_groups:
-                            total_mc += float(mc_weights.sum())
+                            proc_sum = float(mc_weights.sum())
+                            total_mc += proc_sum
+                            proc_ratio = data_scores.size / max(proc_sum, 1e-12)
                             logger.info(
-                                "%s: MC %s entries=%d sum=%.3f",
-                                era, proc, mc_scores.size, float(mc_weights.sum())
+                                "%s: MC %s entries=%d sum=%.3f ratio=%.6f",
+                                era, proc, mc_scores.size, proc_sum, proc_ratio
                             )
                         if total_mc > 0:
-                            logger.info("%s: Data/MC total ratio = %.3f", era, data_scores.size / total_mc)
+                            overall_ratio = data_scores.size / total_mc
+                            logger.info("%s: Data/MC total ratio = %.6f (data=%.0f, mc_sum=%.3f)",
+                                       era, overall_ratio, data_scores.size, total_mc)
             elif data_map_raw or mc_map_raw:
                 logger.info("%s: Data/MC not provided for this era; skipping", era)
 
