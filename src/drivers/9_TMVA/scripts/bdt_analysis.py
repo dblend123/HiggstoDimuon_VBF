@@ -46,6 +46,8 @@ def parse_args():
     p.add_argument("--datamc-logy", action="store_true")
     p.add_argument("--lumi", type=float, default=None,
                    help="Luminosity in fb^-1; if set, MC is rescaled to match data counts. For 2024, the value is 104.80585 fb^-1.")
+    p.add_argument("--ams-cut-offsets", default="0.02,0.05",
+                   help="Comma-separated offsets below AMS cut for extra data mass dumps (e.g. 0.01,0.02).")
 
     # Optional model-based scan (tmva_ScanYields.py logic)
     p.add_argument("--model-file", default="tmva101.root")
@@ -1311,68 +1313,94 @@ def main():
                         )
                         best_cut = best_cut_by_era.get(era)
                         if best_cut is not None:
-                            data_high = data_scores >= best_cut
-                            data_mass_high = data_mass[data_high]
-                            data_mass_sorted = np.sort(data_mass_high)
-                            mc_high_groups = []
-                            mc_high_total = 0.0
-                            for proc, mc_scores, mc_mass, mc_weights in mc_full_groups:
-                                mc_mask = mc_scores >= best_cut
-                                mc_mass_sel = mc_mass[mc_mask]
-                                mc_weight_sel = mc_weights[mc_mask]
-                                mc_high_groups.append((proc, mc_mass_sel, mc_weight_sel))
-                                mc_high_total += float(mc_weight_sel.sum())
-
-                            logger.info(
-                                "%s: High-score data/MC (BDT>=%.3f): data_n=%d, mc_sum=%.3f, ratio=%.3f",
-                                era,
-                                best_cut,
-                                data_mass_high.size,
-                                mc_high_total,
-                                data_mass_high.size / max(mc_high_total, 1e-12),
-                            )
-                            if data_mass_sorted.size:
-                                max_log = 30
-                                mass_log = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_log]])
-                                if data_mass_sorted.size > max_log:
-                                    mass_log += ", ..."
-                                logger.info(
-                                    "%s: Data masses (BDT>=%.3f) [GeV]: %s",
-                                    era,
-                                    best_cut,
-                                    mass_log,
-                                )
-
-                            mass_lines = [
-                                f"BDT >= {best_cut:.3f} (AMS suggested cut)",
-                                f"Data events: {data_mass_high.size}",
-                                f"MC sum(weights): {mc_high_total:.3f}",
-                                "Data masses [GeV]:",
-                            ]
-                            if data_mass_sorted.size:
-                                max_show = 20
-                                shown = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_show]])
-                                mass_lines.append(shown)
-                                if data_mass_sorted.size > max_show:
-                                    mass_lines.append("...")
-                            else:
-                                mass_lines.append("(none)")
-
-                            plot_text_page(
-                                pdf,
-                                f"{era}: Data mass for BDT >= {best_cut:.3f}",
-                                [line for line in mass_lines if line],
-                            )
+                            offsets = []
+                            for item in args.ams_cut_offsets.split(","):
+                                item = item.strip()
+                                if not item:
+                                    continue
+                                try:
+                                    offsets.append(float(item))
+                                except ValueError:
+                                    logger.warning("%s: Invalid --ams-cut-offsets entry '%s'", era, item)
+                            cuts_to_show = []
+                            seen = set()
+                            for off in [0.0] + [o for o in offsets if o > 0.0]:
+                                cut = min(1.0, max(0.0, best_cut - off))
+                                key = round(cut, 6)
+                                if key in seen:
+                                    continue
+                                seen.add(key)
+                                cuts_to_show.append(cut)
 
                             mass_bins = np.linspace(args.mass_min, args.mass_max, 21)
-                            plot_highcut_mass(
-                                pdf,
-                                f"{era}: Mass for BDT >= {best_cut:.3f}",
-                                data_mass_high,
-                                mc_high_groups,
-                                mass_bins,
-                                args.datamc_logy,
-                            )
+                            for cut in cuts_to_show:
+                                data_high = data_scores >= cut
+                                data_mass_high = data_mass[data_high]
+                                data_mass_sorted = np.sort(data_mass_high)
+                                mc_high_groups = []
+                                mc_high_total = 0.0
+                                for proc, mc_scores, mc_mass, mc_weights in mc_full_groups:
+                                    mc_mask = mc_scores >= cut
+                                    mc_mass_sel = mc_mass[mc_mask]
+                                    mc_weight_sel = mc_weights[mc_mask]
+                                    mc_high_groups.append((proc, mc_mass_sel, mc_weight_sel))
+                                    mc_high_total += float(mc_weight_sel.sum())
+
+                                delta = best_cut - cut
+                                if abs(delta) < 1e-6:
+                                    cut_label = "AMS suggested cut"
+                                else:
+                                    cut_label = f"AMS - {delta:.3f}"
+
+                                logger.info(
+                                    "%s: High-score data/MC (BDT>=%.3f): data_n=%d, mc_sum=%.3f, ratio=%.3f",
+                                    era,
+                                    cut,
+                                    data_mass_high.size,
+                                    mc_high_total,
+                                    data_mass_high.size / max(mc_high_total, 1e-12),
+                                )
+                                if data_mass_sorted.size:
+                                    max_log = 30
+                                    mass_log = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_log]])
+                                    if data_mass_sorted.size > max_log:
+                                        mass_log += ", ..."
+                                    logger.info(
+                                        "%s: Data masses (BDT>=%.3f) [GeV]: %s",
+                                        era,
+                                        cut,
+                                        mass_log,
+                                    )
+
+                                mass_lines = [
+                                    f"BDT >= {cut:.3f} ({cut_label})",
+                                    f"Data events: {data_mass_high.size}",
+                                    f"MC sum(weights): {mc_high_total:.3f}",
+                                    "Data masses [GeV]:",
+                                ]
+                                if data_mass_sorted.size:
+                                    max_show = 20
+                                    shown = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_show]])
+                                    mass_lines.append(shown)
+                                    if data_mass_sorted.size > max_show:
+                                        mass_lines.append("...")
+                                else:
+                                    mass_lines.append("(none)")
+
+                                plot_text_page(
+                                    pdf,
+                                    f"{era}: Data mass for BDT >= {cut:.3f}",
+                                    [line for line in mass_lines if line],
+                                )
+
+                                plot_highcut_mass(
+                                    pdf,
+                                    f"{era}: Mass for BDT >= {cut:.3f}",
+                                    data_mass_high,
+                                    mc_high_groups,
+                                    mass_bins,
+                                    args.datamc_logy,
+                                )
 
                         logger.info("%s: Data/MC summary in %.0f-%.0f GeV", era, args.mass_min, args.mass_max)
                         logger.info("%s: Data entries=%d", era, data_scores.size)
