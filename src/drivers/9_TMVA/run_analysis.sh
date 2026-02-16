@@ -1,65 +1,83 @@
 #!/bin/bash
 
-# Script to run COMBINED BDT analysis on all Run3 eras
-# This will produce a single PDF with all eras combined
+# Script to run BDT analysis on all Run3 eras with correct luminosities
+# Eras and their luminosities (fb^-1):
+# 12022 (2022C-D): 7.9805
+# 22022 (2022E-G): 26.672
+# 12023 (2023C): 17.794
+# 22023 (2023D): 9.4510
+# 2024: 104.8
 
-# Combined luminosity for all eras (update these values!)
-TOTAL_LUMI=172.0  # 41.5 + 41.5 + 44.3 + 44.3 = 171.6 fb^-1
+# Define the eras and their corresponding luminosities
+declare -A LUMI_MAP=(
+    ["12022"]="7.9805"
+    ["22022"]="26.672"
+    ["12023"]="17.794"
+    ["22023"]="9.4510"
+)
 
-echo "========================================="
-echo "Running COMBINED BDT analysis for all eras"
-echo "Total luminosity: ${TOTAL_LUMI} fb^-1"
-echo "========================================="
-
-# Build the command with all data and MC files
-CMD="python3 scripts/bdt_analysis.py \
-    --outputs-dir Outputs \
-    --eras 12022 22022 12023 22023 \
-    --treename mva \
-    --bdt-branch bdt_score \
-    --weight-branch weight \
-    --mass-branch m_mumu \
-    --mass-min 110 \
-    --mass-max 150 \
-    --alpha 1e-3 \
-    --dthr-pct 0.20 \
-    --abs-weights \
-    --output bdt_analysis_all_eras_combined.pdf \
-    --retrain-ks \
-    --ks-dir DataPreparation_Files \
-    --datamc-nbins 40 \
-    --datamc-logy \
-    --lumi ${TOTAL_LUMI} \
-    --model-name myBDT"
-
-# Add data files for each era
+# Loop over each era separately
 for ERA in 12022 22022 12023 22023; do
-    CMD="${CMD} --data-era ${ERA}:Outputs/${ERA}/${ERA}_data_scored.root"
+    echo "========================================="
+    echo "Running BDT analysis for era: ${ERA}"
+    echo "Luminosity: ${LUMI_MAP[$ERA]} fb^-1"
+    echo "========================================="
+    
+    # Get luminosity for this era
+    LUMI=${LUMI_MAP[$ERA]}
+    
+    # Run the analysis for this era
+    python3 scripts/bdt_analysis.py \
+        --outputs-dir "Outputs" \
+        --eras ${ERA} \
+        --treename "mva" \
+        --bdt-branch "bdt_score" \
+        --weight-branch "weight" \
+        --mass-branch "m_mumu" \
+        --mass-min 110 \
+        --mass-max 150 \
+        --alpha 1e-3 \
+        --dthr-pct 0.20 \
+        --abs-weights \
+        --output "bdt_analysis_${ERA}.pdf" \
+        --retrain-ks \
+        --ks-dir DataPreparation_Files \
+        --data-era ${ERA}:Outputs/${ERA}/${ERA}_data_scored.root \
+        --mc-era ${ERA}:DY:Outputs/${ERA}/${ERA}_scored_DY.root \
+        --mc-era ${ERA}:Top:Outputs/${ERA}/${ERA}_scored_TT.root \
+        --mc-era ${ERA}:EWK:Outputs/${ERA}/${ERA}_scored_EWK.root \
+        --mc-era ${ERA}:Diboson:Outputs/${ERA}/${ERA}_scored_VV.root \
+        --mc-era ${ERA}:Diboson:Outputs/${ERA}/${ERA}_scored_VVV.root \
+        --mc-era ${ERA}:VBF:Outputs/${ERA}/${ERA}_scored_signal.root \
+        --datamc-nbins 40 \
+        --datamc-logy \
+        --lumi ${LUMI}
+    
+    # Check if the command succeeded
+    if [ $? -eq 0 ]; then
+        echo "✓ Analysis completed successfully for era ${ERA}"
+    else
+        echo "✗ ERROR: Analysis failed for era ${ERA}"
+        exit 1
+    fi
+    
+    echo ""
 done
 
-# Add MC files for each era and process
-for ERA in 12022 22022 12023 22023; do
-    for PROC in DY TT EWK VV VVV; do
-        CMD="${CMD} --mc-era ${ERA}:${PROC}:Outputs/${ERA}/${ERA}_scored_${PROC}.root"
-    done
-    CMD="${CMD} --mc-era ${ERA}:VBF:Outputs/${ERA}/${ERA}_scored_signal.root"
-done
+echo "========================================="
+echo "All individual era analyses completed!"
+echo "========================================="
 
-# Add scan files (using wildcards - these will be expanded by the script)
-CMD="${CMD} --scan-sig DataPreparation_Files/*/*_signal.root"
-CMD="${CMD} --scan-bkg DataPreparation_Files/*/*_background.root"
-CMD="${CMD} --scan-cuts 0.00:1.00:401"
-
-# Execute the command
-echo "Running command:"
-echo "${CMD}"
+# Optional: Create a summary of high-BDT events across all eras
 echo ""
-eval ${CMD}
+echo "=== HIGH-BDT EVENT SUMMARY ==="
+echo ""
 
-if [ $? -eq 0 ]; then
-    echo "✓ Combined analysis completed successfully!"
-    echo "Output: bdt_analysis_all_eras_combined.pdf"
-else
-    echo "✗ ERROR: Combined analysis failed"
-    exit 1
-fi
+for ERA in 12022 22022 12023 22023; do
+    echo "Era ${ERA} (Lumi = ${LUMI_MAP[$ERA]} fb^-1):"
+    echo "  Output PDF: bdt_analysis_${ERA}.pdf"
+    echo "  Check the log above for high-BDT event masses"
+    echo ""
+done
+
+echo "Total Run3 luminosity (excluding 2024): $((7.9805 + 26.672 + 17.794 + 9.4510)) fb^-1"
