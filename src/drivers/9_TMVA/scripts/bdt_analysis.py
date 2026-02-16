@@ -20,17 +20,6 @@ ROOT.gROOT.SetBatch(True)
 
 DEFAULT_BDT_BINS = [0.00, 0.15, 0.30, 0.45, 0.60, 0.75, 1.00]
 
-DATAMC_INTERPRETATION_LINES = [
-    "BDT region to data/MC interpretation:",
-    "- Very low (0.00-0.03): ratio ~0.329; MC predicts ~3x more events than data.",
-    "  These are likely junk events that data does not produce as often.",
-    "- Low-mid (0.03-0.12): ratio ~1.0-1.4; good agreement, MC models data well.",
-    "- High (0.95-1.00): ratio ~1.36-2.65; data exceeds MC in the most interesting region.",
-    "  Inspect the mass of those ~8 high-score events:",
-    "  * Cluster near 125 GeV -> possible Higgs-like signal.",
-    "  * Uniformly spread -> likely background mismodeling.",
-    "  * Peak elsewhere -> could be another resonance or an artifact.",
-]
 
 def parse_args():
     p = argparse.ArgumentParser(description="Comprehensive BDT analysis PDF (scores from Outputs).")
@@ -713,6 +702,55 @@ def plot_text_page(pdf, title, lines):
     plt.close(fig)
 
 
+def plot_highcut_mass(pdf, title, data_mass, mc_groups, bins, logy):
+    fig, ax = plt.subplots(figsize=(11, 7))
+
+    mc_hists = []
+    mc_labels = []
+    mc_colors = []
+
+    for name, masses, weights in mc_groups:
+        hist, _ = np.histogram(masses, bins=bins, weights=weights)
+        mc_hists.append(hist)
+        mc_labels.append(canonical_proc(name))
+        mc_colors.append(proc_color(name))
+
+    if mc_hists:
+        ax.hist(
+            [bins[:-1]] * len(mc_hists),
+            bins=bins,
+            weights=mc_hists,
+            stacked=True,
+            color=mc_colors,
+            label=mc_labels,
+            histtype="stepfilled",
+            alpha=0.85,
+        )
+
+    if data_mass.size:
+        data_hist, _ = np.histogram(data_mass, bins=bins)
+        bin_centers = 0.5 * (bins[:-1] + bins[1:])
+        ax.errorbar(
+            bin_centers,
+            data_hist,
+            yerr=np.sqrt(np.maximum(data_hist, 1.0)),
+            fmt="o",
+            color="black",
+            label="Data",
+        )
+
+    ax.set_xlabel("Mass [GeV]")
+    ax.set_ylabel("Events / bin")
+    ax.set_title(title)
+    ax.grid(alpha=0.3)
+    if logy:
+        ax.set_yscale("log")
+    ax.legend(fontsize=8, ncol=2)
+
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def plot_scan_curves(pdf, title, cuts, z_vals, za_vals, best_z, best_za):
     fig, ax = plt.subplots(figsize=(11, 7))
     ax.plot(cuts, z_vals, linewidth=2, label="Z = S/sqrt(S+B)")
@@ -816,6 +854,7 @@ def main():
         logger.info("Data/MC bins: %d | logy=%s", args.datamc_nbins, str(args.datamc_logy))
 
     with PdfPages(args.output) as pdf:
+        best_cut_by_era = {}
         for era in eras:
             logger.info("--- Era %s ---", era)
             files = find_scored_files(outputs_dir, era)
@@ -906,6 +945,7 @@ def main():
                     "ams": float(ams_vals[best_idx]) if ams_vals else 0.0,
                     "s_over_b": float(s_vals[best_idx] / b_vals[best_idx]) if b_vals and b_vals[best_idx] > 0 else np.inf,
                 }
+                best_cut_by_era[era] = best_summary["thr"]
                 plot_ams(pdf, f"{era}: AMS vs signal efficiency", effs, ams_vals, best_summary)
                 logger.info(
                     "%s: Best AMS=%.3f at eff=%.2f, cut=%.3f, S=%.3f, B=%.3f, S/B=%s",
@@ -1167,18 +1207,21 @@ def main():
                         if data_cols is None:
                             continue
 
-                        data_scores = load_arrays(
+                        data_arr = load_arrays(
                             data_files,
                             args.treename,
-                            [args.bdt_branch],
+                            [args.bdt_branch, dm_mass_branch],
                             dm_sel,
-                        )[args.bdt_branch]
+                        )
+                        data_scores = data_arr[args.bdt_branch]
+                        data_mass = data_arr[dm_mass_branch]
                         
                         data_mean, data_std = weighted_mean_std(data_scores, np.ones_like(data_scores))
                         logger.info("%s: Data after selection: n_events=%d, mean(BDT)=%.4f, std(BDT)=%.4f",
                                    era, data_scores.size, data_mean, data_std)
 
                         mc_groups = []
+                        mc_full_groups = []
                         for entry in mc_entries:
                             if ":" not in entry:
                                 raise SystemExit(f"[error] --mc-era needs ERA:PROC:files, got {entry}")
@@ -1202,16 +1245,18 @@ def main():
                             mc_arr = load_arrays(
                                 flist,
                                 args.treename,
-                                [args.bdt_branch, args.weight_branch],
+                                [args.bdt_branch, args.weight_branch, dm_mass_branch],
                                 dm_sel,
                             )
                             mc_scores = mc_arr[args.bdt_branch]
                             mc_weights = sanitize_weights(mc_arr[args.weight_branch], args.abs_weights)
+                            mc_mass = mc_arr[dm_mass_branch]
                             mc_sum = float(mc_weights.sum())
                             mc_mean, mc_std = weighted_mean_std(mc_scores, mc_weights)
                             logger.info("%s: MC '%s' after selection: n_events=%d, sum(weight)=%.3f, mean(BDT)=%.4f, std(BDT)=%.4f",
                                        era, proc, mc_scores.size, mc_sum, mc_mean, mc_std)
                             mc_groups.append((proc, mc_scores, mc_weights))
+                            mc_full_groups.append((proc, mc_scores, mc_mass, mc_weights))
 
                         if not mc_groups:
                             continue
@@ -1222,6 +1267,7 @@ def main():
                                    era, total_mc_pre, data_scores.size / max(total_mc_pre, 1e-12))
 
                         # Rescale MC to data counts if requested
+                        scale_used = 1.0
                         if args.lumi is not None:
                             mc_groups, scale_used = rescale_mc_to_data(data_scores.size, mc_groups, logger)
                             logger.info("%s: Rescaled MC groups with lumi=%.1f fb^-1; scale=%.6f", 
@@ -1229,6 +1275,11 @@ def main():
                             total_mc_post = sum(float(w.sum()) for _, _, w in mc_groups)
                             logger.info("%s: Total MC (post-rescale): sum(weight)=%.3f, data/MC ratio=%.6f",
                                        era, total_mc_post, data_scores.size / max(total_mc_post, 1e-12))
+                            if scale_used != 1.0:
+                                mc_full_groups = [
+                                    (proc, scores, masses, weights * scale_used)
+                                    for proc, scores, masses, weights in mc_full_groups
+                                ]
                         
                         bins = np.linspace(0, 1, args.datamc_nbins + 1)
                         
@@ -1258,11 +1309,70 @@ def main():
                             bins,
                             args.datamc_logy,
                         )
-                        plot_text_page(
-                            pdf,
-                            f"{era}: Data/MC interpretation notes",
-                            DATAMC_INTERPRETATION_LINES,
-                        )
+                        best_cut = best_cut_by_era.get(era)
+                        if best_cut is not None:
+                            data_high = data_scores >= best_cut
+                            data_mass_high = data_mass[data_high]
+                            data_mass_sorted = np.sort(data_mass_high)
+                            mc_high_groups = []
+                            mc_high_total = 0.0
+                            for proc, mc_scores, mc_mass, mc_weights in mc_full_groups:
+                                mc_mask = mc_scores >= best_cut
+                                mc_mass_sel = mc_mass[mc_mask]
+                                mc_weight_sel = mc_weights[mc_mask]
+                                mc_high_groups.append((proc, mc_mass_sel, mc_weight_sel))
+                                mc_high_total += float(mc_weight_sel.sum())
+
+                            logger.info(
+                                "%s: High-score data/MC (BDT>=%.3f): data_n=%d, mc_sum=%.3f, ratio=%.3f",
+                                era,
+                                best_cut,
+                                data_mass_high.size,
+                                mc_high_total,
+                                data_mass_high.size / max(mc_high_total, 1e-12),
+                            )
+                            if data_mass_sorted.size:
+                                max_log = 30
+                                mass_log = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_log]])
+                                if data_mass_sorted.size > max_log:
+                                    mass_log += ", ..."
+                                logger.info(
+                                    "%s: Data masses (BDT>=%.3f) [GeV]: %s",
+                                    era,
+                                    best_cut,
+                                    mass_log,
+                                )
+
+                            mass_lines = [
+                                f"BDT >= {best_cut:.3f} (AMS suggested cut)",
+                                f"Data events: {data_mass_high.size}",
+                                f"MC sum(weights): {mc_high_total:.3f}",
+                                "Data masses [GeV]:",
+                            ]
+                            if data_mass_sorted.size:
+                                max_show = 20
+                                shown = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_show]])
+                                mass_lines.append(shown)
+                                if data_mass_sorted.size > max_show:
+                                    mass_lines.append("...")
+                            else:
+                                mass_lines.append("(none)")
+
+                            plot_text_page(
+                                pdf,
+                                f"{era}: Data mass for BDT >= {best_cut:.3f}",
+                                [line for line in mass_lines if line],
+                            )
+
+                            mass_bins = np.linspace(args.mass_min, args.mass_max, 21)
+                            plot_highcut_mass(
+                                pdf,
+                                f"{era}: Mass for BDT >= {best_cut:.3f}",
+                                data_mass_high,
+                                mc_high_groups,
+                                mass_bins,
+                                args.datamc_logy,
+                            )
 
                         logger.info("%s: Data/MC summary in %.0f-%.0f GeV", era, args.mass_min, args.mass_max)
                         logger.info("%s: Data entries=%d", era, data_scores.size)
