@@ -62,9 +62,9 @@ data_masses = {
 all_masses = []
 total_in_higgs = 0
 
-print("="*60)
+print("="*70)
 print("EVENTS AT AMS-OPTIMIZED BDT CUTS")
-print("="*60)
+print("="*70)
 
 for era, masses in data_masses.items():
     all_masses.extend(masses)
@@ -75,108 +75,170 @@ for era, masses in data_masses.items():
     print(f"  Events in Higgs window (120-130 GeV): {in_higgs}")
     if in_higgs > 0:
         higgs_events = [m for m in masses if 120 <= m <= 130]
-        print(f"  Masses: {', '.join([f'{m:.2f}' for m in sorted(higgs_gs_events])}")
+        # FIXED: removed the typo 'higgs_gs_events'
+        print(f"  Masses: {', '.join([f'{m:.2f}' for m in sorted(higgs_events)])}")
 
-print("\n" + "="*60)
+print("\n" + "="*70)
 print(f"TOTAL EVENTS: {len(all_masses)}")
 print(f"TOTAL in Higgs window (120-130 GeV): {total_in_higgs}")
-print("="*60)
+print(f"Percentage in Higgs window: {100*total_in_higgs/len(all_masses):.1f}%")
+print("="*70)
 
-# Create the plot
-fig, axes = plt.subplots(2, 1, figsize=(14, 10), 
-                          gridspec_kw={'height_ratios': [3, 1]})
+# ============================================
+# CREATE SINGLE COMBINED PLOT (ALL ERAS TOGETHER)
+# ============================================
+
+# Create figure with better size
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10), 
+                                gridspec_kw={'height_ratios': [3, 1]})
 
 # Define mass bins (2 GeV bins from 110-150)
 bins = np.linspace(110, 150, 21)
 bin_centers = (bins[:-1] + bins[1:]) / 2
 
-# Plot 1: Mass distribution
-axes[0].hist(all_masses, bins=bins, histtype='stepfilled', 
-             alpha=0.7, color='steelblue', edgecolor='black',
-             label=f'Data (all eras, {len(all_masses)} events)')
+# Plot 1: Mass distribution (ALL ERAS COMBINED)
+counts, _, patches = ax1.hist(all_masses, bins=bins, histtype='stepfilled', 
+                              alpha=0.8, color='steelblue', edgecolor='black', linewidth=1.5)
 
 # Add vertical line at Higgs mass
-axes[0].axvline(x=125, color='red', linestyle='--', linewidth=2, 
-                alpha=0.8, label='Higgs mass (125 GeV)')
+ax1.axvline(x=125, color='red', linestyle='--', linewidth=2.5, 
+            alpha=0.8, label='Higgs mass (125 GeV)')
 
 # Shade Higgs window
-axes[0].axvspan(120, 130, alpha=0.2, color='yellow', 
-                label='Signal region (120-130 GeV)')
+ax1.axvspan(120, 130, alpha=0.15, color='yellow', 
+            label='Signal region (120-130 GeV)')
 
-# Add text boxes for each era
-text_y = 0.95
-for era, masses in data_masses.items():
-    n_events = len(masses)
-    axes[0].text(0.02, text_y, f'{era}: {n_events} events', 
-                 transform=axes[0].transAxes, fontsize=9,
-                 verticalalignment='top',
-                 bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-    text_y -= 0.05
+# Add text box with statistics
+stats_text = (
+    f"Total events: {len(all_masses)}\n"
+    f"Events in Higgs window: {total_in_higgs}\n"
+    f"Percentage: {100*total_in_higgs/len(all_masses):.1f}%"
+)
+ax1.text(0.02, 0.98, stats_text, transform=ax1.transAxes, fontsize=11,
+         verticalalignment='top',
+         bbox=dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='gray'))
 
-axes[0].set_xlabel('Dimuon Mass [GeV]', fontsize=12)
-axes[0].set_ylabel('Events / 2 GeV', fontsize=12)
-axes[0].set_title('Run3 Data at AMS-Optimized BDT Cuts', fontsize=14, fontweight='bold')
-axes[0].grid(True, alpha=0.3)
-axes[0].legend(loc='upper right')
-axes[0].set_xlim(110, 150)
-axes[0].set_ylim(0, max(30, np.histogram(all_masses, bins=bins)[0].max() + 2))
+ax1.set_xlabel('Dimuon Mass [GeV]', fontsize=13)
+ax1.set_ylabel('Events / 2 GeV', fontsize=13)
+ax1.set_title('Run3 Data at AMS-Optimized BDT Cuts (All Eras Combined)', 
+              fontsize=15, fontweight='bold')
+ax1.grid(True, alpha=0.3, linestyle='--')
+ax1.legend(loc='upper right', fontsize=11)
+ax1.set_xlim(110, 150)
+ax1.set_ylim(0, max(counts) + 2)
+
+# Add counts on top of bars
+for i, (bin_center, count) in enumerate(zip(bin_centers, counts)):
+    if count > 0:
+        ax1.text(bin_center, count + 0.3, str(int(count)), 
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
 
 # Plot 2: Cumulative distribution
 sorted_masses = sorted(all_masses)
 cumulative = np.arange(1, len(sorted_masses) + 1) / len(sorted_masses) * 100
 
-axes[1].plot(sorted_masses, cumulative, 'b-', linewidth=2, label='Cumulative distribution')
-axes[1].axvline(x=125, color='red', linestyle='--', alpha=0.8)
-axes[1].axvspan(120, 130, alpha=0.2, color='yellow')
+ax2.plot(sorted_masses, cumulative, 'b-', linewidth=2.5, label='Cumulative distribution')
+ax2.axvline(x=125, color='red', linestyle='--', alpha=0.8, linewidth=2)
+ax2.axvspan(120, 130, alpha=0.15, color='yellow')
 
-# Find percentage in Higgs window
-percent_in_higgs = total_in_higgs / len(all_masses) * 100
-axes[1].axhline(y=percent_in_higgs, color='green', linestyle=':', 
-                label=f'{percent_in_higgs:.1f}% in Higgs window')
+# Mark the percentage in Higgs window
+ax2.axhline(y=100*total_in_higgs/len(all_masses), color='green', linestyle=':', 
+            linewidth=2, label=f'{100*total_in_higgs/len(all_masses):.1f}% in Higgs window')
 
-axes[1].set_xlabel('Dimuon Mass [GeV]', fontsize=12)
-axes[1].set_ylabel('Cumulative Percentage [%]', fontsize=12)
-axes[1].set_title('Cumulative Distribution', fontsize=12)
-axes[1].grid(True, alpha=0.3)
-axes[1].legend(loc='lower right')
-axes[1].set_xlim(110, 150)
-axes[1].set_ylim(0, 100)
+ax2.set_xlabel('Dimuon Mass [GeV]', fontsize=13)
+ax2.set_ylabel('Cumulative Percentage [%]', fontsize=13)
+ax2.set_title('Cumulative Distribution', fontsize=13)
+ax2.grid(True, alpha=0.3, linestyle='--')
+ax2.legend(loc='lower right', fontsize=11)
+ax2.set_xlim(110, 150)
+ax2.set_ylim(0, 100)
 
 plt.tight_layout()
 
-# Save the plot
-plt.savefig('run3_data_ams_cuts_only.pdf', bbox_inches='tight')
-plt.savefig('run3_data_ams_cuts_only.png', dpi=150, bbox_inches='tight')
+# Save the main plot
+plt.savefig('run3_data_ams_cuts_combined.pdf', bbox_inches='tight')
+plt.savefig('run3_data_ams_cuts_combined.png', dpi=150, bbox_inches='tight')
 
-print("\n✓ Plot saved as 'run3_data_ams_cuts_only.pdf'")
-print("✓ Also saved as 'run3_data_ams_cuts_only.png'")
+print("\n✓ Main plot saved as 'run3_data_ams_cuts_combined.pdf'")
 
-# Optional: Create a zoomed-in plot of the Higgs region
-fig_zoom, ax_zoom = plt.subplots(figsize=(12, 6))
+# ============================================
+# CREATE ZOOMED PLOT OF HIGGS REGION
+# ============================================
 
-zoom_masses = [m for m in all_masses if 115 <= m <= 135]
+fig_zoom, ax_zoom = plt.subplots(figsize=(12, 7))
+
+# Use 1 GeV bins for zoom
 zoom_bins = np.linspace(115, 135, 21)
+zoom_counts, _, _ = ax_zoom.hist(all_masses, bins=zoom_bins, histtype='stepfilled',
+                                 alpha=0.8, color='steelblue', edgecolor='black', linewidth=1.5)
 
-ax_zoom.hist(zoom_masses, bins=zoom_bins, histtype='stepfilled',
-             alpha=0.7, color='steelblue', edgecolor='black')
-ax_zoom.axvline(x=125, color='red', linestyle='--', linewidth=2, alpha=0.8)
-ax_zoom.axvspan(120, 130, alpha=0.2, color='yellow')
+ax_zoom.axvline(x=125, color='red', linestyle='--', linewidth=2.5, alpha=0.8)
+ax_zoom.axvspan(120, 130, alpha=0.15, color='yellow')
 
-# Count events in each 1 GeV bin for labeling
-for i in range(120, 131):
-    count = sum(i <= m < i+1 for m in all_masses)
+# Add counts for each bin
+zoom_bin_centers = (zoom_bins[:-1] + zoom_bins[1:]) / 2
+for bin_center, count in zip(zoom_bin_centers, zoom_counts):
     if count > 0:
-        ax_zoom.text(i+0.5, count+0.2, str(count), 
-                    ha='center', va='bottom', fontweight='bold')
+        ax_zoom.text(bin_center, count + 0.2, str(int(count)), 
+                    ha='center', va='bottom', fontsize=11, fontweight='bold')
 
-ax_zoom.set_xlabel('Dimuon Mass [GeV]', fontsize=12)
-ax_zoom.set_ylabel('Events / 1 GeV', fontsize=12)
-ax_zoom.set_title('Zoom: Higgs Region (115-135 GeV)', fontsize=14, fontweight='bold')
-ax_zoom.grid(True, alpha=0.3)
+# Add text box with Higgs region stats
+higgs_region_counts = [count for i, count in enumerate(zoom_counts) 
+                       if 120 <= zoom_bin_centers[i] <= 130]
+zoom_stats = (
+    f"Events in Higgs window: {total_in_higgs}\n"
+    f"Peak bin (124-125 GeV): {zoom_counts[9] if len(zoom_counts)>9 else 0}\n"
+    f"Peak bin (125-126 GeV): {zoom_counts[10] if len(zoom_counts)>10 else 0}"
+)
+ax_zoom.text(0.02, 0.98, zoom_stats, transform=ax_zoom.transAxes, fontsize=11,
+             verticalalignment='top',
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='gray'))
+
+ax_zoom.set_xlabel('Dimuon Mass [GeV]', fontsize=13)
+ax_zoom.set_ylabel('Events / 1 GeV', fontsize=13)
+ax_zoom.set_title('Zoom: Higgs Region (115-135 GeV) - All Eras Combined', 
+                  fontsize=15, fontweight='bold')
+ax_zoom.grid(True, alpha=0.3, linestyle='--')
 ax_zoom.set_xlim(115, 135)
+ax_zoom.set_ylim(0, max(zoom_counts) + 1)
 
 plt.tight_layout()
 plt.savefig('run3_data_higgs_region_zoom.pdf', bbox_inches='tight')
+plt.savefig('run3_data_higgs_region_zoom.png', dpi=150, bbox_inches='tight')
+
 print("✓ Zoomed plot saved as 'run3_data_higgs_region_zoom.pdf'")
 
-plt.show()
+# ============================================
+# OPTIONAL: Per-era stacked plot
+# ============================================
+
+fig_stack, ax_stack = plt.subplots(figsize=(14, 7))
+
+colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+bin_edges = np.linspace(110, 150, 31)  # 1.33 GeV bins for better visibility
+
+# Plot each era with transparency so they stack visually
+bottom = np.zeros(len(bin_edges)-1)
+for i, (era, masses) in enumerate(data_masses.items()):
+    counts, _ = np.histogram(masses, bins=bin_edges)
+    ax_stack.bar(bin_edges[:-1], counts, width=np.diff(bin_edges), 
+                bottom=bottom, label=era, alpha=0.7, color=colors[i % len(colors)],
+                edgecolor='black', linewidth=0.5)
+    bottom += counts
+
+ax_stack.axvline(x=125, color='red', linestyle='--', linewidth=2, alpha=0.8)
+ax_stack.axvspan(120, 130, alpha=0.1, color='yellow')
+
+ax_stack.set_xlabel('Dimuon Mass [GeV]', fontsize=13)
+ax_stack.set_ylabel('Events', fontsize=13)
+ax_stack.set_title('Run3 Data at AMS-Optimized BDT Cuts (Stacked by Era)', 
+                   fontsize=15, fontweight='bold')
+ax_stack.grid(True, alpha=0.3, linestyle='--')
+ax_stack.legend(fontsize=10)
+ax_stack.set_xlim(110, 150)
+
+plt.tight_layout()
+plt.savefig('run3_data_ams_cuts_stacked.pdf', bbox_inches='tight')
+print("✓ Stacked plot saved as 'run3_data_ams_cuts_stacked.pdf'")
+
+print("\n✓ All plots completed successfully!")
