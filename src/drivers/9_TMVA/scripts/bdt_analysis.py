@@ -20,6 +20,18 @@ ROOT.gROOT.SetBatch(True)
 
 DEFAULT_BDT_BINS = [0.00, 0.15, 0.30, 0.45, 0.60, 0.75, 1.00]
 
+DATAMC_INTERPRETATION_LINES = [
+    "BDT region to data/MC interpretation:",
+    "- Very low (0.00-0.03): ratio ~0.329; MC predicts ~3x more events than data.",
+    "  These are likely junk events that data does not produce as often.",
+    "- Low-mid (0.03-0.12): ratio ~1.0-1.4; good agreement, MC models data well.",
+    "- High (0.95-1.00): ratio ~1.36-2.65; data exceeds MC in the most interesting region.",
+    "  Inspect the mass of those ~8 high-score events:",
+    "  * Cluster near 125 GeV -> possible Higgs-like signal.",
+    "  * Uniformly spread -> likely background mismodeling.",
+    "  * Peak elsewhere -> could be another resonance or an artifact.",
+]
+
 def parse_args():
     p = argparse.ArgumentParser(description="Comprehensive BDT analysis PDF (scores from Outputs).")
     p.add_argument("--outputs-dir", default="Outputs", help="Base Outputs directory")
@@ -692,6 +704,15 @@ def plot_datamc(pdf, title, data_scores, mc_groups, bins, logy):
     plt.close(fig)
 
 
+def plot_text_page(pdf, title, lines):
+    fig = plt.figure(figsize=(11, 8.5))
+    fig.suptitle(title, fontsize=14, y=0.97)
+    text = "\n".join(lines)
+    fig.text(0.07, 0.9, text, fontsize=11, va="top")
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def plot_scan_curves(pdf, title, cuts, z_vals, za_vals, best_z, best_za):
     fig, ax = plt.subplots(figsize=(11, 7))
     ax.plot(cuts, z_vals, linewidth=2, label="Z = S/sqrt(S+B)")
@@ -1236,6 +1257,11 @@ def main():
                             mc_groups,
                             bins,
                             args.datamc_logy,
+                        )
+                        plot_text_page(
+                            pdf,
+                            f"{era}: Data/MC interpretation notes",
+                            DATAMC_INTERPRETATION_LINES,
                         )
 
                         logger.info("%s: Data/MC summary in %.0f-%.0f GeV", era, args.mass_min, args.mass_max)
