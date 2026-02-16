@@ -11,7 +11,6 @@ usage() {
     echo "  --skip-training : Skip BDT training step"
     echo "  --skip-testing  : Skip BDT testing step"
     echo "  --skip-scoring  : Skip scoring step"
-    echo "  --skip-analysis : Skip analysis and plotting steps"
     echo "  --help          : Display this help message"
     exit 1
 }
@@ -21,7 +20,6 @@ ERA=""
 SKIP_TRAINING=false
 SKIP_TESTING=false
 SKIP_SCORING=false
-SKIP_ANALYSIS=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -39,10 +37,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-scoring)
             SKIP_SCORING=true
-            shift
-            ;;
-        --skip-analysis)
-            SKIP_ANALYSIS=true
             shift
             ;;
         --help)
@@ -177,75 +171,6 @@ else
     echo "Step 3: Skipping scoring (--skip-scoring)"
 fi
 
-# ------------------------------------------------------------------
-# Step 4: Mass sculpting analysis
-# ------------------------------------------------------------------
-if [ "$SKIP_ANALYSIS" = false ]; then
-    echo ""
-    echo "Step 4: Mass sculpting analysis for era ${ERA}"
-    echo "----------------------------------------"
-    
-    # 5. Analysis - Use Higgs window, run on background
-    echo "#5. Analysis: Higgs window study on background"
-    python3 tmva_MassSculpt.py \
-        --input Outputs/${ERA}/${ERA}_scored_background.root \
-        --treename mva \
-        --mass-branch "m_mumu" \
-        --mass-min 110 \
-        --mass-max 150 \
-        --weight weight \
-        --is-signal \
-        --year ${ERA}
-    
-    echo ""
-    echo "# For ${ERA}: Weighted Pearson corr(mass, bdt) in [110.0,150.0] = 0.0532"
-    echo "✓ Mass sculpting analysis completed"
-    
-    # ------------------------------------------------------------------
-    # Step 5: Plot BDT score shapes
-    # ------------------------------------------------------------------
-    echo ""
-    echo "Step 5: Plotting BDT score shapes for era ${ERA}"
-    echo "----------------------------------------"
-    
-    # Use the tmva_PlotScored.py script with appropriate parameters for this era
-    # example output: [2024_tmva] S0=19.93, B0=115380.69 | best Z: cut=0.987, Z=0.29 | best ZA: cut=0.987, ZA=0.29]
-    python3 tmva_PlotScored.py \
-        --prep-dir "DataPreparation_Files/${ERA}" \
-        --model-file "Outputs/Training/${ERA}/${ERA}_tmva101_background.root" \
-        --model-name "myBDT" \
-        --treename "mva" \
-        --weight-branch "weight" \
-        --out-prefix "${ERA}_tmva"
-    
-    echo "✓ BDT score shapes plotting completed"
-    
-    # ------------------------------------------------------------------
-    # Step 6: Comprehensive BDT analysis
-    # ------------------------------------------------------------------
-    echo ""
-    echo "Step 6: Comprehensive BDT analysis for era ${ERA}"
-    echo "----------------------------------------"
-    
-    python3 scripts/bdt_analysis.py \
-        --outputs-dir "Outputs" \
-        --eras ${ERA} \
-        --treename "mva" \
-        --bdt-branch "bdt_score" \
-        --weight-branch "weight" \
-        --mass-branch "m_mumu" \
-        --mass-min 110 \
-        --mass-max 150 \
-        --alpha 1e-3 \
-        --dthr-pct 0.20 \
-        --abs-weights \
-        --output "bdt_analysis_${ERA}.pdf"
-    
-    echo "✓ Comprehensive BDT analysis completed"
-    
-else
-    echo "Step 4-6: Skipping analysis steps (--skip-analysis)"
-fi
 
 echo ""
 echo "========================================="
