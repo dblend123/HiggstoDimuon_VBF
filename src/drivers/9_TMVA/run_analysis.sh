@@ -80,4 +80,3 @@ for ERA in 12022 22022 12023 22023; do
     echo ""
 done
 
-echo "Total Run3 luminosity (excluding 2024): $((7.9805 + 26.672 + 17.794 + 9.4510)) fb^-1"

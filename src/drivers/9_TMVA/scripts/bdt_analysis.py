@@ -48,6 +48,8 @@ def parse_args():
                    help="Luminosity in fb^-1; if set, MC is rescaled to match data counts. For 2024, the value is 104.80585 fb^-1.")
     p.add_argument("--ams-cut-offsets", default="0.02,0.05",
                    help="Comma-separated offsets below AMS cut for extra data mass dumps (e.g. 0.01,0.02).")
+    p.add_argument("--mass-log-max", type=int, default=0,
+                   help="Max number of data masses to log; 0 means log all.")
 
     # Optional model-based scan (tmva_ScanYields.py logic)
     p.add_argument("--model-file", default="tmva101.root")
@@ -1361,7 +1363,10 @@ def main():
                                     data_mass_high.size / max(mc_high_total, 1e-12),
                                 )
                                 if data_mass_sorted.size:
-                                    max_log = 30
+                                    if args.mass_log_max > 0:
+                                        max_log = min(args.mass_log_max, data_mass_sorted.size)
+                                    else:
+                                        max_log = data_mass_sorted.size
                                     mass_log = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_log]])
                                     if data_mass_sorted.size > max_log:
                                         mass_log += ", ..."
