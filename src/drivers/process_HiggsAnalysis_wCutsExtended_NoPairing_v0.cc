@@ -22,9 +22,12 @@
 #include "Rho.h"
 #include "Flag.h"
 #include "correction.h"
+#include "KITMuonCorrections.h"
+
 
 // Other Header Files
 #include "TFile.h"
+#include "TF1.h"
 #include "TTree.h"
 #include "TChain.h"
 #include "TString.h"
@@ -36,6 +39,7 @@
 #include <boost/program_options.hpp>
 #include <signal.h>
 #include <memory>
+#include <algorithm>
 #include <map>
 #include <set>
 #include <TVector2.h>
@@ -48,6 +52,9 @@
 #include <utility>
 #include <vector>
 #include <TLeaf.h>
+#include <random>   
+#include <cstdint>
+
 
 //*******************************************************************
 //                   HISTOGRAM MACROS
@@ -97,6 +104,66 @@
 //*******************************************************************
 //                     CONSTANTS
 //*******************************************************************
+static TRandom3 g_rng(42); // or seed per event if you prefer
+
+struct ZPtReweighter {
+  std::unique_ptr<TFile> f;
+  std::unique_ptr<TF1> f0;
+  std::unique_ptr<TF1> f1;
+  std::unique_ptr<TF1> f2;
+
+  double xmin = 0.0;
+  double xmax = 200.0;
+
+  bool load(const std::string& rootPath,
+            const std::string& dir0 = "corr_DM_Pre-Selection_Z0j",
+            const std::string& dir1 = "corr_DM_Pre-Selection_Z1j",
+            const std::string& dir2 = "corr_DM_Pre-Selection_Z2j",
+            const std::string& fname = "f_combined",
+            double xMin = 0.0, double xMax = 200.0)
+  {
+    xmin = xMin;
+    xmax = xMax;
+
+    f.reset(TFile::Open(rootPath.c_str(), "READ"));
+    if (!f || f->IsZombie()) {
+      std::cerr << "[ZPtRW] ERROR opening " << rootPath << "\n";
+      return false;
+    }
+
+    auto getClone = [&](const std::string& d) -> std::unique_ptr<TF1> {
+      const std::string path = d + "/" + fname;
+      TF1* tf = dynamic_cast<TF1*>(f->Get(path.c_str()));
+      if (!tf) {
+        std::cerr << "[ZPtRW] ERROR missing TF1: " << path << " in " << rootPath << "\n";
+        return nullptr;
+      }
+      // Clone so we can safely keep it after file operations; detach from directory.
+      TF1* c = dynamic_cast<TF1*>(tf->Clone((d + "_" + fname + "_clone").c_str()));
+      return std::unique_ptr<TF1>(c);
+    };
+
+    f0 = getClone(dir0);
+    f1 = getClone(dir1);
+    f2 = getClone(dir2);
+
+    return (bool)f0 && (bool)f1 && (bool)f2;
+  }
+
+  double eval(double zpt, int njets) const {
+    if (!f0 || !f1 || !f2) return 1.0;
+
+    // clamp to fit range so you don’t extrapolate wildly
+    const double x = std::clamp(zpt, xmin, xmax);
+
+    const TF1* ff = (njets <= 0 ? f0.get() : (njets == 1 ? f1.get() : f2.get()));
+    double w = ff->Eval(x);
+
+    // safety: no negative/NaN weights
+    if (!std::isfinite(w) || w <= 0.0) w = 1.0;
+    return w;
+  }
+};
 
 // Service Globals
 std::string __inputfilename;
@@ -116,6 +183,10 @@ bool g_disableMuonSF         = false;  // if true, ignore muon SFs
 bool g_disableFSRRecovery    = false;  // if true, skip FSR photon recovery
 bool g_disablePUWeights      = false;  // if true, PU weight = 1
 bool g_disableFlagFilters    = false;  // if true, skip event Flag (MET) filters
+bool g_disableZPtRW          = false;
+
+std::string g_zptRWFile      = "None";
+static ZPtReweighter g_zptRW;
 std::atomic<bool> __continueRunning = true;
 
 // MVA tree
@@ -154,6 +225,9 @@ struct SampleConfig {
     double sumw = 0.0;        // genEventSumw
 };
 
+std::string g_weightsFile = "None";  // set via --weights
+std::string g_sampleName  = "DATA";  // set via --sample
+
 // --- Jet Debug Counters ---
 static unsigned long long jets_in               = 0;
 static unsigned long long jets_pass             = 0;
@@ -163,9 +237,6 @@ static unsigned long long jets_after_pt         = 0;
 static unsigned long long jets_after_eta        = 0;
 static unsigned long long jets_after_dR1        = 0;
 static unsigned long long jets_after_dR2        = 0;
-
-std::string g_weightsFile = "None";  // set via --weights
-std::string g_sampleName  = "DATA";  // set via --sample
 
 // Era handling
 std::string g_era = "12022";  // default section (can be overridden via --era)
@@ -360,6 +431,55 @@ void loadMuonScaleSmearCorrections() {
         std::cerr << "[MUON SCALE/SMEAR load ERROR] " << e.what() << std::endl;
         muonScaleSmearCorrections = nullptr;
     }
+}
+
+// -------------------------------------
+//           Z-PT REWEIGHTING 
+// -------------------------------------
+/*std::shared_ptr<correction::CorrectionSet> zptCorrections = nullptr;
+
+// ---------- Era-aware config & helpers ----------
+std::string g_zptDir  = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/ZPT";
+std::string g_zptJSON = "auto"; // auto => zptWeights<era>.json
+
+static std::string zptFileForEra(const std::string& era) {
+  if (g_zptJSON != "auto") return g_zptJSON;
+  return g_zptDir + "/zptWeights" + era + ".json";
+}
+
+void loadZptWeights() {
+  try {
+    const std::string p = zptFileForEra(g_era);
+    zptCorrections = correction::CorrectionSet::from_file(p);
+    std::cerr << "[ZPT] Loaded " << p << "\n";
+  } catch (const std::exception& e) {
+    std::cerr << "[ZPT load ERROR] " << e.what() << "\n";
+    zptCorrections = nullptr;
+  }
+}*/
+
+static void initZPtRW() {
+  if (g_disableZPtRW) return;
+
+  if (g_zptRWFile == "None") {
+    std::cerr << "[ZPtRW] ERROR: enabled but --zptRWFile=None. Disabling.\n";
+    g_disableZPtRW = true;
+    return;
+  }
+
+  if (!g_zptRW.load(g_zptRWFile,
+                    "corr_DM_Pre-Selection_Z0j",
+                    "corr_DM_Pre-Selection_Z1j",
+                    "corr_DM_Pre-Selection_Z2j",
+                    "f_combined",
+                    0.0, 200.0))
+  {
+    std::cerr << "[ZPtRW] ERROR: failed to load; disabling\n";
+    g_disableZPtRW = true;
+    return;
+  }
+
+  std::cerr << "[ZPtRW] Loaded ZpT weights from " << g_zptRWFile << "\n";
 }
 
 // -------------------------------------
@@ -688,7 +808,7 @@ static inline bool passGolden(unsigned run, unsigned lumi) {
 //*******************************************************************
 
 // -------------------------------------
-//             MUON PT 
+//          MUON PT (ROCHESTER) 
 // -------------------------------------
 
 float getMuonRochester(const Muon& mu, bool isMC)
@@ -751,92 +871,21 @@ float getMuonRochester(const Muon& mu, bool isMC)
     }
 }
 
-static TRandom3 g_rng(42); // or seed per event if you prefer
+// -------------------------------------
+//          MUON PT (KIT) 
+// -------------------------------------
+
+// Contents can be found in KIT.h 
+
+// -------------------------------------
+//          MUON SMEARING 
+// -------------------------------------
+
 static float getNTrackerLayersOrDefault(const Muon& mu) {
     // use your stored number of tracker layers if available
     if (mu._nTrackerLayers > 0 && std::isfinite(mu._nTrackerLayers))
         return mu._nTrackerLayers;
     return 12.0f; // fallback
-}
-
-// Scale part of KIT corrections: acts on q/pT.
-//  q/pT' = m * (q/pT) + a
-float getMuonKITScale(const Muon& mu, bool isMC) {
-    if (!kitCorrections) return 1.0f;
-
-    // basic sanity
-    const float pt_raw  = std::max(1e-3f, mu._pt);
-    const double eta    = mu._eta;
-    const double phi    = mu._phi;
-    const int charge    = (mu._charge > 0) ? +1 : (mu._charge < 0 ? -1 : +1);
-
-    // q/pT in 1/GeV
-    const double qOverPt = charge / pt_raw;
-
-    const char* var_nom = "nom";
-
-    // choose data vs MC sets
-    auto mCorr = kitCorrections->at(isMC ? "m_mc" : "m_data");
-    auto aCorr = kitCorrections->at(isMC ? "a_mc" : "a_data");
-
-    const double m = mCorr->evaluate({eta, phi, var_nom});
-    const double a = aCorr->evaluate({eta, phi, var_nom});
-
-    // Apply KIT scaling in q/pT space
-    double qOverPt_corr = m * qOverPt + a;
-
-    // safety checks
-    if (!std::isfinite(qOverPt_corr) || qOverPt_corr == 0.0)
-        return 1.0f;
-
-    const double pt_corr = charge / qOverPt_corr;
-    const double scale   = pt_corr / pt_raw;
-
-    if (!std::isfinite(scale) || scale <= 0.0)
-        return 1.0f;
-
-    return (float)scale;
-}
-
-float getMuonKITSmear(const Muon& mu, bool isMC) {
-    // No resolution smearing on data
-    if (!isMC) return 1.0f;
-    if (!kitCorrections) return 1.0f;
-
-    static bool printed = false;
-    if (!printed) {
-        std::cerr << "[KIT] Applying KIT smearing (resolution) for first muon event\n";
-        printed = true;
-    }
-
-    const double abseta = std::abs(mu._eta);
-    const double nL     = getNTrackerLayersOrDefault(mu);
-    const double pt     = std::max(1e-3, static_cast<double>(mu._pt));
-
-    try {
-        // polynomial parametrisation of the width
-        auto poly = kitCorrections->at("poly_params");
-        const double p0 = poly->evaluate({abseta, nL, 0});
-        const double p1 = poly->evaluate({abseta, nL, 1});
-        const double p2 = poly->evaluate({abseta, nL, 2});
-
-        // overall resolution scale factor k_mc(abseta)
-        auto kCorr = kitCorrections->at("k_mc");
-        const double k  = kCorr->evaluate({abseta, "nom"});
-
-        // A conservative choice: treat p0,p1,p2 as coefficients of a relative sigma
-        //   sigma_rel^2 = (p0 + p1/pt + p2/(pt*pt))^2
-        const double s  = (p0 + p1/pt + p2/(pt*pt));
-        const double sigma_rel = std::abs(k * s);
-
-        // smear pT multiplicatively
-        const double smear = g_rng.Gaus(1.0, sigma_rel);
-        return (smear > 0.0 && std::isfinite(smear)) ? (float)smear : 1.0f;
-
-    } catch (...) {
-        // fall back to no smearing if anything goes wrong
-        return 1.0f;
-    }
 }
 
 float getMuonScaleSmear(const Muon& mu, bool isMC) {
@@ -1151,17 +1200,16 @@ inline bool passVertex(const Vertices* v) {
 //          MUON/LEPTONS CRITERIA 
 // -------------------------------------
 
-inline float muCorrScale(const Muon& mu, bool isMC) {
+inline float muCorrScale(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t lumi = 0) {
     if (__noMuCorr) return 1.0f;
 
     float scale = 1.0f;
 
-    if (__useKIT) {
-        scale = getMuonKITScale(mu, isMC);
-        if (isMC) {
-            scale *= getMuonKITSmear(mu, isMC);
-        }
-        return scale;
+    if (__useKIT && isMC) {
+        if (!kitCorrections) return 1.0f;
+        const double pt0     = kit::basePt(mu);
+        const double pt_corr = kit::pt_resol(*kitCorrections, mu, evt, lumi);
+        return (pt0 > 0.0 ? (float)(pt_corr / pt0) : 1.0f);
     }
 
     if (__useRochester) {
@@ -1175,8 +1223,8 @@ inline float muCorrScale(const Muon& mu, bool isMC) {
     return 1.0f;
 }
 
-inline float correctedBsPt(const Muon& mu, bool isMC) {
-    return mu._bsConstrainedPt * muCorrScale(mu, isMC);
+inline float correctedBsPt(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t lumi = 0) {
+    return mu._bsConstrainedPt * muCorrScale(mu, isMC, evt, lumi);
 }
 
 bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
@@ -1321,10 +1369,10 @@ bool passMuon(Muon const& m, float corrected_pt, MuonType id=kLead)
 	return false;
 }
 
-bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs)
+bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs, uint32_t evt, uint32_t lumi)
 {
-    float pt1_corr = correctedBsPt(m1, __isMC);
-    float pt2_corr = correctedBsPt(m2, __isMC);
+    float pt1_corr = correctedBsPt(m1, __isMC, evt, lumi);
+    float pt2_corr = correctedBsPt(m2, __isMC, evt, lumi);
 
     const Muon& leadmuon    = (pt1_corr > pt2_corr) ? m1 : m2;
     const Muon& subleadmuon = (pt1_corr > pt2_corr) ? m2 : m1;
@@ -1520,15 +1568,15 @@ static inline double getBTagSF_PNet_WP_forVeto(const std::vector<Jet>& jets,
 void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, const analysis::core::Muon& mu1, 
 const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons, 
 analysis::core::Vertices* vertices, const analysis::core::MET& met, const analysis::core::Event& event, 
-analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
+analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight, uint32_t evt, uint32_t lumi) {
 
     // -------------------------------------
     //             MUONS 
     // -------------------------------------
     
     // --- KIT, Rochester, noMuCorr Dimuon Set ---
-    const float sf1 = muCorrScale(mu1, __isMC);
-    const float sf2 = muCorrScale(mu2, __isMC);
+    const float sf1 = muCorrScale(mu1, __isMC, evt, lumi);
+    const float sf2 = muCorrScale(mu2, __isMC, evt, lumi); 
 
     // --- raw TLVs ---
     TLorentzVector p4m1, p4m2;
@@ -1636,6 +1684,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     bool pass_bjet_veto = true;
     int n_loose_bjets = 0;
     int n_medium_bjets = 0;
+    int n_tight_bjets = 0;
     float rho = rhos->at(0)._fixedGridRhoFastjetAll;
 
     std::vector<TLorentzVector> p4jets;
@@ -1646,8 +1695,12 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
     btagJets.reserve(jets->size());
 
     // Get PN working-point thresholds from the JSON once
-    const float pnetL = pnetWPThreshold("L");
-    const float pnetM = pnetWPThreshold("M");
+    /*const float pnetL = pnetWPThreshold("L");
+    const float pnetM = pnetWPThreshold("M");*/
+    constexpr float pnetL = 0.0470f;
+    constexpr float pnetM = 0.2450f;
+    constexpr float pnetT = 0.6734f;
+
 
     for (const auto& j : *jets) {
         ++jets_in;
@@ -1714,17 +1767,44 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         p4jets.push_back(p4);
 
         // Pushing a copy of the *Jet* we just accepted, and overwrite its pt with the corrected pt so SFs see corrected kinematics
-        analysis::core::Jet jSF = j;
+        /*analysis::core::Jet jSF = j;
         jSF._pt = corr_pt;
-        btagJets.push_back(jSF);
+        btagJets.push_back(jSF);*/
 
         // ---- b-tag counting with ParticleNet thresholds from JSON ----
-        const float pn = j._btagPNetB; // ParticleNet b score
-        if (pn >= pnetM) ++n_medium_bjets;
-        else if (pn >= pnetL) ++n_loose_bjets;
+        //const float pn = j._btagPNetB; // ParticleNet b score
+        /*if (pn >= pnetM) ++n_medium_bjets;
+        else if (pn >= pnetL) ++n_loose_bjets;*/
+        /*if (pn >= pnetT) {
+            ++n_tight_bjets;
+            ++n_medium_bjets; // optional: if you want T ⊂ M ⊂ L bookkeeping
+            ++n_loose_bjets;
+        } else if (pn >= pnetM) {
+            ++n_medium_bjets;
+            ++n_loose_bjets;
+        } else if (pn >= pnetL) {
+            ++n_loose_bjets;
+        }*/
+
     }
     
     std::sort(p4jets.begin(), p4jets.end(), [](const TLorentzVector& a, const TLorentzVector& b){ return a.Pt() > b.Pt(); });
+    
+    // ---- Event-level jet/btag debug (print first N events) ----
+    /*static int jetDbgEvt = 0;
+    const int maxJetDbgEvts = 50;
+
+    if (jetDbgEvt++ < maxJetDbgEvts) {
+        std::cerr
+          << "[JET EVT] run=" << event._run
+          << " lumi=" << event._lumi
+          << " | jets_in_evt=" << (jets ? jets->size() : 0)
+          << " | jets_selected=" << p4jets.size()
+          << " | btags(L/M/T)=" << n_loose_bjets << "/"
+                               << n_medium_bjets << "/"
+                               << n_tight_bjets
+          << "\n";
+    }*/
 
     const bool is0jet = (p4jets.size() == 0);
     const bool is1jet = (p4jets.size() == 1);
@@ -1809,14 +1889,26 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
             FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_Z2j, totalWeight); 
         }
     }
+    
+    // Only apply to DY MC
+    if (!g_disableZPtRW && __isMC && g_sampleName == "DY") {
+      const double zpt = corr_p4dimuon.Pt();
 
+      int nj = 2;
+      if (is0jet) nj = 0;
+      else if (is1jet) nj = 1;
+      else nj = 2;
+
+      const double w_zpt = g_zptRW.eval(zpt, nj);
+      totalWeight *= w_zpt;
+    }
     
     // -------------------------------------
     //        PRE-SELECTION HISTOGRAMS  
     // -------------------------------------
    
-    //if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
-        //pass_bjet_veto = false;
+    /*if (n_loose_bjets >= 2 || n_medium_bjets >= 1)
+        pass_bjet_veto = false;*/
     
     //if (pass_bjet_veto) {
 
@@ -1871,6 +1963,7 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight) {
         FILL_JET_HIST(hists.setJet_PreSelection_EE, totalWeight); 
     }*/
     //}
+    
     // -------------------------------------
     //          VBF HISTOGRAMS  
     // -------------------------------------
@@ -2305,6 +2398,8 @@ void process()
     //Setting Branch Array for LuminosityBlocks Contents
     SET_BRANCH_UINT(run);
     SET_BRANCH_UINT(luminosityBlock);
+    ULong64_t eventNumber = 0;
+    ROOT_CHAIN->SetBranchAddress("event", &eventNumber);
 
     //Setting Branch Array for Muon Properties
     SET_BRANCH_UINT(nMuon);
@@ -2538,6 +2633,8 @@ long long n_afterPair   = 0;
         ROOT_CHAIN->GetEntry(i);
         event->_run  = run;                
         event->_lumi = luminosityBlock;    
+        const uint32_t evt  = (uint32_t)(eventNumber & 0xffffffffULL);
+        const uint32_t lumi = (uint32_t)luminosityBlock;
 
         for (size_t i=0; i<nMuon; i++) {
             Muon mu;
@@ -2720,10 +2817,10 @@ std::cout << std::setprecision(10)
         for (auto it = muons->begin(); it != muons->end(); ++it) {
             for (auto jt = (it + 1); jt != muons->end(); ++jt) {
             
-            if (!passMuons(*it, *jt, trigobjs)) continue;
+            if (!passMuons(*it, *jt, trigobjs, evt, lumi)) continue;
             anyPair = true;
 
-            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight);
+            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight, evt, lumi);
             break;
         }
         if (anyPair) break;
@@ -2794,6 +2891,7 @@ int main(int argc, char** argv)
         ("noFlags",         po::bool_switch(&g_disableFlagFilters)->default_value(false),       "Disable event Flag (MET filter) requirements")
         ("noPU",            po::bool_switch(&g_disablePUWeights)->default_value(false),         "Disable pileup reweighting (Pileup_nTrueInt -> weight = 1)")
         ("noFSR",           po::bool_switch(&g_disableFSRRecovery)->default_value(false),       "Disable FSR photon recovery (use pre-FSR muon four-vectors)")
+        ("noZPtRW",         po::bool_switch(&g_disableZPtRW)->default_value(false),             "Disable DY Z-pT reweighting")
         ("leadmuonPt",      po::value<double>(&_leadmuonPt)->default_value(_leadmuonPt),        "Muon Pt Cut")
         ("subleadmuonPt",   po::value<double>(&_subleadmuonPt)->default_value(_subleadmuonPt),  "Muon Pt Cut")
         ("leadmuonEta",     po::value<double>(&_leadmuonEta)->default_value(_leadmuonEta),      "Muon Eta Cut")
@@ -2806,7 +2904,8 @@ int main(int argc, char** argv)
         ("subleadJetEta",   po::value<double>(&_subleadJetEta)->default_value(_subleadJetEta),  "SubLeading Jet Eta Cut")
         ("dijetMass_VBF",   po::value<double>(&_dijetMass_VBF)->default_value(_dijetMass_VBF),  "DiJet Mass VBF-Category Cut")
         ("dijetdEta_VBF",   po::value<double>(&_dijetdEta_VBF)->default_value(_dijetdEta_VBF),  "DiJet deta VBF-Category Cut")
-	    ("weights",         po::value<std::string>(&g_weightsFile)->default_value("None"),      "path to weights config (key=value)")
+	    ("zptRWFile",       po::value<std::string>(&g_zptRWFile)->default_value("None"),        "ROOT file containing ZpT TF1s (f_combined)")
+        ("weights",         po::value<std::string>(&g_weightsFile)->default_value("None"),      "path to weights config (key=value)")
         ("sample",          po::value<std::string>(&g_sampleName)->default_value("DATA"),       "sample name (e.g. DY, TT, WZ, VBF, DATA)")
         ("era",             po::value<std::string>(&g_era)->default_value("12022"),             "Era section from weights.ini (e.g. 12022, 22022, 12023, 22023)")
         ("puDir",           po::value<std::string>(&g_puDir)->default_value(g_puDir),           "Directory containing PU JSONs")
@@ -2947,8 +3046,8 @@ std::cout << std::fixed
 
     //printCuts();
 
-    
     // Start Main Loop Process 
+    initZPtRW();                                      // load Zpt Root file
     loadMuonSF();                                     // load muon ID/ISO/TRG SF JSON
     if (__useRochester) loadRochesterCorrections();   // Rochester only when requested
     loadMuonScaleSmearCorrections();                  // load MuonScaleSmearing JSONs

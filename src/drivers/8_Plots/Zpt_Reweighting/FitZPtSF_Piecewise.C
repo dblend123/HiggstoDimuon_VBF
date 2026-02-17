@@ -41,6 +41,26 @@
 #include <algorithm>
 #include <cmath>
 
+// ------------------------- Building Polynomial in u = log(x + shift), order N --------------------------
+// f(x) = p0 + p1*u + p2*u^2 + ... + pN*u^N
+static TF1* makePolLogTF1(const std::string& name, int order,
+                          double xmin, double xmax,
+                          double shift = 1.0)
+{
+  std::string u = Form("log(x+%.6f)", shift);
+
+  std::string expr = Form("([0])");
+  for (int i = 1; i <= order; ++i) {
+    expr += Form(" + ([%d])*pow(%s,%d)", i, u.c_str(), i);
+  }
+
+  TF1* f = new TF1(name.c_str(), expr.c_str(), xmin, xmax);
+  f->SetNpx(600);
+  f->SetParameter(0, 1.0);
+  for (int i = 1; i <= order; ++i) f->SetParameter(i, 0.0);
+  return f;
+}
+
 // ------------------------- path utils --------------------------
 static std::vector<std::string> splitPath(const std::string& p) {
   std::vector<std::string> out;
@@ -97,7 +117,7 @@ static TH1* getHist(TFile* f, const std::string& path) {
   }
   auto* c = (TH1*)h->Clone();
   c->SetDirectory(nullptr);
-  c->Sumw2();
+  if (!c->GetSumw2N()) c->Sumw2();
   return c;
 }
 
@@ -110,6 +130,25 @@ static void sanitizeSF(TH1* h, double maxAbs = 5.0) {
       h->SetBinContent(i, 0.0);
       h->SetBinError(i, 0.0);
     }
+  }
+}
+
+static void applyRelErrorFloor(TH1* h,
+                               double xmin, double xmax,
+                               double relFloor = 0.05) // 5% default
+{
+  if (!h) return;
+  for (int i = 1; i <= h->GetNbinsX(); ++i) {
+    double x = h->GetBinCenter(i);
+    if (x < xmin || x > xmax) continue;
+
+    double y = h->GetBinContent(i);
+    double e = h->GetBinError(i);
+    if (y == 0 || e <= 0) continue;
+
+    double eFloor = relFloor * std::abs(y);
+    double eNew = std::sqrt(e*e + eFloor*eFloor);
+    h->SetBinError(i, eNew);
   }
 }
 
@@ -184,7 +223,8 @@ static TH1D* makePullHist(const TH1* h, TF1* f, double xmin, double xmax,
 // Also optionally compute F-test vs (order+1) if enough bins.
 static FitInfo fitSegmentWithStats(const TH1* h, const std::string& baseName,
                                   double xmin, double xmax, int orderRequested,
-                                  bool doFtest=true)
+                                  bool doFtest=true,
+                                  bool useLogX=false)
 {
   FitInfo out;
   if (!h) return out;
@@ -199,13 +239,17 @@ static FitInfo fitSegmentWithStats(const TH1* h, const std::string& baseName,
     order = 0;
   }
 
-  const std::string form = "pol" + std::to_string(order);
-  out.f = new TF1((baseName + "_" + form).c_str(), form.c_str(), xmin, xmax);
   out.orderUsed = order;
   out.npar = order + 1;
 
-  out.f->SetParameter(0, 1.0);
-  for (int i=1;i<=order;i++) out.f->SetParameter(i, 0.0);
+  if (useLogX) {
+    out.f = makePolLogTF1(baseName + "_polLog" + std::to_string(order), order, xmin, xmax, 1.0);
+  } else {
+    const std::string form = "pol" + std::to_string(order);
+    out.f = new TF1((baseName + "_" + form).c_str(), form.c_str(), xmin, xmax);
+    out.f->SetParameter(0, 1.0);
+    for (int i=1;i<=order;i++) out.f->SetParameter(i, 0.0);
+  }
 
   TFitResultPtr r = const_cast<TH1*>(h)->Fit(out.f, "RSQ0");
   if ((int)r == 0 && r.Get()) { // ROOT uses status==0 for OK
@@ -217,13 +261,21 @@ static FitInfo fitSegmentWithStats(const TH1* h, const std::string& baseName,
   }
 
   // F-test against order+1 (nested) if possible
+  // F-test against order+1 (nested) if possible
   if (doFtest) {
     const int order2 = order + 1;
     if (usable >= order2 + 2) {
-      TF1* f2 = new TF1((baseName + "_pol" + std::to_string(order2)).c_str(),
-                        ("pol" + std::to_string(order2)).c_str(), xmin, xmax);
-      f2->SetParameter(0, 1.0);
-      for (int i=1;i<=order2;i++) f2->SetParameter(i, 0.0);
+
+      TF1* f2 = nullptr;
+      if (useLogX) {
+        f2 = makePolLogTF1(baseName + "_polLog" + std::to_string(order2),
+                           order2, xmin, xmax, 1.0);
+      } else {
+        f2 = new TF1((baseName + "_pol" + std::to_string(order2)).c_str(),
+                     ("pol" + std::to_string(order2)).c_str(), xmin, xmax);
+        f2->SetParameter(0, 1.0);
+        for (int i=1;i<=order2;i++) f2->SetParameter(i, 0.0);
+      }
 
       TFitResultPtr r2 = const_cast<TH1*>(h)->Fit(f2, "RSQ0");
       if ((int)r2 == 0 && r2.Get()) {
@@ -238,7 +290,6 @@ static FitInfo fitSegmentWithStats(const TH1* h, const std::string& baseName,
         out.ftest_pval = fTestPValue(chi1, ndf1, p1, chi2, ndf2, p2);
 
         // Keep the better (lower chi2) model as the "segment fit"
-        // but preserve the F-test result as a diagnostic.
         if (chi2 < chi1) {
           delete out.f;
           out.f = f2;
@@ -276,7 +327,7 @@ double smoothCombinedEval(double* x, double* /*p*/) {
   if (!g_low || !g_mid || !g_high) return 1.0;
 
   // Clamp evaluation range (prevents weird extrapolation)
-  const double xcl = std::min(200.0, std::max(0.0, xx));
+  const double xcl = std::min(200.0, std::max(5.0, xx));
 
   // --- widths control how “smooth” the transition is
   // With 4 GeV/bin, a width of ~6–10 GeV is a good start.
@@ -344,7 +395,7 @@ static TCanvas* drawWithPulls(const std::string& title,
 
   // --- top pad
   p1->cd();
-  h->GetXaxis()->SetRangeUser(0, 200);
+  h->GetXaxis()->SetRangeUser(5, 200);
   h->GetYaxis()->SetTitle("SF = Data/DY");
   h->SetMarkerStyle(20);
   h->Draw("E1");
@@ -401,7 +452,7 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
                                      int orderMid = 2,
                                      int orderHigh = 1)
 {
-  const double xLowMin=0,   xLowMax=60;
+  const double xLowMin=5,   xLowMax=60;
   const double xMidMin=60,  xMidMax=120;
   const double xHighMin=120,xHighMax=200;
 
@@ -439,11 +490,12 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
     if (!h) continue;
 
     sanitizeSF(h, 5.0);
+    applyRelErrorFloor(h, xLowMin, xLowMax, 0.05);  // 5% floor in low region
 
     // --- Fit segments w/ stats (+ F-test vs N+1)
-    FitInfo iL = fitSegmentWithStats(h, "f_low",  xLowMin,  xLowMax,  orderLow,  true);
-    FitInfo iM = fitSegmentWithStats(h, "f_mid",  xMidMin,  xMidMax,  orderMid,  true);
-    FitInfo iH = fitSegmentWithStats(h, "f_high", xHighMin, xHighMax, orderHigh, true);
+    FitInfo iL = fitSegmentWithStats(h, "f_low",  xLowMin,  xLowMax,  orderLow,  true, true);  // <-- log(x+1)
+    FitInfo iM = fitSegmentWithStats(h, "f_mid",  xMidMin,  xMidMax,  orderMid,  true, false); // normal pol
+    FitInfo iH = fitSegmentWithStats(h, "f_high", xHighMin, xHighMax, orderHigh, true, false); // normal pol
 
     TF1* fL = iL.f;
     TF1* fM = iM.f;
@@ -511,6 +563,7 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
     std::cout << "\n=== " << cat << " ===\n";
     std::cout << " low : pol"  << iL.orderUsed << "  chi2/ndf=" << iL.chi2 << "/" << iL.ndf
               << "  p=" << iL.pval << "  Ftest p=" << iL.ftest_pval << "\n";
+    std::cout << "[INFO] Applied low-region rel error floor = 5%\n";
     std::cout << " mid : pol"  << iM.orderUsed << "  chi2/ndf=" << iM.chi2 << "/" << iM.ndf
               << "  p=" << iM.pval << "  Ftest p=" << iM.ftest_pval << "\n";
     std::cout << " high: pol"  << iH.orderUsed << "  chi2/ndf=" << iH.chi2 << "/" << iH.ndf
