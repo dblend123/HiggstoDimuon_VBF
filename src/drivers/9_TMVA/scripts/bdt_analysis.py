@@ -49,6 +49,10 @@ def parse_args():
                    help="Minimum weighted background yield required in each BDT bin")
     p.add_argument("--multibin-no-monotonic", action="store_true",
                    help="Disable strict monotonic S/B constraint across ordered BDT bins")
+    p.add_argument("--multibin-objective", choices=["asimov", "likelihood"], default="likelihood",
+                   help="Objective for selecting BDT bin edges: ZA(total) or profile-likelihood Zexp")
+    p.add_argument("--multibin-likelihood-topk", type=int, default=20,
+                   help="For likelihood objective, evaluate full profile-likelihood only for top-K ZA candidates")
     p.add_argument("--shape-likelihood", action="store_true",
                    help="Run simultaneous shape-based likelihood across optimized BDT bins")
     p.add_argument("--shape-mass-nbins", type=int, default=40,
@@ -59,6 +63,12 @@ def parse_args():
                    help="Gaussian prior width (fractional) on per-bin background normalization")
     p.add_argument("--shape-poly-unc", type=float, default=0.30,
                    help="Gaussian prior width for per-bin background shape coefficients")
+    p.add_argument("--shape-sig-norm-unc", type=float, default=0.05,
+                   help="Gaussian prior width (fractional) on correlated signal normalization")
+    p.add_argument("--shape-sig-mass-shift-unc", type=float, default=0.20,
+                   help="1σ correlated signal mass shift in GeV for template morphing")
+    p.add_argument("--shape-sig-resolution-unc", type=float, default=0.10,
+                   help="1σ correlated relative signal resolution nuisance for template morphing")
     p.add_argument("--shape-mu-max", type=float, default=3.0,
                    help="Upper bound of mu grid in profiled likelihood scan")
     p.add_argument("--shape-mu-points", type=int, default=121,
@@ -477,10 +487,38 @@ def evaluate_multibin_config(sig_scores, sig_w, bkg_scores, bkg_w, edges,
 
 def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
                                  min_n=4, max_n=6, n_candidates=16,
-                                 min_sig=1.0, min_bkg=5.0, enforce_monotonic=True):
+                                 min_sig=1.0, min_bkg=5.0, enforce_monotonic=True,
+                                 objective="asimov",
+                                 sig_mass=None, bkg_mass=None,
+                                 mass_min=110.0, mass_max=150.0, mass_nbins=40,
+                                 poly_order=1,
+                                 bkg_norm_unc=0.20,
+                                 poly_unc=0.30,
+                                 sig_norm_unc=0.05,
+                                 sig_mass_shift_unc=0.20,
+                                 sig_resolution_unc=0.10,
+                                 mu_max=3.0,
+                                 mu_points=121,
+                                 likelihood_topk=20):
     min_n = max(2, int(min_n))
     max_n = max(min_n, int(max_n))
     cands = candidate_boundaries(sig_scores, sig_w, bkg_scores, bkg_w, n_candidates)
+
+    objective = str(objective).strip().lower()
+    if objective not in ("asimov", "likelihood"):
+        objective = "asimov"
+
+    use_likelihood = (
+        objective == "likelihood"
+        and sig_mass is not None
+        and bkg_mass is not None
+    )
+
+    metric_key = "za_total"
+    metric_label = "ZA(total)"
+    if use_likelihood:
+        metric_key = "zexp_profile"
+        metric_label = "Zexp(profile)"
 
     best_global = None
     best_by_n = {}
@@ -495,6 +533,7 @@ def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
         scanned = 0
         valid = 0
         best_local = None
+        valid_results = []
         for interior in itertools.combinations(cands, n_inner):
             scanned += 1
             edges = [0.0] + list(interior) + [1.0]
@@ -505,13 +544,54 @@ def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
             if res is None:
                 continue
             valid += 1
-            if best_local is None or res["za_total"] > best_local["za_total"]:
-                best_local = res
+            valid_results.append(res)
+
+        if use_likelihood and valid_results:
+            topk = max(1, int(likelihood_topk))
+            valid_results = sorted(valid_results, key=lambda r: r["za_total"], reverse=True)
+            shortlisted = valid_results[:min(topk, len(valid_results))]
+            evaluated = []
+            for res in shortlisted:
+                shape_inputs = build_shape_inputs(
+                    sig_mass,
+                    sig_scores,
+                    sig_w,
+                    bkg_mass,
+                    bkg_scores,
+                    bkg_w,
+                    res["edges"],
+                    mass_min,
+                    mass_max,
+                    mass_nbins,
+                )
+                shape_fit = compute_shape_expected_significance(
+                    shape_inputs,
+                    poly_order=poly_order,
+                    bkg_norm_unc=bkg_norm_unc,
+                    poly_unc=poly_unc,
+                    sig_norm_unc=sig_norm_unc,
+                    sig_mass_shift_unc=sig_mass_shift_unc,
+                    sig_resolution_unc=sig_resolution_unc,
+                    mu_max=mu_max,
+                    mu_points=mu_points,
+                )
+                out = dict(res)
+                out["zexp_profile"] = float(shape_fit["zexp"])
+                out["q0_profile"] = float(shape_fit["q0"])
+                out["mu_hat_profile"] = float(shape_fit["mu_hat"])
+                evaluated.append(out)
+            if evaluated:
+                best_local = max(evaluated, key=lambda r: r[metric_key])
+        elif valid_results:
+            best_local = max(valid_results, key=lambda r: r["za_total"])
 
         scan_stats[n_bins] = {"scanned": int(scanned), "valid": int(valid)}
         if best_local is not None:
+            best_local["metric_key"] = metric_key
+            best_local["metric_label"] = metric_label
+            best_local["opt_metric"] = float(best_local[metric_key])
             best_by_n[n_bins] = best_local
-            if best_global is None or best_local["za_total"] > best_global["za_total"]:
+            if best_global is None or best_local["opt_metric"] > best_global["opt_metric"]:
                 best_global = best_local
 
     return {
@@ -519,6 +599,10 @@ def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
         "best_by_n": best_by_n,
         "scan_stats": scan_stats,
         "candidates": cands,
+        "objective_requested": objective,
+        "objective_used": "likelihood" if use_likelihood else "asimov",
+        "metric_key": metric_key,
+        "metric_label": metric_label,
     }
 
 
@@ -529,6 +613,78 @@ def orthogonal_poly_terms(x, order):
     if order >= 2:
         terms.append(0.5 * (3.0 * np.asarray(x, dtype=np.float64) ** 2 - 1.0))
     return terms
+
+
+def smooth_histogram_bins(values, sigma_bins):
+    vals = np.asarray(values, dtype=np.float64)
+    sigma = float(abs(sigma_bins))
+    if vals.size == 0 or sigma <= 1e-8:
+        return vals.copy()
+    radius = max(1, int(np.ceil(4.0 * sigma)))
+    grid = np.arange(-radius, radius + 1, dtype=np.float64)
+    ker = np.exp(-0.5 * (grid / sigma) ** 2)
+    ker /= max(np.sum(ker), 1e-12)
+    return np.convolve(vals, ker, mode="same")
+
+
+def morph_signal_shape(shape, shift_bins=0.0, sigma_bins=0.0):
+    arr = np.asarray(shape, dtype=np.float64)
+    if arr.size == 0:
+        return arr.copy()
+    x = np.arange(arr.size, dtype=np.float64)
+    shifted = np.interp(x - float(shift_bins), x, arr, left=0.0, right=0.0)
+    if float(abs(sigma_bins)) > 1e-8:
+        shifted = smooth_histogram_bins(shifted, sigma_bins)
+    shifted = np.clip(shifted, 1e-12, None)
+    shifted /= max(float(np.sum(shifted)), 1e-12)
+    return shifted
+
+
+def fit_polynomial_modifier(b_hist, core_shape, x, order):
+    if int(order) <= 0:
+        return np.zeros(0, dtype=np.float64)
+
+    b = np.asarray(b_hist, dtype=np.float64)
+    core = np.asarray(core_shape, dtype=np.float64)
+    terms = orthogonal_poly_terms(x, int(order))
+    if b.size == 0 or core.size == 0 or not terms:
+        return np.zeros(int(order), dtype=np.float64)
+
+    ysum = float(np.sum(b))
+    if ysum <= 0:
+        return np.zeros(int(order), dtype=np.float64)
+
+    target = np.divide(b, ysum * np.clip(core, 1e-12, None)) - 1.0
+    design = np.vstack([np.asarray(t, dtype=np.float64) for t in terms]).T
+    w = np.sqrt(np.clip(b, 1e-12, None))
+    aw = design * w[:, None]
+    bw = target * w
+    try:
+        coeffs, _, _, _ = np.linalg.lstsq(aw, bw, rcond=None)
+    except np.linalg.LinAlgError:
+        coeffs = np.zeros(int(order), dtype=np.float64)
+
+    out = np.zeros(int(order), dtype=np.float64)
+    out[:min(out.size, coeffs.size)] = coeffs[:min(out.size, coeffs.size)]
+    return np.clip(out, -5.0, 5.0)
+
+
+def fit_shared_background(b_templates, mass_edges, poly_order):
+    b_hist = np.asarray(b_templates, dtype=np.float64)
+    if b_hist.ndim != 2:
+        raise ValueError("b_templates must be a 2D array [n_bdt, n_mass]")
+
+    core = np.sum(b_hist, axis=0)
+    core = np.divide(core, max(float(np.sum(core)), 1e-12))
+
+    centers = 0.5 * (mass_edges[:-1] + mass_edges[1:])
+    xmin, xmax = float(mass_edges[0]), float(mass_edges[-1])
+    x = 2.0 * (centers - xmin) / max(xmax - xmin, 1e-12) - 1.0
+
+    coeffs = []
+    for i in range(b_hist.shape[0]):
+        coeffs.append(fit_polynomial_modifier(b_hist[i], core, x, poly_order))
+    return core, np.asarray(coeffs, dtype=np.float64)
 
 
 def build_shape_inputs(sig_mass, sig_score, sig_w,
@@ -558,8 +714,7 @@ def build_shape_inputs(sig_mass, sig_score, sig_w,
     b_y = b_hist.sum(axis=1)
     s_shape = np.divide(s_hist, np.maximum(s_y[:, None], 1e-12))
 
-    core = np.sum(b_hist, axis=0)
-    core = np.divide(core, max(float(np.sum(core)), 1e-12))
+    core, core_modifiers = fit_shared_background(b_hist, mass_edges, poly_order=2)
 
     asimov = s_hist + b_hist
     return {
@@ -572,24 +727,29 @@ def build_shape_inputs(sig_mass, sig_score, sig_w,
         "b_y": b_y,
         "s_shape": s_shape,
         "core": core,
+        "core_modifiers": core_modifiers,
         "asimov": asimov,
         "n_bdt": n_bdt,
         "n_mass": n_mass,
     }
 
 
-def unpack_shape_nuisance(vec, n_bdt, poly_order):
+def unpack_shape_nuisance(vec, n_bdt, poly_order, n_global=3):
     vec = np.asarray(vec, dtype=np.float64)
     n_norm = n_bdt
     n_poly = n_bdt * max(int(poly_order), 0)
-    need = n_norm + n_poly
+    need = n_norm + n_poly + max(int(n_global), 0)
     if vec.size < need:
         out = np.zeros(need, dtype=np.float64)
         out[:vec.size] = vec
         vec = out
     eta = vec[:n_norm]
     zeta = vec[n_norm:n_norm + n_poly].reshape((n_bdt, max(int(poly_order), 0))) if poly_order > 0 else np.zeros((n_bdt, 0), dtype=np.float64)
-    return eta, zeta
+    n_global = max(int(n_global), 0)
+    start = n_norm + n_poly
+    stop = start + n_global
+    tail = vec[start:stop] if n_global > 0 else np.zeros(0, dtype=np.float64)
+    return eta, zeta, tail
 
 
 def build_bkg_shapes_from_nuisance(core_shape, x, zeta_row, poly_order, poly_unc):
@@ -604,13 +764,25 @@ def build_bkg_shapes_from_nuisance(core_shape, x, zeta_row, poly_order, poly_unc
 
 
 def build_expected_counts(mu, nuisance_vec, shape_inputs,
-                          poly_order=1, bkg_norm_unc=0.20, poly_unc=0.30):
+                          poly_order=1, bkg_norm_unc=0.20, poly_unc=0.30,
+                          sig_norm_unc=0.05, sig_mass_shift_unc=0.20, sig_resolution_unc=0.10):
     n_bdt = shape_inputs["n_bdt"]
-    eta, zeta = unpack_shape_nuisance(nuisance_vec, n_bdt, poly_order)
+    eta, zeta, global_nuis = unpack_shape_nuisance(nuisance_vec, n_bdt, poly_order, n_global=3)
+    k_sig = float(global_nuis[0]) if global_nuis.size > 0 else 0.0
+    k_mass = float(global_nuis[1]) if global_nuis.size > 1 else 0.0
+    k_res = float(global_nuis[2]) if global_nuis.size > 2 else 0.0
+
+    mass_edges = shape_inputs["mass_edges"]
+    mass_binw = float(mass_edges[1] - mass_edges[0]) if mass_edges.size >= 2 else 1.0
+    shift_bins = (k_mass * float(sig_mass_shift_unc)) / max(mass_binw, 1e-12)
+    smear_bins = abs(k_res * float(sig_resolution_unc))
+
     lam = np.zeros((shape_inputs["n_bdt"], shape_inputs["n_mass"]), dtype=np.float64)
 
     for i in range(shape_inputs["n_bdt"]):
-        s = max(float(mu), 0.0) * float(shape_inputs["s_y"][i]) * shape_inputs["s_shape"][i]
+        s_shape = morph_signal_shape(shape_inputs["s_shape"][i], shift_bins=shift_bins, sigma_bins=smear_bins)
+        s_norm = max(float(mu), 0.0) * float(shape_inputs["s_y"][i]) * np.exp(float(sig_norm_unc) * k_sig)
+        s = s_norm * s_shape
         b_norm = float(shape_inputs["b_y"][i]) * np.exp(float(bkg_norm_unc) * float(eta[i]))
         b_shape = build_bkg_shapes_from_nuisance(
             shape_inputs["core"],
@@ -637,6 +809,7 @@ def gaussian_penalty(nuisance_vec):
 
 def total_shape_nll(mu, nuisance_vec, shape_inputs,
                     poly_order=1, bkg_norm_unc=0.20, poly_unc=0.30,
+                    sig_norm_unc=0.05, sig_mass_shift_unc=0.20, sig_resolution_unc=0.10,
                     data_key="asimov"):
     lam = build_expected_counts(
         mu,
@@ -645,14 +818,18 @@ def total_shape_nll(mu, nuisance_vec, shape_inputs,
         poly_order=poly_order,
         bkg_norm_unc=bkg_norm_unc,
         poly_unc=poly_unc,
+        sig_norm_unc=sig_norm_unc,
+        sig_mass_shift_unc=sig_mass_shift_unc,
+        sig_resolution_unc=sig_resolution_unc,
     )
     data = shape_inputs[data_key]
     return poisson_nll(data, lam) + gaussian_penalty(nuisance_vec)
 
 
 def profile_nll_fixed_mu(mu, shape_inputs, poly_order, bkg_norm_unc, poly_unc,
+                         sig_norm_unc, sig_mass_shift_unc, sig_resolution_unc,
                          max_rounds=7, init=None):
-    n_params = shape_inputs["n_bdt"] * (1 + max(int(poly_order), 0))
+    n_params = shape_inputs["n_bdt"] * (1 + max(int(poly_order), 0)) + 3
     if init is None:
         vec = np.zeros(n_params, dtype=np.float64)
     else:
@@ -665,7 +842,11 @@ def profile_nll_fixed_mu(mu, shape_inputs, poly_order, bkg_norm_unc, poly_unc,
     step_schedule = [1.0, 0.6, 0.35, 0.20, 0.12, 0.07, 0.04]
     step_schedule = step_schedule[:max(1, min(max_rounds, len(step_schedule)))]
 
-    best = total_shape_nll(mu, vec, shape_inputs, poly_order, bkg_norm_unc, poly_unc)
+    best = total_shape_nll(
+        mu, vec, shape_inputs,
+        poly_order, bkg_norm_unc, poly_unc,
+        sig_norm_unc, sig_mass_shift_unc, sig_resolution_unc,
+    )
     for step in step_schedule:
         improved = False
         for ip in range(n_params):
@@ -676,7 +857,17 @@ def profile_nll_fixed_mu(mu, shape_inputs, poly_order, bkg_norm_unc, poly_unc,
             for c in cands:
                 test = vec.copy()
                 test[ip] = c
-                vals.append(total_shape_nll(mu, test, shape_inputs, poly_order, bkg_norm_unc, poly_unc))
+                vals.append(total_shape_nll(
+                    mu,
+                    test,
+                    shape_inputs,
+                    poly_order,
+                    bkg_norm_unc,
+                    poly_unc,
+                    sig_norm_unc,
+                    sig_mass_shift_unc,
+                    sig_resolution_unc,
+                ))
             best_idx = int(np.argmin(vals))
             if vals[best_idx] + 1e-10 < best:
                 vec[ip] = float(cands[best_idx])
@@ -692,13 +883,24 @@ def compute_shape_expected_significance(shape_inputs,
                                         poly_order=1,
                                         bkg_norm_unc=0.20,
                                         poly_unc=0.30,
+                                        sig_norm_unc=0.05,
+                                        sig_mass_shift_unc=0.20,
+                                        sig_resolution_unc=0.10,
                                         mu_max=3.0,
                                         mu_points=121):
     mu_points = max(int(mu_points), 11)
     mu_grid = np.linspace(0.0, float(mu_max), mu_points)
 
     nll_mu0, vec_mu0 = profile_nll_fixed_mu(
-        0.0, shape_inputs, poly_order, bkg_norm_unc, poly_unc, init=None
+        0.0,
+        shape_inputs,
+        poly_order,
+        bkg_norm_unc,
+        poly_unc,
+        sig_norm_unc,
+        sig_mass_shift_unc,
+        sig_resolution_unc,
+        init=None,
     )
 
     prof = []
@@ -711,6 +913,9 @@ def compute_shape_expected_significance(shape_inputs,
             poly_order,
             bkg_norm_unc,
             poly_unc,
+            sig_norm_unc,
+            sig_mass_shift_unc,
+            sig_resolution_unc,
             init=vec_init,
         )
         prof.append((float(mu), float(nll_mu)))
@@ -721,8 +926,28 @@ def compute_shape_expected_significance(shape_inputs,
     q0 = max(0.0, 2.0 * (nll_mu0 - nll_best))
     zexp = float(np.sqrt(q0))
 
-    model_b = build_expected_counts(0.0, vec_mu0, shape_inputs, poly_order, bkg_norm_unc, poly_unc)
-    model_sb = build_expected_counts(mu_hat, vec_best, shape_inputs, poly_order, bkg_norm_unc, poly_unc)
+    model_b = build_expected_counts(
+        0.0,
+        vec_mu0,
+        shape_inputs,
+        poly_order,
+        bkg_norm_unc,
+        poly_unc,
+        sig_norm_unc,
+        sig_mass_shift_unc,
+        sig_resolution_unc,
+    )
+    model_sb = build_expected_counts(
+        mu_hat,
+        vec_best,
+        shape_inputs,
+        poly_order,
+        bkg_norm_unc,
+        poly_unc,
+        sig_norm_unc,
+        sig_mass_shift_unc,
+        sig_resolution_unc,
+    )
 
     return {
         "zexp": zexp,
@@ -1233,21 +1458,25 @@ def main():
     logger.info("Output PDF: %s", args.output)
     logger.info("KS thresholds: alpha=%g | D<=%.2f%%", args.alpha, args.dthr_pct)
     logger.info(
-        "Multi-bin BDT scan: bins=%d-%d | candidates=%d | min(S,B)=(%.3f, %.3f) | monotonic=%s",
+        "Multi-bin BDT scan: bins=%d-%d | candidates=%d | min(S,B)=(%.3f, %.3f) | monotonic=%s | objective=%s",
         args.multibin_min_n,
         args.multibin_max_n,
         args.multibin_candidates,
         args.multibin_min_sig,
         args.multibin_min_bkg,
         str(not args.multibin_no_monotonic),
+        args.multibin_objective,
     )
     logger.info(
-        "Shape likelihood: enabled=%s | mass bins=%d | poly order=%d | bkg norm unc=%.3f | poly unc=%.3f",
+        "Shape likelihood: enabled=%s | mass bins=%d | poly order=%d | bkg norm unc=%.3f | poly unc=%.3f | sig norm unc=%.3f | sig mass shift unc=%.3f GeV | sig resolution unc=%.3f",
         str(args.shape_likelihood),
         args.shape_mass_nbins,
         args.shape_poly_order,
         args.shape_bkg_norm_unc,
         args.shape_poly_unc,
+        args.shape_sig_norm_unc,
+        args.shape_sig_mass_shift_unc,
+        args.shape_sig_resolution_unc,
     )
     outputs_dir = os.path.abspath(args.outputs_dir)
     eras = discover_eras(outputs_dir, args.eras)
@@ -1372,6 +1601,8 @@ def main():
                 )
 
                 # Multi-bin BDT categorization (no hard cut)
+                sig_mass_for_opt = sig[mass_branch] if mass_branch else None
+                bkg_mass_for_opt = bkg[mass_branch] if mass_branch else None
                 scan = optimize_multibin_boundaries(
                     sig_scores,
                     sig_w,
@@ -1383,33 +1614,61 @@ def main():
                     min_sig=args.multibin_min_sig,
                     min_bkg=args.multibin_min_bkg,
                     enforce_monotonic=(not args.multibin_no_monotonic),
+                    objective=args.multibin_objective,
+                    sig_mass=sig_mass_for_opt,
+                    bkg_mass=bkg_mass_for_opt,
+                    mass_min=args.mass_min,
+                    mass_max=args.mass_max,
+                    mass_nbins=args.shape_mass_nbins,
+                    poly_order=int(np.clip(args.shape_poly_order, 0, 2)),
+                    bkg_norm_unc=float(args.shape_bkg_norm_unc),
+                    poly_unc=float(args.shape_poly_unc),
+                    sig_norm_unc=float(args.shape_sig_norm_unc),
+                    sig_mass_shift_unc=float(args.shape_sig_mass_shift_unc),
+                    sig_resolution_unc=float(args.shape_sig_resolution_unc),
+                    mu_max=float(args.shape_mu_max),
+                    mu_points=int(args.shape_mu_points),
+                    likelihood_topk=int(args.multibin_likelihood_topk),
                 )
                 best_multi = scan["best"]
                 multibin_results_by_era[era] = {
                     "best": best_multi,
                     "best_by_n": scan["best_by_n"],
                     "scan_stats": scan["scan_stats"],
+                    "metric_label": scan.get("metric_label", "ZA(total)"),
                 }
 
+                if scan.get("objective_requested") == "likelihood" and scan.get("objective_used") != "likelihood":
+                    logger.warning(
+                        "%s: Requested likelihood objective but mass branch is unavailable; falling back to ZA(total)",
+                        era,
+                    )
+
                 if best_multi is not None:
+                    metric_label = best_multi.get("metric_label", scan.get("metric_label", "ZA(total)"))
+                    metric_value = float(best_multi.get("opt_metric", best_multi.get("za_total", 0.0)))
                     edges_txt = ", ".join([f"{x:.3f}" for x in best_multi["edges"]])
                     logger.info(
-                        "%s: Multi-bin optimum: N=%d, ZA_total=%.3f, edges=[%s]",
+                        "%s: Multi-bin optimum: N=%d, %s=%.3f, edges=[%s]",
                         era,
                         best_multi["n_bins"],
-                        best_multi["za_total"],
+                        metric_label,
+                        metric_value,
                         edges_txt,
                     )
                     for n_bins in range(args.multibin_min_n, args.multibin_max_n + 1):
                         st = scan["scan_stats"].get(n_bins, {"scanned": 0, "valid": 0})
                         if n_bins in scan["best_by_n"]:
+                            n_best = scan["best_by_n"][n_bins]
+                            n_metric = float(n_best.get("opt_metric", n_best.get("za_total", 0.0)))
                             logger.info(
-                                "%s: N=%d scanned=%d valid=%d best_ZA=%.3f",
+                                "%s: N=%d scanned=%d valid=%d best_%s=%.3f",
                                 era,
                                 n_bins,
                                 st["scanned"],
                                 st["valid"],
-                                scan["best_by_n"][n_bins]["za_total"],
+                                metric_label,
+                                n_metric,
                             )
                         else:
                             logger.info(
@@ -1434,7 +1693,7 @@ def main():
                     plot_table(
                         pdf,
                         f"{era}: Multi-bin BDT categorization (no hard cut)\n"
-                        f"Optimized N={best_multi['n_bins']}, ZA(total)={best_multi['za_total']:.3f}, "
+                        f"Optimized N={best_multi['n_bins']}, {metric_label}={metric_value:.3f}, "
                         f"monotonic S/B={str(not args.multibin_no_monotonic)}",
                         ["Bin", "BDT range", "S", "B", "S/B", "S/sqrt(B)", "ZA(bin)"],
                         rows,
@@ -1496,6 +1755,9 @@ def main():
                                 poly_order=poly_order,
                                 bkg_norm_unc=float(args.shape_bkg_norm_unc),
                                 poly_unc=float(args.shape_poly_unc),
+                                sig_norm_unc=float(args.shape_sig_norm_unc),
+                                sig_mass_shift_unc=float(args.shape_sig_mass_shift_unc),
+                                sig_resolution_unc=float(args.shape_sig_resolution_unc),
                                 mu_max=float(args.shape_mu_max),
                                 mu_points=int(args.shape_mu_points),
                             )
@@ -1516,6 +1778,9 @@ def main():
                                 ["poly order", f"{poly_order}"],
                                 ["bkg norm unc", f"{args.shape_bkg_norm_unc:.3f}"],
                                 ["poly unc", f"{args.shape_poly_unc:.3f}"],
+                                ["sig norm unc", f"{args.shape_sig_norm_unc:.3f}"],
+                                ["sig mass shift unc [GeV]", f"{args.shape_sig_mass_shift_unc:.3f}"],
+                                ["sig resolution unc", f"{args.shape_sig_resolution_unc:.3f}"],
                             ]
                             plot_table(
                                 pdf,
@@ -2136,17 +2401,20 @@ def main():
         # Cross-era boundary stability summary (same N bins)
         if len(multibin_results_by_era) >= 2:
             rows = []
+            summary_metric_label = None
             for n_bins in range(args.multibin_min_n, args.multibin_max_n + 1):
                 edges_list = []
-                z_vals = []
+                metric_vals = []
                 used_eras = []
                 for era in eras:
                     era_res = multibin_results_by_era.get(era, {})
                     by_n = era_res.get("best_by_n", {}) if era_res else {}
                     if n_bins in by_n:
                         used_eras.append(era)
-                        z_vals.append(float(by_n[n_bins]["za_total"]))
+                        metric_vals.append(float(by_n[n_bins].get("opt_metric", by_n[n_bins].get("za_total", 0.0))))
                         edges_list.append(by_n[n_bins]["edges"])
+                        if summary_metric_label is None:
+                            summary_metric_label = by_n[n_bins].get("metric_label", "ZA(total)")
                 if len(edges_list) < 2:
                     continue
 
@@ -2157,19 +2425,20 @@ def main():
                 rows.append([
                     str(n_bins),
                     str(len(used_eras)),
-                    f"{np.mean(z_vals):.3f}",
-                    f"{np.min(z_vals):.3f}",
-                    f"{np.max(z_vals):.3f}",
+                    f"{np.mean(metric_vals):.3f}",
+                    f"{np.min(metric_vals):.3f}",
+                    f"{np.max(metric_vals):.3f}",
                     f"{mean_std:.4f}",
                     f"{max_std:.4f}",
                 ])
 
             if rows:
+                metric_tag = summary_metric_label if summary_metric_label else "ZA"
                 plot_table(
                     pdf,
                     "Cross-era stability of optimized BDT category boundaries\n"
                     "(smaller boundary std = more stable across eras)",
-                    ["N bins", "#eras", "<ZA>", "ZA min", "ZA max", "mean std(edge)", "max std(edge)"],
+                    ["N bins", "#eras", f"<{metric_tag}>", f"{metric_tag} min", f"{metric_tag} max", "mean std(edge)", "max std(edge)"],
                     rows,
                     col_align=["right", "right", "right", "right", "right", "right", "right"],
                 )
