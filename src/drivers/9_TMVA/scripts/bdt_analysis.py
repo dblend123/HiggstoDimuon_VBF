@@ -49,6 +49,20 @@ def parse_args():
                    help="Minimum weighted background yield required in each BDT bin")
     p.add_argument("--multibin-no-monotonic", action="store_true",
                    help="Disable strict monotonic S/B constraint across ordered BDT bins")
+    p.add_argument("--shape-likelihood", action="store_true",
+                   help="Run simultaneous shape-based likelihood across optimized BDT bins")
+    p.add_argument("--shape-mass-nbins", type=int, default=40,
+                   help="Number of mass bins for simultaneous likelihood")
+    p.add_argument("--shape-poly-order", type=int, default=1,
+                   help="Per-bin polynomial modifier order for background (0-2)")
+    p.add_argument("--shape-bkg-norm-unc", type=float, default=0.20,
+                   help="Gaussian prior width (fractional) on per-bin background normalization")
+    p.add_argument("--shape-poly-unc", type=float, default=0.30,
+                   help="Gaussian prior width for per-bin background shape coefficients")
+    p.add_argument("--shape-mu-max", type=float, default=3.0,
+                   help="Upper bound of mu grid in profiled likelihood scan")
+    p.add_argument("--shape-mu-points", type=int, default=121,
+                   help="Number of mu scan points for profile likelihood")
 
     # Optional Data/MC summary (same format as tmva_DataMC_BDT.py)
     p.add_argument("--data-era", action="append", default=[],
@@ -506,6 +520,252 @@ def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
         "scan_stats": scan_stats,
         "candidates": cands,
     }
+
+
+def orthogonal_poly_terms(x, order):
+    terms = []
+    if order >= 1:
+        terms.append(np.asarray(x, dtype=np.float64))
+    if order >= 2:
+        terms.append(0.5 * (3.0 * np.asarray(x, dtype=np.float64) ** 2 - 1.0))
+    return terms
+
+
+def build_shape_inputs(sig_mass, sig_score, sig_w,
+                       bkg_mass, bkg_score, bkg_w,
+                       bdt_edges, mass_min, mass_max, mass_nbins):
+    mass_edges = np.linspace(float(mass_min), float(mass_max), int(mass_nbins) + 1)
+    mass_centers = 0.5 * (mass_edges[:-1] + mass_edges[1:])
+    x = 2.0 * (mass_centers - float(mass_min)) / max(float(mass_max - mass_min), 1e-12) - 1.0
+
+    n_bdt = len(bdt_edges) - 1
+    n_mass = len(mass_edges) - 1
+    s_hist = np.zeros((n_bdt, n_mass), dtype=np.float64)
+    b_hist = np.zeros((n_bdt, n_mass), dtype=np.float64)
+
+    for i, (lo, hi) in enumerate(zip(bdt_edges[:-1], bdt_edges[1:])):
+        if i == n_bdt - 1:
+            sm = (sig_score >= lo) & (sig_score <= hi)
+            bm = (bkg_score >= lo) & (bkg_score <= hi)
+        else:
+            sm = (sig_score >= lo) & (sig_score < hi)
+            bm = (bkg_score >= lo) & (bkg_score < hi)
+
+        s_hist[i], _ = np.histogram(sig_mass[sm], bins=mass_edges, weights=sig_w[sm])
+        b_hist[i], _ = np.histogram(bkg_mass[bm], bins=mass_edges, weights=bkg_w[bm])
+
+    s_y = s_hist.sum(axis=1)
+    b_y = b_hist.sum(axis=1)
+    s_shape = np.divide(s_hist, np.maximum(s_y[:, None], 1e-12))
+
+    core = np.sum(b_hist, axis=0)
+    core = np.divide(core, max(float(np.sum(core)), 1e-12))
+
+    asimov = s_hist + b_hist
+    return {
+        "mass_edges": mass_edges,
+        "mass_centers": mass_centers,
+        "x": x,
+        "s_hist": s_hist,
+        "b_hist": b_hist,
+        "s_y": s_y,
+        "b_y": b_y,
+        "s_shape": s_shape,
+        "core": core,
+        "asimov": asimov,
+        "n_bdt": n_bdt,
+        "n_mass": n_mass,
+    }
+
+
+def unpack_shape_nuisance(vec, n_bdt, poly_order):
+    vec = np.asarray(vec, dtype=np.float64)
+    n_norm = n_bdt
+    n_poly = n_bdt * max(int(poly_order), 0)
+    need = n_norm + n_poly
+    if vec.size < need:
+        out = np.zeros(need, dtype=np.float64)
+        out[:vec.size] = vec
+        vec = out
+    eta = vec[:n_norm]
+    zeta = vec[n_norm:n_norm + n_poly].reshape((n_bdt, max(int(poly_order), 0))) if poly_order > 0 else np.zeros((n_bdt, 0), dtype=np.float64)
+    return eta, zeta
+
+
+def build_bkg_shapes_from_nuisance(core_shape, x, zeta_row, poly_order, poly_unc):
+    mod = np.ones_like(core_shape, dtype=np.float64)
+    terms = orthogonal_poly_terms(x, poly_order)
+    for j in range(min(len(terms), zeta_row.size)):
+        mod += float(poly_unc) * float(zeta_row[j]) * terms[j]
+    mod = np.clip(mod, 1e-6, None)
+    shaped = core_shape * mod
+    shaped /= max(float(np.sum(shaped)), 1e-12)
+    return shaped
+
+
+def build_expected_counts(mu, nuisance_vec, shape_inputs,
+                          poly_order=1, bkg_norm_unc=0.20, poly_unc=0.30):
+    n_bdt = shape_inputs["n_bdt"]
+    eta, zeta = unpack_shape_nuisance(nuisance_vec, n_bdt, poly_order)
+    lam = np.zeros((shape_inputs["n_bdt"], shape_inputs["n_mass"]), dtype=np.float64)
+
+    for i in range(shape_inputs["n_bdt"]):
+        s = max(float(mu), 0.0) * float(shape_inputs["s_y"][i]) * shape_inputs["s_shape"][i]
+        b_norm = float(shape_inputs["b_y"][i]) * np.exp(float(bkg_norm_unc) * float(eta[i]))
+        b_shape = build_bkg_shapes_from_nuisance(
+            shape_inputs["core"],
+            shape_inputs["x"],
+            zeta[i] if i < zeta.shape[0] else np.zeros(0, dtype=np.float64),
+            poly_order,
+            poly_unc,
+        )
+        b = b_norm * b_shape
+        lam[i] = s + b
+    return np.clip(lam, 1e-12, None)
+
+
+def poisson_nll(data, model):
+    d = np.asarray(data, dtype=np.float64)
+    m = np.asarray(model, dtype=np.float64)
+    return float(np.sum(m - d * np.log(np.clip(m, 1e-12, None))))
+
+
+def gaussian_penalty(nuisance_vec):
+    v = np.asarray(nuisance_vec, dtype=np.float64)
+    return float(0.5 * np.sum(v ** 2))
+
+
+def total_shape_nll(mu, nuisance_vec, shape_inputs,
+                    poly_order=1, bkg_norm_unc=0.20, poly_unc=0.30,
+                    data_key="asimov"):
+    lam = build_expected_counts(
+        mu,
+        nuisance_vec,
+        shape_inputs,
+        poly_order=poly_order,
+        bkg_norm_unc=bkg_norm_unc,
+        poly_unc=poly_unc,
+    )
+    data = shape_inputs[data_key]
+    return poisson_nll(data, lam) + gaussian_penalty(nuisance_vec)
+
+
+def profile_nll_fixed_mu(mu, shape_inputs, poly_order, bkg_norm_unc, poly_unc,
+                         max_rounds=7, init=None):
+    n_params = shape_inputs["n_bdt"] * (1 + max(int(poly_order), 0))
+    if init is None:
+        vec = np.zeros(n_params, dtype=np.float64)
+    else:
+        vec = np.asarray(init, dtype=np.float64).copy()
+        if vec.size != n_params:
+            tmp = np.zeros(n_params, dtype=np.float64)
+            tmp[:min(n_params, vec.size)] = vec[:min(n_params, vec.size)]
+            vec = tmp
+
+    step_schedule = [1.0, 0.6, 0.35, 0.20, 0.12, 0.07, 0.04]
+    step_schedule = step_schedule[:max(1, min(max_rounds, len(step_schedule)))]
+
+    best = total_shape_nll(mu, vec, shape_inputs, poly_order, bkg_norm_unc, poly_unc)
+    for step in step_schedule:
+        improved = False
+        for ip in range(n_params):
+            cur = vec[ip]
+            cands = np.array([cur - step, cur, cur + step], dtype=np.float64)
+            cands = np.clip(cands, -5.0, 5.0)
+            vals = []
+            for c in cands:
+                test = vec.copy()
+                test[ip] = c
+                vals.append(total_shape_nll(mu, test, shape_inputs, poly_order, bkg_norm_unc, poly_unc))
+            best_idx = int(np.argmin(vals))
+            if vals[best_idx] + 1e-10 < best:
+                vec[ip] = float(cands[best_idx])
+                best = float(vals[best_idx])
+                improved = True
+        if not improved:
+            continue
+
+    return best, vec
+
+
+def compute_shape_expected_significance(shape_inputs,
+                                        poly_order=1,
+                                        bkg_norm_unc=0.20,
+                                        poly_unc=0.30,
+                                        mu_max=3.0,
+                                        mu_points=121):
+    mu_points = max(int(mu_points), 11)
+    mu_grid = np.linspace(0.0, float(mu_max), mu_points)
+
+    nll_mu0, vec_mu0 = profile_nll_fixed_mu(
+        0.0, shape_inputs, poly_order, bkg_norm_unc, poly_unc, init=None
+    )
+
+    prof = []
+    vec_init = vec_mu0
+    best = None
+    for mu in mu_grid:
+        nll_mu, vec_init = profile_nll_fixed_mu(
+            float(mu),
+            shape_inputs,
+            poly_order,
+            bkg_norm_unc,
+            poly_unc,
+            init=vec_init,
+        )
+        prof.append((float(mu), float(nll_mu)))
+        if best is None or nll_mu < best[1]:
+            best = (float(mu), float(nll_mu), vec_init.copy())
+
+    mu_hat, nll_best, vec_best = best
+    q0 = max(0.0, 2.0 * (nll_mu0 - nll_best))
+    zexp = float(np.sqrt(q0))
+
+    model_b = build_expected_counts(0.0, vec_mu0, shape_inputs, poly_order, bkg_norm_unc, poly_unc)
+    model_sb = build_expected_counts(mu_hat, vec_best, shape_inputs, poly_order, bkg_norm_unc, poly_unc)
+
+    return {
+        "zexp": zexp,
+        "q0": q0,
+        "mu_hat": float(mu_hat),
+        "nll_mu0": float(nll_mu0),
+        "nll_best": float(nll_best),
+        "vec_mu0": vec_mu0,
+        "vec_best": vec_best,
+        "profile": prof,
+        "model_b": model_b,
+        "model_sb": model_sb,
+    }
+
+
+def plot_shape_fit_overlays(pdf, title, mass_edges, bdt_edges, asimov, model_b, model_sb):
+    n_bdt = asimov.shape[0]
+    ncols = 2 if n_bdt > 1 else 1
+    nrows = int(np.ceil(n_bdt / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 3.7 * nrows), sharex=True)
+    axes = np.atleast_1d(axes).flatten()
+    centers = 0.5 * (mass_edges[:-1] + mass_edges[1:])
+
+    for i in range(len(axes)):
+        ax = axes[i]
+        if i >= n_bdt:
+            ax.axis("off")
+            continue
+        lo, hi = bdt_edges[i], bdt_edges[i + 1]
+        ax.errorbar(centers, asimov[i], yerr=np.sqrt(np.maximum(asimov[i], 1.0)),
+                    fmt="o", color="black", label="Asimov")
+        ax.plot(centers, model_b[i], color="tab:orange", linewidth=2, label="B-only fit")
+        ax.plot(centers, model_sb[i], color="tab:blue", linewidth=2, linestyle="--", label="S+B best fit")
+        ax.set_title(f"Bin {i + 1}: {lo:.3f}-{hi:.3f}")
+        ax.set_xlabel("mμμ [GeV]")
+        ax.set_ylabel("Expected events")
+        ax.grid(alpha=0.3)
+        if i == 0:
+            ax.legend(fontsize=8)
+
+    fig.suptitle(title, fontsize=14)
+    pdf.savefig(fig)
+    plt.close(fig)
 
 
 def plot_table(pdf, title, columns, rows, col_align=None):
@@ -981,6 +1241,14 @@ def main():
         args.multibin_min_bkg,
         str(not args.multibin_no_monotonic),
     )
+    logger.info(
+        "Shape likelihood: enabled=%s | mass bins=%d | poly order=%d | bkg norm unc=%.3f | poly unc=%.3f",
+        str(args.shape_likelihood),
+        args.shape_mass_nbins,
+        args.shape_poly_order,
+        args.shape_bkg_norm_unc,
+        args.shape_poly_unc,
+    )
     outputs_dir = os.path.abspath(args.outputs_dir)
     eras = discover_eras(outputs_dir, args.eras)
     if not eras:
@@ -1208,6 +1476,108 @@ def main():
                             best_multi["edges"],
                             weighted_corr(bkg[mass_branch], bkg_scores, bkg_w),
                         )
+
+                        if args.shape_likelihood:
+                            poly_order = int(np.clip(args.shape_poly_order, 0, 2))
+                            shape_inputs = build_shape_inputs(
+                                sig[mass_branch],
+                                sig_scores,
+                                sig_w,
+                                bkg[mass_branch],
+                                bkg_scores,
+                                bkg_w,
+                                best_multi["edges"],
+                                args.mass_min,
+                                args.mass_max,
+                                args.shape_mass_nbins,
+                            )
+                            shape_fit = compute_shape_expected_significance(
+                                shape_inputs,
+                                poly_order=poly_order,
+                                bkg_norm_unc=float(args.shape_bkg_norm_unc),
+                                poly_unc=float(args.shape_poly_unc),
+                                mu_max=float(args.shape_mu_max),
+                                mu_points=int(args.shape_mu_points),
+                            )
+                            logger.info(
+                                "%s: Shape-likelihood Asimov: Z=%.3f, q0=%.3f, mu_hat=%.3f",
+                                era,
+                                shape_fit["zexp"],
+                                shape_fit["q0"],
+                                shape_fit["mu_hat"],
+                            )
+
+                            rows_shape = [
+                                ["Expected Z", f"{shape_fit['zexp']:.4f}"],
+                                ["q0", f"{shape_fit['q0']:.4f}"],
+                                ["mu_hat", f"{shape_fit['mu_hat']:.4f}"],
+                                ["N_BDT bins", f"{shape_inputs['n_bdt']}"],
+                                ["N_mass bins", f"{shape_inputs['n_mass']}"],
+                                ["poly order", f"{poly_order}"],
+                                ["bkg norm unc", f"{args.shape_bkg_norm_unc:.3f}"],
+                                ["poly unc", f"{args.shape_poly_unc:.3f}"],
+                            ]
+                            plot_table(
+                                pdf,
+                                f"{era}: Simultaneous shape-based profile likelihood summary",
+                                ["Quantity", "Value"],
+                                rows_shape,
+                                col_align=["left", "right"],
+                            )
+
+                            rows_yields = []
+                            sb_model = shape_fit["model_sb"]
+                            b_model = shape_fit["model_b"]
+                            for i, (lo, hi) in enumerate(zip(best_multi["edges"][:-1], best_multi["edges"][1:])):
+                                s_bin = float(shape_inputs["s_hist"][i].sum())
+                                b_bin = float(shape_inputs["b_hist"][i].sum())
+                                sb_fit = float(sb_model[i].sum())
+                                b_fit = float(b_model[i].sum())
+                                rows_yields.append([
+                                    str(i + 1),
+                                    f"{lo:.3f}-{hi:.3f}",
+                                    f"{s_bin:.3f}",
+                                    f"{b_bin:.3f}",
+                                    f"{b_fit:.3f}",
+                                    f"{sb_fit:.3f}",
+                                ])
+                            plot_table(
+                                pdf,
+                                f"{era}: Shape-likelihood bin yields (Asimov)",
+                                ["Bin", "BDT", "S truth", "B truth", "B-only fit", "S+B fit"],
+                                rows_yields,
+                                col_align=["right", "center", "right", "right", "right", "right"],
+                            )
+
+                            profile = np.asarray(shape_fit["profile"], dtype=np.float64)
+                            fig, ax = plt.subplots(figsize=(9, 6))
+                            ax.plot(profile[:, 0], 2.0 * (profile[:, 1] - np.min(profile[:, 1])), linewidth=2)
+                            ax.axvline(shape_fit["mu_hat"], color="tab:red", linestyle="--", linewidth=1.5)
+                            ax.set_xlabel("Signal strength μ")
+                            ax.set_ylabel("Δ(-2 ln L)")
+                            ax.set_title(f"{era}: Profile likelihood scan (simultaneous shape fit)")
+                            ax.grid(alpha=0.3)
+                            ax.text(
+                                0.02,
+                                0.95,
+                                f"Zexp = {shape_fit['zexp']:.3f}\nq0 = {shape_fit['q0']:.3f}\nμhat = {shape_fit['mu_hat']:.3f}",
+                                transform=ax.transAxes,
+                                va="top",
+                                fontsize=10,
+                                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+                            )
+                            pdf.savefig(fig)
+                            plt.close(fig)
+
+                            plot_shape_fit_overlays(
+                                pdf,
+                                f"{era}: Asimov mass templates by BDT bin (simultaneous fit)",
+                                shape_inputs["mass_edges"],
+                                best_multi["edges"],
+                                shape_inputs["asimov"],
+                                shape_fit["model_b"],
+                                shape_fit["model_sb"],
+                            )
                 else:
                     logger.warning(
                         "%s: Multi-bin optimization found no valid configuration (check min yields / candidates / monotonicity)",
