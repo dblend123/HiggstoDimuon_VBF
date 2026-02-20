@@ -5,6 +5,7 @@ import glob
 import os
 import sys
 import logging
+import itertools
 
 import numpy as np
 import ROOT
@@ -36,6 +37,18 @@ def parse_args():
     p.add_argument("--dthr-pct", type=float, default=0.20, help="KS D(%) threshold")
     p.add_argument("--abs-weights", action="store_true", help="Use |weight| for yields/significance")
     p.add_argument("--output", default="bdt_analysis.pdf")
+    p.add_argument("--multibin-min-n", type=int, default=4,
+                   help="Minimum number of BDT categories for multi-bin optimization")
+    p.add_argument("--multibin-max-n", type=int, default=6,
+                   help="Maximum number of BDT categories for multi-bin optimization")
+    p.add_argument("--multibin-candidates", type=int, default=16,
+                   help="Number of interior candidate boundary points for scanning")
+    p.add_argument("--multibin-min-sig", type=float, default=1.0,
+                   help="Minimum weighted signal yield required in each BDT bin")
+    p.add_argument("--multibin-min-bkg", type=float, default=5.0,
+                   help="Minimum weighted background yield required in each BDT bin")
+    p.add_argument("--multibin-no-monotonic", action="store_true",
+                   help="Disable strict monotonic S/B constraint across ordered BDT bins")
 
     # Optional Data/MC summary (same format as tmva_DataMC_BDT.py)
     p.add_argument("--data-era", action="append", default=[],
@@ -269,6 +282,19 @@ def ams(S, B):
     return float(np.sqrt(2.0 * ((S + B) * np.log(1.0 + S / max(B, 1e-12)) - S)))
 
 
+def asimov_q(S, B):
+    if S <= 0 or B <= 0:
+        return 0.0
+    return float(2.0 * ((S + B) * np.log(1.0 + S / max(B, 1e-12)) - S))
+
+
+def multi_bin_asimov_z(s_bins, b_bins):
+    qsum = 0.0
+    for s, b in zip(s_bins, b_bins):
+        qsum += asimov_q(float(s), float(b))
+    return float(np.sqrt(max(qsum, 0.0)))
+
+
 def format_ratio(val):
     if not np.isfinite(val):
         return "inf"
@@ -375,6 +401,111 @@ def pick_top_cuts(thresholds, ams_vals, max_cuts=3, min_sep=0.02):
         if len(picked) >= max_cuts:
             break
     return sorted(picked)
+
+
+def compute_bin_yields(scores, weights, edges):
+    vals = np.asarray(scores, dtype=np.float64)
+    w = np.asarray(weights, dtype=np.float64)
+    out = []
+    for i, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
+        if i == len(edges) - 2:
+            mask = (vals >= lo) & (vals <= hi)
+        else:
+            mask = (vals >= lo) & (vals < hi)
+        out.append(float(w[mask].sum()))
+    return np.asarray(out, dtype=np.float64)
+
+
+def candidate_boundaries(sig_scores, sig_w, bkg_scores, bkg_w, n_candidates):
+    n_candidates = max(int(n_candidates), 4)
+    all_scores = np.concatenate([sig_scores, bkg_scores])
+    all_w = np.concatenate([
+        sanitize_weights(sig_w, use_abs=True),
+        sanitize_weights(bkg_w, use_abs=True),
+    ])
+    qs = np.linspace(0.0, 1.0, n_candidates + 2)[1:-1]
+    cands = []
+    for q in qs:
+        v = weighted_quantile(all_scores, all_w, float(q))
+        if np.isfinite(v) and (0.0 < v < 1.0):
+            cands.append(float(v))
+    cands = sorted(set([round(x, 6) for x in cands]))
+    return cands
+
+
+def evaluate_multibin_config(sig_scores, sig_w, bkg_scores, bkg_w, edges,
+                             min_sig, min_bkg, enforce_monotonic=True):
+    s_bins = compute_bin_yields(sig_scores, sig_w, edges)
+    b_bins = compute_bin_yields(bkg_scores, bkg_w, edges)
+
+    if np.any(s_bins < float(min_sig)) or np.any(b_bins < float(min_bkg)):
+        return None
+
+    ratios = np.divide(s_bins, b_bins, out=np.full_like(s_bins, np.inf, dtype=np.float64), where=b_bins > 0)
+    if enforce_monotonic and np.any(np.diff(ratios) <= 0.0):
+        return None
+
+    zapprox_bins = np.divide(s_bins, np.sqrt(np.maximum(b_bins, 1e-12)))
+    za_bins = np.asarray([ams(float(s), float(b)) for s, b in zip(s_bins, b_bins)], dtype=np.float64)
+    ztot = multi_bin_asimov_z(s_bins, b_bins)
+
+    return {
+        "edges": [float(x) for x in edges],
+        "s_bins": s_bins,
+        "b_bins": b_bins,
+        "sb_bins": ratios,
+        "zapprox_bins": zapprox_bins,
+        "za_bins": za_bins,
+        "za_total": float(ztot),
+        "n_bins": int(len(edges) - 1),
+    }
+
+
+def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
+                                 min_n=4, max_n=6, n_candidates=16,
+                                 min_sig=1.0, min_bkg=5.0, enforce_monotonic=True):
+    min_n = max(2, int(min_n))
+    max_n = max(min_n, int(max_n))
+    cands = candidate_boundaries(sig_scores, sig_w, bkg_scores, bkg_w, n_candidates)
+
+    best_global = None
+    best_by_n = {}
+    scan_stats = {}
+
+    for n_bins in range(min_n, max_n + 1):
+        n_inner = n_bins - 1
+        if len(cands) < n_inner:
+            scan_stats[n_bins] = {"scanned": 0, "valid": 0}
+            continue
+
+        scanned = 0
+        valid = 0
+        best_local = None
+        for interior in itertools.combinations(cands, n_inner):
+            scanned += 1
+            edges = [0.0] + list(interior) + [1.0]
+            res = evaluate_multibin_config(
+                sig_scores, sig_w, bkg_scores, bkg_w, edges,
+                min_sig=min_sig, min_bkg=min_bkg, enforce_monotonic=enforce_monotonic,
+            )
+            if res is None:
+                continue
+            valid += 1
+            if best_local is None or res["za_total"] > best_local["za_total"]:
+                best_local = res
+
+        scan_stats[n_bins] = {"scanned": int(scanned), "valid": int(valid)}
+        if best_local is not None:
+            best_by_n[n_bins] = best_local
+            if best_global is None or best_local["za_total"] > best_global["za_total"]:
+                best_global = best_local
+
+    return {
+        "best": best_global,
+        "best_by_n": best_by_n,
+        "scan_stats": scan_stats,
+        "candidates": cands,
+    }
 
 
 def plot_table(pdf, title, columns, rows, col_align=None):
@@ -841,6 +972,15 @@ def main():
     logger.info("Using abs weights: %s", str(args.abs_weights))
     logger.info("Output PDF: %s", args.output)
     logger.info("KS thresholds: alpha=%g | D<=%.2f%%", args.alpha, args.dthr_pct)
+    logger.info(
+        "Multi-bin BDT scan: bins=%d-%d | candidates=%d | min(S,B)=(%.3f, %.3f) | monotonic=%s",
+        args.multibin_min_n,
+        args.multibin_max_n,
+        args.multibin_candidates,
+        args.multibin_min_sig,
+        args.multibin_min_bkg,
+        str(not args.multibin_no_monotonic),
+    )
     outputs_dir = os.path.abspath(args.outputs_dir)
     eras = discover_eras(outputs_dir, args.eras)
     if not eras:
@@ -859,6 +999,7 @@ def main():
 
     with PdfPages(args.output) as pdf:
         best_cut_by_era = {}
+        multibin_results_by_era = {}
         for era in eras:
             logger.info("--- Era %s ---", era)
             files = find_scored_files(outputs_dir, era)
@@ -961,6 +1102,117 @@ def main():
                     best_summary["b"],
                     format_ratio(best_summary["s_over_b"]),
                 )
+
+                # Multi-bin BDT categorization (no hard cut)
+                scan = optimize_multibin_boundaries(
+                    sig_scores,
+                    sig_w,
+                    bkg_scores,
+                    bkg_w,
+                    min_n=args.multibin_min_n,
+                    max_n=args.multibin_max_n,
+                    n_candidates=args.multibin_candidates,
+                    min_sig=args.multibin_min_sig,
+                    min_bkg=args.multibin_min_bkg,
+                    enforce_monotonic=(not args.multibin_no_monotonic),
+                )
+                best_multi = scan["best"]
+                multibin_results_by_era[era] = {
+                    "best": best_multi,
+                    "best_by_n": scan["best_by_n"],
+                    "scan_stats": scan["scan_stats"],
+                }
+
+                if best_multi is not None:
+                    edges_txt = ", ".join([f"{x:.3f}" for x in best_multi["edges"]])
+                    logger.info(
+                        "%s: Multi-bin optimum: N=%d, ZA_total=%.3f, edges=[%s]",
+                        era,
+                        best_multi["n_bins"],
+                        best_multi["za_total"],
+                        edges_txt,
+                    )
+                    for n_bins in range(args.multibin_min_n, args.multibin_max_n + 1):
+                        st = scan["scan_stats"].get(n_bins, {"scanned": 0, "valid": 0})
+                        if n_bins in scan["best_by_n"]:
+                            logger.info(
+                                "%s: N=%d scanned=%d valid=%d best_ZA=%.3f",
+                                era,
+                                n_bins,
+                                st["scanned"],
+                                st["valid"],
+                                scan["best_by_n"][n_bins]["za_total"],
+                            )
+                        else:
+                            logger.info(
+                                "%s: N=%d scanned=%d valid=%d (no valid monotonic/stat-stable config)",
+                                era,
+                                n_bins,
+                                st["scanned"],
+                                st["valid"],
+                            )
+
+                    rows = []
+                    for i, (lo, hi) in enumerate(zip(best_multi["edges"][:-1], best_multi["edges"][1:])):
+                        rows.append([
+                            str(i + 1),
+                            f"{lo:.3f}-{hi:.3f}",
+                            f"{best_multi['s_bins'][i]:.3f}",
+                            f"{best_multi['b_bins'][i]:.3f}",
+                            format_ratio(best_multi["sb_bins"][i]),
+                            f"{best_multi['zapprox_bins'][i]:.3f}",
+                            f"{best_multi['za_bins'][i]:.3f}",
+                        ])
+                    plot_table(
+                        pdf,
+                        f"{era}: Multi-bin BDT categorization (no hard cut)\n"
+                        f"Optimized N={best_multi['n_bins']}, ZA(total)={best_multi['za_total']:.3f}, "
+                        f"monotonic S/B={str(not args.multibin_no_monotonic)}",
+                        ["Bin", "BDT range", "S", "B", "S/B", "S/sqrt(B)", "ZA(bin)"],
+                        rows,
+                        col_align=["right", "center", "right", "right", "right", "right", "right"],
+                    )
+
+                    if mass_branch:
+                        plot_mass_sculpt(
+                            pdf,
+                            f"{era}: Signal mass by optimized BDT categories",
+                            sig[mass_branch],
+                            sig_scores,
+                            sig_w,
+                            best_multi["edges"],
+                        )
+                        plot_mass_sculpt(
+                            pdf,
+                            f"{era}: Background mass by optimized BDT categories",
+                            bkg[mass_branch],
+                            bkg_scores,
+                            bkg_w,
+                            best_multi["edges"],
+                        )
+                        plot_mass_sculpt_norm(
+                            pdf,
+                            f"{era}: Signal normalized mass by optimized BDT categories",
+                            sig[mass_branch],
+                            sig_scores,
+                            sig_w,
+                            best_multi["edges"],
+                            weighted_corr(sig[mass_branch], sig_scores, sig_w),
+                        )
+                        plot_mass_sculpt_norm(
+                            pdf,
+                            f"{era}: Background normalized mass by optimized BDT categories",
+                            bkg[mass_branch],
+                            bkg_scores,
+                            bkg_w,
+                            best_multi["edges"],
+                            weighted_corr(bkg[mass_branch], bkg_scores, bkg_w),
+                        )
+                else:
+                    logger.warning(
+                        "%s: Multi-bin optimization found no valid configuration (check min yields / candidates / monotonicity)",
+                        era,
+                    )
 
                 suggested_cuts = pick_top_cuts(thr_vals, ams_vals, max_cuts=3, min_sep=0.02)
                 if suggested_cuts:
@@ -1510,6 +1762,47 @@ def main():
                         )
                 else:
                     logger.warning("%s: retrain KS inputs missing in %s", era, args.ks_dir)
+
+        # Cross-era boundary stability summary (same N bins)
+        if len(multibin_results_by_era) >= 2:
+            rows = []
+            for n_bins in range(args.multibin_min_n, args.multibin_max_n + 1):
+                edges_list = []
+                z_vals = []
+                used_eras = []
+                for era in eras:
+                    era_res = multibin_results_by_era.get(era, {})
+                    by_n = era_res.get("best_by_n", {}) if era_res else {}
+                    if n_bins in by_n:
+                        used_eras.append(era)
+                        z_vals.append(float(by_n[n_bins]["za_total"]))
+                        edges_list.append(by_n[n_bins]["edges"])
+                if len(edges_list) < 2:
+                    continue
+
+                internal = np.asarray([e[1:-1] for e in edges_list], dtype=np.float64)
+                stds = np.std(internal, axis=0)
+                max_std = float(np.max(stds)) if stds.size else np.nan
+                mean_std = float(np.mean(stds)) if stds.size else np.nan
+                rows.append([
+                    str(n_bins),
+                    str(len(used_eras)),
+                    f"{np.mean(z_vals):.3f}",
+                    f"{np.min(z_vals):.3f}",
+                    f"{np.max(z_vals):.3f}",
+                    f"{mean_std:.4f}",
+                    f"{max_std:.4f}",
+                ])
+
+            if rows:
+                plot_table(
+                    pdf,
+                    "Cross-era stability of optimized BDT category boundaries\n"
+                    "(smaller boundary std = more stable across eras)",
+                    ["N bins", "#eras", "<ZA>", "ZA min", "ZA max", "mean std(edge)", "max std(edge)"],
+                    rows,
+                    col_align=["right", "right", "right", "right", "right", "right", "right"],
+                )
 
 
     # Optional model-based scan (global, not per-era)
