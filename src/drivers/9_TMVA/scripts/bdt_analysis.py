@@ -1291,14 +1291,13 @@ def get_era_luminosity_fb(era):
     Maps common CMS era codes to known luminosities.
     """
     lumi_map = {
-        "12022": 26.0,    # 2022 pre-EE (approximate)
-        "12023": 27.5,    # 2022 post-EE (approximate)
-        "2024": 104.8,    # 2024 (full year as of documentation)
-        "22022": 8.0,     # 2022 MC (approximate scale)
-        "22023": 9.0,     # 2023 MC (approximate scale)
+        "12022": 7.9805,   
+        "12023": 17.794,    
+        "2024": 104.80585,    
+        "22022": 26.672,   
+        "22023": 9.4510,    
     }
     return lumi_map.get(era, None)
-
 
 def apply_lumi_scaling(sig_w, bkg_w, era_lumi_fb, ref_lumi_fb=None, logger=None):
     """
