@@ -19,7 +19,9 @@ from tmva100_DataPreparation import VARIABLES
 
 ROOT.gROOT.SetBatch(True)
 
-DEFAULT_BDT_BINS = [0.00, 0.15, 0.30, 0.45, 0.60, 0.75, 1.00]
+# Reference luminosity (fb^-1) for significance scaling across eras
+# Use this to normalize multi-bin yields to a common scale
+REF_LUMI_FB = 100.0
 
 
 def parse_args():
@@ -32,7 +34,6 @@ def parse_args():
     p.add_argument("--mass-branch", default="m")
     p.add_argument("--mass-min", type=float, default=110)
     p.add_argument("--mass-max", type=float, default=150)
-    p.add_argument("--bdt-bins", default=",".join([f"{x:.2f}" for x in DEFAULT_BDT_BINS]))
     p.add_argument("--alpha", type=float, default=1e-3, help="KS p-value threshold")
     p.add_argument("--dthr-pct", type=float, default=0.20, help="KS D(%) threshold")
     p.add_argument("--abs-weights", action="store_true", help="Use |weight| for yields/significance")
@@ -83,10 +84,6 @@ def parse_args():
     p.add_argument("--datamc-logy", action="store_true")
     p.add_argument("--lumi", type=float, default=None,
                    help="Luminosity in fb^-1; if set, MC is rescaled to match data counts. For 2024, the value is 104.80585 fb^-1.")
-    p.add_argument("--ams-cut-offsets", default="0.02,0.05",
-                   help="Comma-separated offsets below AMS cut for extra data mass dumps (e.g. 0.01,0.02).")
-    p.add_argument("--mass-log-max", type=int, default=0,
-                   help="Max number of data masses to log; 0 means log all.")
 
     # Optional model-based scan (tmva_ScanYields.py logic)
     p.add_argument("--model-file", default="tmva101.root")
@@ -100,6 +97,12 @@ def parse_args():
     p.add_argument("--retrain-ks", action="store_true")
     p.add_argument("--ks-dir", default="DataPreparation_Files",
                    help="Dir containing *_all_signal.root and *_all_background.root")
+
+    # Luminosity normalization for significance calculations
+    p.add_argument("--sig-lumi", type=float, default=None,
+                   help="Signal luminosity in fb^-1 for normalizing yields in multi-bin optimization. If not set, raw weights are used.")
+    p.add_argument("--sig-xsec", type=float, default=None,
+                   help="Signal cross-section in pb (used with --sig-lumi to normalize). If set with --sig-lumi, signal weights are rescaled.")
 
     return p.parse_args()
 
@@ -300,12 +303,6 @@ def weighted_quantile(values, weights, q):
     return np.interp(target, csum, v)
 
 
-def ams(S, B):
-    if S <= 0 or B <= 0:
-        return 0.0
-    return float(np.sqrt(2.0 * ((S + B) * np.log(1.0 + S / max(B, 1e-12)) - S)))
-
-
 def asimov_q(S, B):
     if S <= 0 or B <= 0:
         return 0.0
@@ -325,10 +322,6 @@ def format_ratio(val):
     return f"{val:.3g}"
 
 
-def parse_bins(spec):
-    return [float(x) for x in spec.split(",")]
-
-
 def parse_group_map(items, flagname):
     out = {}
     for s in items:
@@ -337,22 +330,6 @@ def parse_group_map(items, flagname):
         k, v = s.split(":", 1)
         out.setdefault(k, []).append(v)
     return out
-
-
-def refine_bins(base_bins, focus=None):
-    bins = [float(b) for b in base_bins]
-    if focus is not None and np.isfinite(focus):
-        extras = [
-            focus - 0.10, focus - 0.05, focus - 0.03, focus - 0.02, focus - 0.01,
-            focus, focus + 0.01, focus + 0.02, focus + 0.03, focus + 0.05, focus + 0.10,
-        ]
-        bins.extend([x for x in extras if 0.0 <= x <= 1.0])
-    bins = sorted(set([round(x, 4) for x in bins if 0.0 <= x <= 1.0]))
-    if bins and bins[0] != 0.0:
-        bins.insert(0, 0.0)
-    if bins and bins[-1] != 1.0:
-        bins.append(1.0)
-    return bins
 
 
 def canonical_proc(name):
@@ -413,20 +390,6 @@ def compute_scores_model(model, xs):
     return model.Compute(X.astype(np.float32, copy=False)).astype(np.float64, copy=False)
 
 
-def pick_top_cuts(thresholds, ams_vals, max_cuts=3, min_sep=0.02):
-    order = np.argsort(ams_vals)[::-1]
-    picked = []
-    for idx in order:
-        thr = float(thresholds[idx])
-        if not np.isfinite(thr):
-            continue
-        if all(abs(thr - p) >= min_sep for p in picked):
-            picked.append(thr)
-        if len(picked) >= max_cuts:
-            break
-    return sorted(picked)
-
-
 def compute_bin_yields(scores, weights, edges):
     vals = np.asarray(scores, dtype=np.float64)
     w = np.asarray(weights, dtype=np.float64)
@@ -470,7 +433,6 @@ def evaluate_multibin_config(sig_scores, sig_w, bkg_scores, bkg_w, edges,
         return None
 
     zapprox_bins = np.divide(s_bins, np.sqrt(np.maximum(b_bins, 1e-12)))
-    za_bins = np.asarray([ams(float(s), float(b)) for s, b in zip(s_bins, b_bins)], dtype=np.float64)
     ztot = multi_bin_asimov_z(s_bins, b_bins)
 
     return {
@@ -479,7 +441,6 @@ def evaluate_multibin_config(sig_scores, sig_w, bkg_scores, bkg_w, edges,
         "b_bins": b_bins,
         "sb_bins": ratios,
         "zapprox_bins": zapprox_bins,
-        "za_bins": za_bins,
         "za_total": float(ztot),
         "n_bins": int(len(edges) - 1),
     }
@@ -1137,38 +1098,6 @@ def plot_mass_sculpt(pdf, title, mass, score, weight, bdt_bins):
     plt.close(fig)
 
 
-def plot_mass_sculpt_cuts(pdf, title, mass, score, weight, cuts):
-    fig, ax = plt.subplots(figsize=(11, 7))
-    colors = plt.cm.plasma(np.linspace(0.2, 0.9, max(len(cuts), 1)))
-    rows = []
-    for i, cut in enumerate(cuts):
-        mask = score >= cut
-        if not np.any(mask):
-            continue
-        m = mass[mask]
-        w = weight[mask]
-        mean, rms = weighted_mean_std(m, w)
-        rows.append([f">= {cut:.3f}", f"{w.sum():.2f}", f"{mean:.2f}", f"{rms:.2f}"])
-        ax.hist(m, bins=40, weights=w, histtype="step",
-                linewidth=2, color=colors[i], label=f"BDT >= {cut:.3f}")
-    ax.set_xlabel("Mass [GeV]")
-    ax.set_ylabel("Weighted events")
-    ax.set_title(title)
-    ax.grid(alpha=0.3)
-    ax.legend(fontsize=9)
-    if rows:
-        ax.text(
-            0.02, 0.98,
-            "Cut  Yield  Mean  RMS\n" + "\n".join([" ".join(r) for r in rows]),
-            transform=ax.transAxes,
-            fontsize=9,
-            va="top",
-            bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
-        )
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
 def plot_mass_sculpt_norm(pdf, title, mass, score, weight, bdt_bins, corr_val):
     fig, ax = plt.subplots(figsize=(11, 7))
     colors = plt.cm.viridis(np.linspace(0.1, 0.9, len(bdt_bins) - 1))
@@ -1195,31 +1124,6 @@ def plot_mass_sculpt_norm(pdf, title, mass, score, weight, bdt_bins, corr_val):
             va="top",
             bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
         )
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
-def plot_ams(pdf, title, effs, ams_vals, best_summary):
-    fig, ax = plt.subplots(figsize=(11, 7))
-    ax.plot(effs, ams_vals, linewidth=2)
-    ax.scatter([best_summary["eff"]], [best_summary["ams"]], color="tab:red", zorder=3)
-    ax.set_xlabel("Signal efficiency")
-    ax.set_ylabel("Approx median significance (AMS)")
-    ax.set_title(title)
-    ax.grid(alpha=0.3)
-    ax.text(
-        0.02, 0.95,
-        "Best AMS summary\n"
-        f"AMS = {best_summary['ams']:.3f}\n"
-        f"Eff = {best_summary['eff']:.2f}\n"
-        f"BDT cut = {best_summary['thr']:.3f}\n"
-        f"S = {best_summary['s']:.2f}, B = {best_summary['b']:.2f}\n"
-        f"S/B = {best_summary['s_over_b']:.3g}",
-        transform=ax.transAxes,
-        fontsize=10,
-        va="top",
-        bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
-    )
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -1313,70 +1217,10 @@ def plot_datamc(pdf, title, data_scores, mc_groups, bins, logy):
     plt.close(fig)
 
 
-def plot_text_page(pdf, title, lines):
-    fig = plt.figure(figsize=(11, 8.5))
-    fig.suptitle(title, fontsize=14, y=0.97)
-    text = "\n".join(lines)
-    fig.text(0.07, 0.9, text, fontsize=11, va="top")
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
-def plot_highcut_mass(pdf, title, data_mass, mc_groups, bins, logy):
-    fig, ax = plt.subplots(figsize=(11, 7))
-
-    mc_hists = []
-    mc_labels = []
-    mc_colors = []
-
-    for name, masses, weights in mc_groups:
-        hist, _ = np.histogram(masses, bins=bins, weights=weights)
-        mc_hists.append(hist)
-        mc_labels.append(canonical_proc(name))
-        mc_colors.append(proc_color(name))
-
-    if mc_hists:
-        ax.hist(
-            [bins[:-1]] * len(mc_hists),
-            bins=bins,
-            weights=mc_hists,
-            stacked=True,
-            color=mc_colors,
-            label=mc_labels,
-            histtype="stepfilled",
-            alpha=0.85,
-        )
-
-    if data_mass.size:
-        data_hist, _ = np.histogram(data_mass, bins=bins)
-        bin_centers = 0.5 * (bins[:-1] + bins[1:])
-        ax.errorbar(
-            bin_centers,
-            data_hist,
-            yerr=np.sqrt(np.maximum(data_hist, 1.0)),
-            fmt="o",
-            color="black",
-            label="Data",
-        )
-
-    ax.set_xlabel("Mass [GeV]")
-    ax.set_ylabel("Events / bin")
-    ax.set_title(title)
-    ax.grid(alpha=0.3)
-    if logy:
-        ax.set_yscale("log")
-    ax.legend(fontsize=8, ncol=2)
-
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
-def plot_scan_curves(pdf, title, cuts, z_vals, za_vals, best_z, best_za):
+def plot_scan_curves(pdf, title, cuts, z_vals, best_z):
     fig, ax = plt.subplots(figsize=(11, 7))
     ax.plot(cuts, z_vals, linewidth=2, label="Z = S/sqrt(S+B)")
-    ax.plot(cuts, za_vals, linewidth=2, label="ZA (asymptotic)")
     ax.axvline(best_z["cut"], color="tab:red", linestyle="--", linewidth=1.5)
-    ax.axvline(best_za["cut"], color="tab:green", linestyle=":", linewidth=1.5)
     ax.set_xlabel("BDT score cut")
     ax.set_ylabel("Significance")
     ax.set_title(title)
@@ -1384,9 +1228,8 @@ def plot_scan_curves(pdf, title, cuts, z_vals, za_vals, best_z, best_za):
     ax.legend()
     ax.text(
         0.02, 0.95,
-        "Best cuts\n"
-        f"Z:  cut={best_z['cut']:.3f}, Z={best_z['val']:.3f}\n"
-        f"ZA: cut={best_za['cut']:.3f}, ZA={best_za['val']:.3f}",
+        "Best cut\n"
+        f"Z: cut={best_z['cut']:.3f}, Z={best_z['val']:.3f}",
         transform=ax.transAxes,
         fontsize=10,
         va="top",
@@ -1442,6 +1285,41 @@ def read_feature_importance(outputs_dir, era):
     return path, items
 
 
+def get_era_luminosity_fb(era):
+    """
+    Return approximate integrated luminosity (fb^-1) for given era.
+    Maps common CMS era codes to known luminosities.
+    """
+    lumi_map = {
+        "12022": 26.0,    # 2022 pre-EE (approximate)
+        "12023": 27.5,    # 2022 post-EE (approximate)
+        "2024": 104.8,    # 2024 (full year as of documentation)
+        "22022": 8.0,     # 2022 MC (approximate scale)
+        "22023": 9.0,     # 2023 MC (approximate scale)
+    }
+    return lumi_map.get(era, None)
+
+
+def apply_lumi_scaling(sig_w, bkg_w, era_lumi_fb, ref_lumi_fb=None, logger=None):
+    """
+    Rescale signal and background weights to a reference luminosity.
+    If era_lumi_fb is None, no rescaling is applied.
+    Returns rescaled weights and the scale factor used.
+    """
+    if era_lumi_fb is None or era_lumi_fb <= 0:
+        return sig_w, bkg_w, 1.0
+    
+    if ref_lumi_fb is None:
+        ref_lumi_fb = REF_LUMI_FB
+    
+    scale = float(ref_lumi_fb / era_lumi_fb)
+    if logger:
+        logger.info("Luminosity scaling: era_lumi=%.1f fb^-1 → ref_lumi=%.1f fb^-1 → scale=%.4f",
+                   era_lumi_fb, ref_lumi_fb, scale)
+    
+    return sig_w * scale, bkg_w * scale, scale
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -1478,14 +1356,12 @@ def main():
         args.shape_sig_mass_shift_unc,
         args.shape_sig_resolution_unc,
     )
+    logger.info("Luminosity scaling (multi-bin yields): reference=%.1f fb^-1", REF_LUMI_FB)
     outputs_dir = os.path.abspath(args.outputs_dir)
     eras = discover_eras(outputs_dir, args.eras)
     if not eras:
         raise SystemExit("No eras discovered. Check --outputs-dir or --eras.")
     logger.info("Discovered eras: %s", ", ".join(eras))
-
-    bdt_bins = parse_bins(args.bdt_bins)
-    logger.info("Base BDT bins: %s", ", ".join([f"{b:.2f}" for b in bdt_bins]))
 
     data_map_raw = parse_group_map(args.data_era, "--data-era") if args.data_era else {}
     mc_map_raw = parse_group_map(args.mc_era, "--mc-era") if args.mc_era else {}
@@ -1495,7 +1371,6 @@ def main():
         logger.info("Data/MC bins: %d | logy=%s", args.datamc_nbins, str(args.datamc_logy))
 
     with PdfPages(args.output) as pdf:
-        best_cut_by_era = {}
         multibin_results_by_era = {}
         for era in eras:
             logger.info("--- Era %s ---", era)
@@ -1546,9 +1421,20 @@ def main():
                 sig_w = sanitize_weights(sig[args.weight_branch], args.abs_weights)
                 bkg_w = sanitize_weights(bkg[args.weight_branch], args.abs_weights)
                 logger.info(
-                    "%s: S events=%d (sum=%.3f), B events=%d (sum=%.3f)",
+                    "%s: S events=%d (sum=%.3f), B events=%d (sum=%.3f) [pre-lumi scaling]",
                     era, sig_scores.size, float(sig_w.sum()), bkg_scores.size, float(bkg_w.sum())
                 )
+
+                # Apply luminosity scaling to normalize yields across eras for significance calculations
+                era_lumi = get_era_luminosity_fb(era)
+                if era_lumi is not None:
+                    sig_w, bkg_w, lumi_scale = apply_lumi_scaling(sig_w, bkg_w, era_lumi, REF_LUMI_FB, logger)
+                    logger.info(
+                        "%s: S events=%d (sum=%.3f), B events=%d (sum=%.3f) [post-lumi scaling]",
+                        era, sig_scores.size, float(sig_w.sum()), bkg_scores.size, float(bkg_w.sum())
+                    )
+                else:
+                    logger.warning("%s: luminosity not known; yields will not be rescaled", era)
 
                 plot_score_hist(
                     pdf,
@@ -1562,43 +1448,6 @@ def main():
                 auc = compute_auc(fpr, tpr)
                 plot_roc(pdf, f"{era}: ROC (weighted)", fpr, tpr, auc)
                 logger.info("%s: ROC AUC = %.4f", era, auc)
-
-                # AMS vs signal efficiency
-                effs = np.arange(0.01, 1.01, 0.01)
-                ams_vals = []
-                thr_vals = []
-                s_vals = []
-                b_vals = []
-                sig_w_q = sanitize_weights(sig[args.weight_branch], use_abs=True)
-                for eff in effs:
-                    thr = weighted_quantile(sig_scores, sig_w_q, 1.0 - eff)
-                    s = float(sig_w[(sig_scores >= thr)].sum())
-                    b = float(bkg_w[(bkg_scores >= thr)].sum())
-                    thr_vals.append(thr)
-                    s_vals.append(s)
-                    b_vals.append(b)
-                    ams_vals.append(ams(s, b))
-                best_idx = int(np.argmax(ams_vals)) if ams_vals else 0
-                best_summary = {
-                    "eff": float(effs[best_idx]) if effs.size else 0.0,
-                    "thr": float(thr_vals[best_idx]) if thr_vals else 0.0,
-                    "s": float(s_vals[best_idx]) if s_vals else 0.0,
-                    "b": float(b_vals[best_idx]) if b_vals else 0.0,
-                    "ams": float(ams_vals[best_idx]) if ams_vals else 0.0,
-                    "s_over_b": float(s_vals[best_idx] / b_vals[best_idx]) if b_vals and b_vals[best_idx] > 0 else np.inf,
-                }
-                best_cut_by_era[era] = best_summary["thr"]
-                plot_ams(pdf, f"{era}: AMS vs signal efficiency", effs, ams_vals, best_summary)
-                logger.info(
-                    "%s: Best AMS=%.3f at eff=%.2f, cut=%.3f, S=%.3f, B=%.3f, S/B=%s",
-                    era,
-                    best_summary["ams"],
-                    best_summary["eff"],
-                    best_summary["thr"],
-                    best_summary["s"],
-                    best_summary["b"],
-                    format_ratio(best_summary["s_over_b"]),
-                )
 
                 # Multi-bin BDT categorization (no hard cut)
                 sig_mass_for_opt = sig[mass_branch] if mass_branch else None
@@ -1688,16 +1537,15 @@ def main():
                             f"{best_multi['b_bins'][i]:.3f}",
                             format_ratio(best_multi["sb_bins"][i]),
                             f"{best_multi['zapprox_bins'][i]:.3f}",
-                            f"{best_multi['za_bins'][i]:.3f}",
                         ])
                     plot_table(
                         pdf,
                         f"{era}: Multi-bin BDT categorization (no hard cut)\n"
                         f"Optimized N={best_multi['n_bins']}, {metric_label}={metric_value:.3f}, "
                         f"monotonic S/B={str(not args.multibin_no_monotonic)}",
-                        ["Bin", "BDT range", "S", "B", "S/B", "S/sqrt(B)", "ZA(bin)"],
+                        ["Bin", "BDT range", "S", "B", "S/B", "S/sqrt(B)"],
                         rows,
-                        col_align=["right", "center", "right", "right", "right", "right", "right"],
+                        col_align=["right", "center", "right", "right", "right", "right"],
                     )
 
                     if mass_branch:
@@ -1849,16 +1697,10 @@ def main():
                         era,
                     )
 
-                suggested_cuts = pick_top_cuts(thr_vals, ams_vals, max_cuts=3, min_sep=0.02)
-                if suggested_cuts:
-                    logger.info(
-                        "%s: Suggested high-score cuts: %s",
-                        era,
-                        ", ".join([f"{c:.3f}" for c in suggested_cuts]),
-                    )
-
-                # Expected signal yield per BDT bin (mass window)
-                bins_yield = refine_bins(bdt_bins, best_summary["thr"])
+                # Expected signal yield per optimized BDT bin (mass window)
+                if best_multi is None:
+                    continue
+                bins_yield = best_multi["edges"]
                 s_total = float(sig_w.sum())
                 b_total = float(bkg_w.sum())
                 rows = []
@@ -1885,13 +1727,13 @@ def main():
                 rows.reverse()
                 plot_table(
                     pdf,
-                    f"{era}: Expected yield per BDT bin ({args.mass_min:.0f}-{args.mass_max:.0f} GeV)\n"
-                    f"S total={s_total:.2f}, B total={b_total:.2f}, best cut={best_summary['thr']:.3f}",
+                    f"{era}: Expected yield per optimized BDT bin ({args.mass_min:.0f}-{args.mass_max:.0f} GeV)\n"
+                    f"S total={s_total:.2f}, B total={b_total:.2f}",
                     ["BDT bin", "S (bin)", "S frac", "S>=lo", "B (bin)", "S/B (>=lo)"],
                     rows,
                     col_align=["center", "right", "right", "right", "right", "right"],
                 )
-                logger.info("%s: Yield table bins=%d (refined near %.3f)", era, len(rows), best_summary["thr"])
+                logger.info("%s: Yield table bins=%d (optimized bins)", era, len(rows))
                 for row in rows:
                     logger.info(
                         "%s: bin %s | S=%s | Sfrac=%s | S>=lo=%s | B=%s | S/B=%s",
@@ -1908,7 +1750,7 @@ def main():
                         sig_mass,
                         sig_scores,
                         sig_w,
-                        bdt_bins,
+                        best_multi["edges"],
                     )
                     plot_mass_sculpt(
                         pdf,
@@ -1916,25 +1758,8 @@ def main():
                         bkg_mass,
                         bkg_scores,
                         bkg_w,
-                        bdt_bins,
+                        best_multi["edges"],
                     )
-                    if suggested_cuts:
-                        plot_mass_sculpt_cuts(
-                            pdf,
-                            f"{era}: Signal mass sculpting for high BDT cuts",
-                            sig_mass,
-                            sig_scores,
-                            sig_w,
-                            suggested_cuts,
-                        )
-                        plot_mass_sculpt_cuts(
-                            pdf,
-                            f"{era}: Background mass sculpting for high BDT cuts",
-                            bkg_mass,
-                            bkg_scores,
-                            bkg_w,
-                            suggested_cuts,
-                        )
                     corr_sig = weighted_corr(sig_mass, sig_scores, sig_w)
                     corr_bkg = weighted_corr(bkg_mass, bkg_scores, bkg_w)
                     plot_mass_sculpt_norm(
@@ -1943,7 +1768,7 @@ def main():
                         sig_mass,
                         sig_scores,
                         sig_w,
-                        bdt_bins,
+                        best_multi["edges"],
                         corr_sig,
                     )
                     plot_mass_sculpt_norm(
@@ -1952,7 +1777,7 @@ def main():
                         bkg_mass,
                         bkg_scores,
                         bkg_w,
-                        bdt_bins,
+                        best_multi["edges"],
                         corr_bkg,
                     )
                     if np.isfinite(corr_sig) or np.isfinite(corr_bkg):
@@ -1984,9 +1809,9 @@ def main():
                     sig_feat_map[mass_branch] = sig_feat[mass_branch]
                 feature_grid = [mass_branch] + top_feats if mass_branch else top_feats
                 bin_stats = []
-                if bdt_bins:
+                if best_multi is not None:
                     s_total_bins = float(sig_feat_map["weight"].sum())
-                    for lo, hi in zip(bdt_bins[:-1], bdt_bins[1:]):
+                    for lo, hi in zip(best_multi["edges"][:-1], best_multi["edges"][1:]):
                         mask = (sig_feat_map["score"] >= lo) & (sig_feat_map["score"] < hi)
                         s_bin = float(sig_feat_map["weight"][mask].sum())
                         frac = 100.0 * s_bin / s_total_bins if s_total_bins > 0 else 0.0
@@ -1996,7 +1821,7 @@ def main():
                     f"{era}: Signal distributions by BDT bin",
                     feature_grid[:4],
                     sig_feat_map,
-                    bdt_bins,
+                    best_multi["edges"] if best_multi is not None else [0.0, 1.0],
                     mass_branch=mass_branch,
                     bin_stats=bin_stats,
                 )
@@ -2101,11 +1926,10 @@ def main():
                         data_arr = load_arrays(
                             data_files,
                             args.treename,
-                            [args.bdt_branch, dm_mass_branch],
+                            [args.bdt_branch],
                             dm_sel,
                         )
                         data_scores = data_arr[args.bdt_branch]
-                        data_mass = data_arr[dm_mass_branch]
                         
                         data_mean, data_std = weighted_mean_std(data_scores, np.ones_like(data_scores))
                         logger.info("%s: Data after selection: n_events=%d, mean(BDT)=%.4f, std(BDT)=%.4f",
@@ -2200,100 +2024,6 @@ def main():
                             bins,
                             args.datamc_logy,
                         )
-                        best_cut = best_cut_by_era.get(era)
-                        if best_cut is not None:
-                            offsets = []
-                            for item in args.ams_cut_offsets.split(","):
-                                item = item.strip()
-                                if not item:
-                                    continue
-                                try:
-                                    offsets.append(float(item))
-                                except ValueError:
-                                    logger.warning("%s: Invalid --ams-cut-offsets entry '%s'", era, item)
-                            cuts_to_show = []
-                            seen = set()
-                            for off in [0.0] + [o for o in offsets if o > 0.0]:
-                                cut = min(1.0, max(0.0, best_cut - off))
-                                key = round(cut, 6)
-                                if key in seen:
-                                    continue
-                                seen.add(key)
-                                cuts_to_show.append(cut)
-
-                            mass_bins = np.linspace(args.mass_min, args.mass_max, 21)
-                            for cut in cuts_to_show:
-                                data_high = data_scores >= cut
-                                data_mass_high = data_mass[data_high]
-                                data_mass_sorted = np.sort(data_mass_high)
-                                mc_high_groups = []
-                                mc_high_total = 0.0
-                                for proc, mc_scores, mc_mass, mc_weights in mc_full_groups:
-                                    mc_mask = mc_scores >= cut
-                                    mc_mass_sel = mc_mass[mc_mask]
-                                    mc_weight_sel = mc_weights[mc_mask]
-                                    mc_high_groups.append((proc, mc_mass_sel, mc_weight_sel))
-                                    mc_high_total += float(mc_weight_sel.sum())
-
-                                delta = best_cut - cut
-                                if abs(delta) < 1e-6:
-                                    cut_label = "AMS suggested cut"
-                                else:
-                                    cut_label = f"AMS - {delta:.3f}"
-
-                                logger.info(
-                                    "%s: High-score data/MC (BDT>=%.3f): data_n=%d, mc_sum=%.3f, ratio=%.3f",
-                                    era,
-                                    cut,
-                                    data_mass_high.size,
-                                    mc_high_total,
-                                    data_mass_high.size / max(mc_high_total, 1e-12),
-                                )
-                                if data_mass_sorted.size:
-                                    if args.mass_log_max > 0:
-                                        max_log = min(args.mass_log_max, data_mass_sorted.size)
-                                    else:
-                                        max_log = data_mass_sorted.size
-                                    mass_log = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_log]])
-                                    if data_mass_sorted.size > max_log:
-                                        mass_log += ", ..."
-                                    logger.info(
-                                        "%s: Data masses (BDT>=%.3f) [GeV]: %s",
-                                        era,
-                                        cut,
-                                        mass_log,
-                                    )
-
-                                mass_lines = [
-                                    f"BDT >= {cut:.3f} ({cut_label})",
-                                    f"Data events: {data_mass_high.size}",
-                                    f"MC sum(weights): {mc_high_total:.3f}",
-                                    "Data masses [GeV]:",
-                                ]
-                                if data_mass_sorted.size:
-                                    max_show = 20
-                                    shown = ", ".join([f"{m:.2f}" for m in data_mass_sorted[:max_show]])
-                                    mass_lines.append(shown)
-                                    if data_mass_sorted.size > max_show:
-                                        mass_lines.append("...")
-                                else:
-                                    mass_lines.append("(none)")
-
-                                plot_text_page(
-                                    pdf,
-                                    f"{era}: Data mass for BDT >= {cut:.3f}",
-                                    [line for line in mass_lines if line],
-                                )
-
-                                plot_highcut_mass(
-                                    pdf,
-                                    f"{era}: Mass for BDT >= {cut:.3f}",
-                                    data_mass_high,
-                                    mc_high_groups,
-                                    mass_bins,
-                                    args.datamc_logy,
-                                )
-
                         logger.info("%s: Data/MC summary in %.0f-%.0f GeV", era, args.mass_min, args.mass_max)
                         logger.info("%s: Data entries=%d", era, data_scores.size)
                         total_mc = 0.0
@@ -2486,40 +2216,36 @@ def main():
         cuts = parse_cuts(args.scan_cuts)
         rows = []
         best_z = {"val": -1.0, "cut": 0.0}
-        best_za = {"val": -1.0, "cut": 0.0}
         for c in cuts:
             s = float(w_s[s_s >= c].sum())
             b = float(w_b[s_b >= c].sum())
             z = s / np.sqrt(s + b + 1e-12) if (s + b) > 0 else 0.0
-            za = ams(s, b)
-            rows.append([f"{c:.4f}", f"{s:.4f}", f"{b:.4f}", f"{z:.4f}", f"{za:.4f}"])
+            rows.append([f"{c:.4f}", f"{s:.4f}", f"{b:.4f}", f"{z:.4f}"])
             if z > best_z["val"]:
                 best_z = {"val": z, "cut": float(c)}
-            if za > best_za["val"]:
-                best_za = {"val": za, "cut": float(c)}
 
-        logger.info("Scan best Z=%.3f at cut=%.4f; best ZA=%.3f at cut=%.4f",
-                    best_z["val"], best_z["cut"], best_za["val"], best_za["cut"])
+        logger.info("Scan best Z=%.3f at cut=%.4f",
+                    best_z["val"], best_z["cut"])
         logger.info("Scan table (coarse sampling):")
         step = max(1, int(len(rows) / 10))
         for r in rows[::step]:
-            logger.info("  cut=%s | S=%s | B=%s | Z=%s | ZA=%s", r[0], r[1], r[2], r[3], r[4])
+            logger.info("  cut=%s | S=%s | B=%s | Z=%s", r[0], r[1], r[2], r[3])
 
         plot_scan_curves(
             pdf,
             f"Model-based scan (mass {args.mass_min:.0f}-{args.mass_max:.0f} GeV)",
             cuts,
             [float(r[3]) for r in rows],
-            [float(r[4]) for r in rows],
+            [float(r[3]) for r in rows],
             best_z,
-            best_za,
+            best_z,
         )
         plot_table(
             pdf,
             "Model-based scan summary",
-            ["Cut", "S", "B", "Z", "ZA"],
+            ["Cut", "S", "B", "Z"],
             rows[::max(1, int(len(rows) / 20))],
-            col_align=["right", "right", "right", "right", "right"],
+            col_align=["right", "right", "right", "right"],
         )
     elif args.scan_sig or args.scan_bkg:
         logger.warning("Scan skipped: provide both --scan-sig and --scan-bkg")
