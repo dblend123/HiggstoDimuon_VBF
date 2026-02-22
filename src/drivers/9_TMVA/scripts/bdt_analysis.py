@@ -104,6 +104,10 @@ def parse_args():
     p.add_argument("--sig-xsec", type=float, default=None,
                    help="Signal cross-section in pb (used with --sig-lumi to normalize). If set with --sig-lumi, signal weights are rescaled.")
 
+    # Combined era fit
+    p.add_argument("--combined-eras", nargs="+", default=None,
+                   help="Combine multiple eras into single fit (e.g., 12022 22022). Each era is lumi-scaled then concatenated.")
+
     return p.parse_args()
 
 
@@ -1319,6 +1323,187 @@ def apply_lumi_scaling(sig_w, bkg_w, era_lumi_fb, ref_lumi_fb=None, logger=None)
     return sig_w * scale, bkg_w * scale, scale
 
 
+def combined_era_fit(outputs_dir, combined_eras, treename, bdt_branch, weight_branch,
+                     mass_branch, mass_min, mass_max, abs_weights, logger,
+                     multibin_min_n, multibin_max_n, multibin_candidates,
+                     multibin_min_sig, multibin_min_bkg, multibin_no_monotonic,
+                     shape_likelihood, shape_mass_nbins, shape_poly_order,
+                     shape_bkg_norm_unc, shape_poly_unc, shape_sig_norm_unc,
+                     shape_sig_mass_shift_unc, shape_sig_resolution_unc,
+                     shape_mu_max, shape_mu_points, pdf):
+    """
+    Combined multi-era fit: load, lumi-scale per-era, concatenate, and fit.
+    """
+    logger.info("=" * 70)
+    logger.info("COMBINED ERA FIT: %s", " + ".join(combined_eras))
+    logger.info("=" * 70)
+    
+    all_sig_scores = []
+    all_sig_mass = []
+    all_sig_w = []
+    all_bkg_scores = []
+    all_bkg_mass = []
+    all_bkg_w = []
+    
+    for era in combined_eras:
+        logger.info("Loading era: %s", era)
+        files = find_scored_files(outputs_dir, era)
+        sig_file = files["signal"]
+        bkg_file = files["background"]
+        
+        if not sig_file or not bkg_file:
+            logger.warning("%s: missing signal/background files; skipping", era)
+            continue
+        
+        mass_branch_era = resolve_mass_branch(sig_file, treename, mass_branch)
+        if mass_branch_era is None:
+            logger.warning("%s: mass branch not found; skipping", era)
+            continue
+        
+        sel_mass = (
+            f"({mass_branch_era}>={mass_min} && {mass_branch_era}<={mass_max} "
+            f"&& TMath::Finite({mass_branch_era}))"
+        )
+        sel_finite = f"TMath::Finite({bdt_branch})"
+        selection = f"({sel_finite}) && ({sel_mass})"
+        
+        branches = [bdt_branch, weight_branch, mass_branch_era]
+        sig = load_arrays(sig_file, treename, branches, selection)
+        bkg = load_arrays(bkg_file, treename, branches, selection)
+        
+        sig_scores = sig[bdt_branch]
+        sig_mass_vals = sig[mass_branch_era]
+        sig_w_raw = sanitize_weights(sig[weight_branch], abs_weights)
+        
+        bkg_scores = bkg[bdt_branch]
+        bkg_mass_vals = bkg[mass_branch_era]
+        bkg_w_raw = sanitize_weights(bkg[weight_branch], abs_weights)
+        
+        logger.info("%s: S events=%d (sum=%.3f), B events=%d (sum=%.3f) [pre-lumi]",
+                   era, sig_scores.size, float(sig_w_raw.sum()),
+                   bkg_scores.size, float(bkg_w_raw.sum()))
+        
+        era_lumi = get_era_luminosity_fb(era)
+        if era_lumi is not None:
+            sig_w, bkg_w, _ = apply_lumi_scaling(sig_w_raw, bkg_w_raw, era_lumi, REF_LUMI_FB, logger)
+        else:
+            sig_w = sig_w_raw
+            bkg_w = bkg_w_raw
+            logger.warning("%s: luminosity unknown; no scaling applied", era)
+        
+        logger.info("%s: S sum=%.3f, B sum=%.3f [post-lumi]",
+                   era, float(sig_w.sum()), float(bkg_w.sum()))
+        
+        all_sig_scores.append(sig_scores)
+        all_sig_mass.append(sig_mass_vals)
+        all_sig_w.append(sig_w)
+        all_bkg_scores.append(bkg_scores)
+        all_bkg_mass.append(bkg_mass_vals)
+        all_bkg_w.append(bkg_w)
+    
+    if not all_sig_scores:
+        logger.warning("No valid eras for combined fit")
+        return
+    
+    sig_scores_comb = np.concatenate(all_sig_scores)
+    sig_mass_comb = np.concatenate(all_sig_mass)
+    sig_w_comb = np.concatenate(all_sig_w)
+    bkg_scores_comb = np.concatenate(all_bkg_scores)
+    bkg_mass_comb = np.concatenate(all_bkg_mass)
+    bkg_w_comb = np.concatenate(all_bkg_w)
+    
+    logger.info("COMBINED: S events=%d (sum=%.3f), B events=%d (sum=%.3f)",
+               sig_scores_comb.size, float(sig_w_comb.sum()),
+               bkg_scores_comb.size, float(bkg_w_comb.sum()))
+    
+    fpr, tpr = compute_roc(sig_scores_comb, sig_w_comb, bkg_scores_comb, bkg_w_comb)
+    auc = compute_auc(fpr, tpr)
+    plot_roc(pdf, f"Combined ({'+'.join(combined_eras)}): ROC (weighted)", fpr, tpr, auc)
+    logger.info("COMBINED: ROC AUC = %.4f", auc)
+    
+    scan = optimize_multibin_boundaries(
+        sig_scores_comb, sig_w_comb, bkg_scores_comb, bkg_w_comb,
+        min_n=multibin_min_n, max_n=multibin_max_n,
+        n_candidates=multibin_candidates,
+        min_sig=multibin_min_sig, min_bkg=multibin_min_bkg,
+        enforce_monotonic=(not multibin_no_monotonic),
+        objective="asimov",
+        sig_mass=sig_mass_comb, bkg_mass=bkg_mass_comb,
+        mass_min=mass_min, mass_max=mass_max,
+        mass_nbins=shape_mass_nbins,
+        poly_order=int(np.clip(shape_poly_order, 0, 2)),
+        bkg_norm_unc=float(shape_bkg_norm_unc),
+        poly_unc=float(shape_poly_unc),
+        sig_norm_unc=float(shape_sig_norm_unc),
+        sig_mass_shift_unc=float(shape_sig_mass_shift_unc),
+        sig_resolution_unc=float(shape_sig_resolution_unc),
+        mu_max=float(shape_mu_max),
+        mu_points=int(shape_mu_points),
+        likelihood_topk=20,
+    )
+    
+    best_multi = scan["best"]
+    if best_multi is None:
+        logger.warning("COMBINED: no valid BDT binning found")
+        return
+    
+    logger.info("COMBINED: Multi-bin optimum: N=%d, ZA=%.3f",
+               best_multi["n_bins"], best_multi["za_total"])
+    
+    if shape_likelihood:
+        poly_order = int(np.clip(shape_poly_order, 0, 2))
+        shape_inputs = build_shape_inputs(
+            sig_mass_comb, sig_scores_comb, sig_w_comb,
+            bkg_mass_comb, bkg_scores_comb, bkg_w_comb,
+            best_multi["edges"], mass_min, mass_max, shape_mass_nbins,
+        )
+        
+        shape_fit = compute_shape_expected_significance(
+            shape_inputs,
+            poly_order=poly_order,
+            bkg_norm_unc=float(shape_bkg_norm_unc),
+            poly_unc=float(shape_poly_unc),
+            sig_norm_unc=float(shape_sig_norm_unc),
+            sig_mass_shift_unc=float(shape_sig_mass_shift_unc),
+            sig_resolution_unc=float(shape_sig_resolution_unc),
+            mu_max=float(shape_mu_max),
+            mu_points=int(shape_mu_points),
+        )
+        
+        logger.info("COMBINED: Shape-likelihood: Z=%.3f, q0=%.3f, mu_hat=%.3f",
+                   shape_fit["zexp"], shape_fit["q0"], shape_fit["mu_hat"])
+        
+        rows_shape = [
+            ["Combined Eras", "+".join(combined_eras)],
+            ["Expected Z", f"{shape_fit['zexp']:.4f}"],
+            ["q0", f"{shape_fit['q0']:.4f}"],
+            ["mu_hat", f"{shape_fit['mu_hat']:.4f}"],
+            ["N_BDT bins", f"{shape_inputs['n_bdt']}"],
+            ["N_mass bins", f"{shape_inputs['n_mass']}"],
+            ["poly order", f"{poly_order}"],
+        ]
+        plot_table(pdf,
+                  f"Combined ({'+'.join(combined_eras)}): Shape-likelihood summary",
+                  ["Quantity", "Value"],
+                  rows_shape,
+                  col_align=["left", "right"])
+        
+        rows = []
+        for i, (lo, hi) in enumerate(zip(best_multi["edges"][:-1], best_multi["edges"][1:])):
+            rows.append([
+                str(i + 1),
+                f"{lo:.3f}-{hi:.3f}",
+                f"{best_multi['s_bins'][i]:.3f}",
+                f"{best_multi['b_bins'][i]:.3f}",
+                format_ratio(best_multi["sb_bins"][i]),
+            ])
+        plot_table(pdf,
+                  f"Combined ({'+'.join(combined_eras)}): BDT bin yields",
+                  ["Bin", "BDT range", "S", "B", "S/B"],
+                  rows,
+                  col_align=["right", "center", "right", "right", "right"])
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -2041,7 +2226,7 @@ def main():
             elif data_map_raw or mc_map_raw:
                 logger.info("%s: Data/MC not provided for this era; skipping", era)
 
-            # Feature importance table
+            # Feature importance table (per-era)
             path, items = read_feature_importance(outputs_dir, era)
             if items:
                 rows = [[name, f"{pct:.2f}%"] for name, pct in items[:10]]
@@ -2126,6 +2311,38 @@ def main():
                         )
                 else:
                     logger.warning("%s: retrain KS inputs missing in %s", era, args.ks_dir)
+
+        # Optional combined-era fit
+        if args.combined_eras and len(args.combined_eras) > 0:
+            combined_era_fit(
+                outputs_dir=outputs_dir,
+                combined_eras=args.combined_eras,
+                treename=args.treename,
+                bdt_branch=args.bdt_branch,
+                weight_branch=args.weight_branch,
+                mass_branch=args.mass_branch,
+                mass_min=args.mass_min,
+                mass_max=args.mass_max,
+                abs_weights=args.abs_weights,
+                logger=logger,
+                multibin_min_n=args.multibin_min_n,
+                multibin_max_n=args.multibin_max_n,
+                multibin_candidates=args.multibin_candidates,
+                multibin_min_sig=args.multibin_min_sig,
+                multibin_min_bkg=args.multibin_min_bkg,
+                multibin_no_monotonic=args.multibin_no_monotonic,
+                shape_likelihood=args.shape_likelihood,
+                shape_mass_nbins=args.shape_mass_nbins,
+                shape_poly_order=args.shape_poly_order,
+                shape_bkg_norm_unc=args.shape_bkg_norm_unc,
+                shape_poly_unc=args.shape_poly_unc,
+                shape_sig_norm_unc=args.shape_sig_norm_unc,
+                shape_sig_mass_shift_unc=args.shape_sig_mass_shift_unc,
+                shape_sig_resolution_unc=args.shape_sig_resolution_unc,
+                shape_mu_max=args.shape_mu_max,
+                shape_mu_points=args.shape_mu_points,
+                pdf=pdf,
+            )
 
         # Cross-era boundary stability summary (same N bins)
         if len(multibin_results_by_era) >= 2:
