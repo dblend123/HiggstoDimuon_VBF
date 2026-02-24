@@ -67,6 +67,7 @@
 #define FILL_MUON_HIST(set, weight) \
     set.hDiMuonMass->Fill(corr_p4dimuon.M(), weight); \
     set.hDiMuonMass_Z->Fill(corr_p4dimuon.M(), weight); \
+    set.hDiMuonMass_Higgs->Fill(corr_p4dimuon.M(), weight); \
     set.hDiMuonpt->Fill(corr_p4dimuon.Pt(), weight); \
     set.hDiMuoneta->Fill(corr_p4dimuon.Eta(), weight); \
     set.hDiMuonrapidity->Fill(corr_p4dimuon.Rapidity(), weight); \
