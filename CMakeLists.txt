@@ -21,8 +21,8 @@ include_directories(${CORRECTIONLIB_DIR}/build/src)
 
 # Include headers
 include_directories(${CORRECTIONLIB_DIR}/include)
-include_directories(${CORRECTIONLIB_DIR}/build/include)  # <-- ADD THIS LINE
-include_directories(/afs/cern.ch/user/d/dblend/test-analysis/ext/correctionlib/build/include)  # <-- ADD THIS LINE
+include_directories(${CORRECTIONLIB_DIR}/build/include) 
+include_directories(/afs/cern.ch/user/d/dblend/test-analysis/ext/correctionlib/build/include) 
 link_directories(${CORRECTIONLIB_DIR}/build ${CORRECTIONLIB_DIR}/build/src)
 
 # Add built library path

@@ -1,4 +1,4 @@
-// Muon_MuCorrComparison.C  (KIT vs NoMuCorr, stamped + Z-fit version, NO THStack)
+// Muon_MuCorrComparison.C  (KIT vs Rochester, stamped + Z-fit version, NO THStack)
 // root -l -b -q 'Muon_MuCorrComparison.C("22023", "/eos/user/d/dblend/Analyzed_SkimmedFiles/22023/", "noPU_noScaleSmear_noMuonSF_noJERC_noJetVeto_noGolden_noFlags_noFSR_noBtagSF_noJetCriteria")'
 
 #include <map>
@@ -30,20 +30,27 @@ static TString gConfig = "";
 
 // ---- helpers ----
 static TString modeDir(const TString& mode) {
-  // Map mode ("KIT", "NoMuCorr") to directory fragment under base,
-  // optionally including the CONFIG subdirectory.
   TString m = mode;
   m.ToLower();
+
+  TString baseDir;
+
   if (m == "kit") {
-    if (gConfig.IsNull() || gConfig == "") return "KIT";
-    return "KIT/" + gConfig;
+    baseDir = "KIT";
   }
-  if (m == "nomucorr") {
-    if (gConfig.IsNull() || gConfig == "") return "NoMuCorr";
-    return "NoMuCorr/" + gConfig;
+  else if (m == "rochester") {
+    baseDir = "Rochester";
   }
-  // default (not used anymore)
-  return "Rochester";
+  else {
+    baseDir = mode;  // fallback
+  }
+
+  // Always attach config if provided
+  if (!gConfig.IsNull() && gConfig != "") {
+    return baseDir + "/" + gConfig;
+  }
+
+  return baseDir;
 }
 
 static double eraLumiPb(const TString& era) {
@@ -51,7 +58,7 @@ static double eraLumiPb(const TString& era) {
   if (era == "22022") return 26671.60971;
   if (era == "12023") return 18704.13341;
   if (era == "22023") return 9693.130053;
-  if (era == "2024")  return 0.0; // put real 2024 lumi here if you want
+  if (era == "2024")  return 104805.85;
   std::cerr << "[WARN] Unknown era " << era << ", lumi set to 0\n";
   return 0.0;
 }
@@ -154,7 +161,7 @@ static bool fitZ(TH1* hin, double& mean, double& sigma) {
 }
 
 static TFile* openDataForMode(const TString& base, const TString& mode) {
-  const TString md = modeDir(mode); // "KIT[/CONFIG]" | "NoMuCorr[/CONFIG]"
+  const TString md = modeDir(mode); // "KIT[/CONFIG]" | "Rochester[/CONFIG]"
   const TString path = base + md + "/DATA/DATA_all.root";
   TFile* f = TFile::Open(path);
   if (!f) {
@@ -194,10 +201,10 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
 
   // Per-mode Data (fallback to legacy flat Data if missing)
   TFile* f_dataKIT = openDataForMode(base, "KIT");
-  TFile* f_dataNOM = openDataForMode(base, "NoMuCorr");
+  TFile* f_dataNOM = openDataForMode(base, "Rochester");
 
   if (!f_dataKIT && !f_dataNOM) {
-    std::cerr << "[ERR] No Data files found for KIT or NoMuCorr (or legacy path).\n";
+    std::cerr << "[ERR] No Data files found for KIT or Rochester (or legacy path).\n";
     return;
   }
 
@@ -216,17 +223,17 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
   const std::string var = "DiMuonMass_Z";
   const char* xlab = "m_{#mu#mu} [GeV]";
 
-  // Compare only KIT vs NoMuCorr
-  const std::vector<TString> modes = {"KIT", "NoMuCorr"};
+  // Compare only KIT vs Rochester
+  const std::vector<TString> modes = {"KIT", "Rochester"};
 
   // open per-mode file maps
   auto fmapKIT  = openModeFiles(base, "KIT",      samples);
-  auto fmapNOM  = openModeFiles(base, "NoMuCorr", samples);
+  auto fmapNOM  = openModeFiles(base, "Rochester", samples);
 
   // show stamps (DY representative)
   std::cerr << "[STAMP] DY KIT="
             << readStamp(fmapKIT.count("DY")? fmapKIT.at("DY"):nullptr,  "muCorrMode")
-            << " NoMuCorr="
+            << " Rochester="
             << readStamp(fmapNOM.count("DY")? fmapNOM.at("DY"):nullptr,  "muCorrMode")
             << "\n";
 
@@ -449,7 +456,7 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
       if (h_data) { delete h_data; h_data = nullptr; }
     } // per-mode
 
-    // ---------- Combined KIT vs NoMuCorr Data/MC ratio overlay ----------
+    // ---------- Combined KIT vs Rochester Data/MC ratio overlay ----------
     TCanvas cR("cR","cR",900,700);
     TPad padR("padR","padR",0,0.00,1,1);
     padR.SetBottomMargin(0.13);
@@ -475,9 +482,9 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
     }
 
     if (dK && totKIT)  { dK->Divide(totKIT);  ratios.push_back({"KIT",      dK}); }
-    if (dN && totNOM)  { dN->Divide(totNOM);  ratios.push_back({"NoMuCorr", dN}); }
+    if (dN && totNOM)  { dN->Divide(totNOM);  ratios.push_back({"Rochester", dN}); }
 
-    double yminR = 0.0, ymaxR = 0.2;
+    double yminR = 0.9, ymaxR = 1.1;
     bool firstDrawn = false;
     TLegend legR(0.50,0.75,0.88,0.90);
     legR.SetBorderSize(0);
@@ -488,7 +495,7 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
       if (!h) continue;
       int col = kBlack;
       if (pr.first=="KIT")      col = kGreen+2;
-      if (pr.first=="NoMuCorr") col = kBlue+1;
+      if (pr.first=="Rochester") col = kBlue+1;
       h->SetLineColor(col);
       h->SetMarkerColor(col);
       h->SetMarkerStyle(20);
@@ -616,12 +623,12 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
       if (c_VVV) delete c_VVV;
     };
     writeMode("KIT",      fmapKIT,  totKIT);
-    writeMode("NoMuCorr", fmapNOM,  totNOM);
+    writeMode("Rochester", fmapNOM,  totNOM);
 
     ofs << "\n# Z-peak Gaussian fit (80–100 GeV)\n";
     if (okD) ofs << "Data:     mean=" << mData << "  sigma=" << sData << "\n";
     if (okK) ofs << "KIT:      mean=" << mK    << "  sigma=" << sK    << "\n";
-    if (okN) ofs << "NoMuCorr: mean=" << mN    << "  sigma=" << sN    << "\n";
+    if (okN) ofs << "Rochester: mean=" << mN    << "  sigma=" << sN    << "\n";
     ofs.close();
 
     // cleanup combined objects
@@ -639,7 +646,7 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
   if (f_dataKIT)  f_dataKIT->Close();
   if (f_dataNOM)  f_dataNOM->Close();
 
-  std::cout << "[OK] Wrote KIT vs NoMuCorr plots and summaries for CONFIG = '"
+  std::cout << "[OK] Wrote KIT vs Rochester plots and summaries for CONFIG = '"
             << gConfig << "'.\n";
 }
 
