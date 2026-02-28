@@ -779,14 +779,21 @@ def fit_polynomial_modifier(b_hist, core_shape, x, order):
     return np.clip(out, -5.0, 5.0)
 
 
-def fit_shared_background(b_templates, mass_edges, poly_order, use_lowmed=False, eps_prior_scale=1.0):
+def fit_shared_background(b_templates, mass_edges, poly_order, use_lowmed=False, eps_prior_scale=1.0, keep_mask=None):
     b_hist = np.asarray(b_templates, dtype=np.float64)
     if b_hist.ndim != 2:
         raise ValueError("b_templates must be a 2D array [n_bdt, n_mass]")
 
     source = b_hist
-    if bool(use_lowmed) and b_hist.shape[0] > 1:
-        source = b_hist[:-1]
+    if bool(use_lowmed):
+        if keep_mask is not None:
+            km = np.asarray(keep_mask, dtype=bool)
+            if km.size == b_hist.shape[0] and np.any(km):
+                source = b_hist[km]
+            elif b_hist.shape[0] > 1:
+                source = b_hist[:-1]
+        elif b_hist.shape[0] > 1:
+            source = b_hist[:-1]
 
     core = np.sum(source, axis=0)
     core = np.divide(core, max(float(np.sum(core)), 1e-12))
@@ -811,7 +818,8 @@ def build_shape_inputs(sig_mass, sig_score, sig_w,
                        bdt_edges, mass_min, mass_max, mass_nbins,
                        bkg_genjets=None,
                        dy_mass=None, dy_score=None, dy_w=None, dy_genjets=None,
-                       core_use_lowmed=False, core_poly_order=2, eps_prior_scale=1.0):
+                       core_use_lowmed=False, core_poly_order=2, eps_prior_scale=1.0,
+                       core_sb_threshold=1e-3):
     mass_edges = np.linspace(float(mass_min), float(mass_max), int(mass_nbins) + 1)
     mass_centers = 0.5 * (mass_edges[:-1] + mass_edges[1:])
     x = 2.0 * (mass_centers - float(mass_min)) / max(float(mass_max - mass_min), 1e-12) - 1.0
@@ -862,12 +870,16 @@ def build_shape_inputs(sig_mass, sig_score, sig_w,
     dscb_params = estimate_dscb_params(sig_mass, sig_w)
     s_shape_dscb = build_dscb_hist_shape(mass_edges, dscb_params)
 
+    sb_ratio = np.divide(s_y, np.maximum(b_y, 1e-12), out=np.full_like(s_y, np.inf, dtype=np.float64), where=b_y > 0)
+    keep_mask = sb_ratio < float(core_sb_threshold)
+
     core, core_modifiers, eps_sigma = fit_shared_background(
         b_hist,
         mass_edges,
         poly_order=int(np.clip(core_poly_order, 0, 2)),
         use_lowmed=bool(core_use_lowmed),
         eps_prior_scale=float(eps_prior_scale),
+        keep_mask=keep_mask,
     )
 
     asimov = s_hist + b_hist
@@ -887,6 +899,8 @@ def build_shape_inputs(sig_mass, sig_score, sig_w,
         "core": core,
         "eps_anchor": core_modifiers,
         "eps_sigma": eps_sigma,
+        "sb_ratio": sb_ratio,
+        "core_keep_mask": keep_mask,
         "asimov": asimov,
         "n_bdt": n_bdt,
         "n_mass": n_mass,
@@ -941,8 +955,11 @@ def nuisance_penalty(nuisance_vec, shape_inputs, poly_order, poly_unc):
 
     if n_poly > 0:
         eps = v[:n_eps].reshape((n_bdt, n_poly))
-        sigma = max(float(poly_unc), 1e-6)
-        pull = eps / sigma
+        eps_sigma_base = np.asarray(shape_inputs.get("eps_sigma", np.ones(n_bdt, dtype=np.float64) * float(poly_unc)), dtype=np.float64)
+        if eps_sigma_base.size != n_bdt:
+            eps_sigma_base = np.ones(n_bdt, dtype=np.float64) * float(poly_unc)
+        eps_sigma = np.repeat(np.clip(eps_sigma_base, 1e-6, None), n_poly).reshape((n_bdt, n_poly))
+        pull = eps / eps_sigma
         penalty += 0.5 * float(np.sum(pull ** 2))
 
     eta = v[n_eps:n_eps + n_eta]
@@ -977,7 +994,7 @@ def build_expected_counts(mu, nuisance_vec, shape_inputs,
 
     for i in range(shape_inputs["n_bdt"]):
         s_shape = morph_signal_shape(shape_inputs["s_shape_dscb"], shift_bins=shift_bins, sigma_bins=smear_bins)
-        s_norm = max(float(mu), 0.0) * float(shape_inputs["s_y"][i]) * np.exp(float(sig_norm_unc) * k_sig)
+        s_norm = max(float(mu), 0.0) * np.exp(float(sig_norm_unc) * k_sig)
         s = s_norm * s_shape
 
         b0 = max(float(shape_inputs["b_y"][i]), 1e-12)
@@ -989,7 +1006,13 @@ def build_expected_counts(mu, nuisance_vec, shape_inputs,
             + frac_ge2 * np.exp(float(dy_ge2_unc) * k_dy_ge2)
             + frac_lt2 * np.exp(float(k_dy_lt2))
         )
-        b_norm = b0 * np.exp(float(bkg_norm_unc) * float(eta[i] if i < eta.size else 0.0)) * comp_scale
+        if frac_ge2 > 0.8:
+            bin_unc = 0.05
+        elif frac_ge2 > 0.5:
+            bin_unc = 0.10
+        else:
+            bin_unc = float(bkg_norm_unc)
+        b_norm = b0 * np.exp(float(bin_unc) * float(eta[i] if i < eta.size else 0.0)) * comp_scale
 
         b_shape = build_bkg_shapes_from_nuisance(
             shape_inputs["core"],
@@ -1065,7 +1088,7 @@ def profile_nll_fixed_mu(mu, shape_inputs, poly_order, bkg_norm_unc, poly_unc,
             bounds[i] = (-3.0, 3.0)
     idx_k_dy_lt2 = n_eps + n_eta + 1
     if 0 <= idx_k_dy_lt2 < n_params:
-        bounds[idx_k_dy_lt2] = (-8.0, 8.0)  # flat DY<2j scale in log-space
+        bounds[idx_k_dy_lt2] = (-3.0, 3.0)  # flat DY<2j scale in log-space (bounded)
 
     for step in step_schedule:
         improved = False
