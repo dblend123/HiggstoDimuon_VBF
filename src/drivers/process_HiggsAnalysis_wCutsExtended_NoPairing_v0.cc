@@ -204,7 +204,7 @@ float g_jet1_eta      = -99.f;
 float g_m_mumu        = -99.f;
 float g_deta_jj       = -99.f;
 float g_dphi_jj       = -99.f;
-int   g_njets         = -99.f;
+int   g_njets         = -99.;
 float g_dphi_mumu_jj  = -99.f;
 float g_deta_mumu_jj  = -99.f;
 float g_phi_CS        = -99.f;
@@ -419,7 +419,7 @@ void loadKITCorrections() {
 void loadMuonScaleSmearCorrections() {
    if (g_disableMuonScaleSmear) { 
         std::cerr << "[SCALESMEARING] Skipping ScaleSmearing JSON loading (noScaleSmear).\n";
-        corrections = nullptr;
+        muonScaleSmearCorrections = nullptr;
         return;
     }
     try {
@@ -1206,11 +1206,30 @@ inline float muCorrScale(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t l
 
     float scale = 1.0f;
 
-    if (__useKIT && isMC) {
+    if (__useKIT) {
         if (!kitCorrections) return 1.0f;
-        const double pt0     = kit::basePt(mu);
-        const double pt_corr = kit::pt_resol(*kitCorrections, mu, evt, lumi);
-        return (pt0 > 0.0 ? (float)(pt_corr / pt0) : 1.0f);
+
+        const double pt0 = kit::basePt(mu);
+        if (pt0 <= 0.0) return 1.0f;
+
+        const bool is_data = !isMC;
+        const int q = (mu._charge > 0 ? +1 : -1);
+
+        const double eta = mu._eta;
+        const double phi = mu._phi;
+
+        // Scale (data + MC)
+        const double pt_scaled = kit::pt_scale(*kitCorrections, is_data, pt0, eta, phi, q);
+
+        // Smear (MC only), applied as a ratio wrt basePt
+        double pt_final = pt_scaled;
+        if (isMC) {
+            const double pt_smeared_from_base = kit::pt_resol(*kitCorrections, mu, evt, lumi);
+            const double smear_ratio = pt_smeared_from_base / pt0;
+            pt_final = pt_scaled * smear_ratio;
+        }
+
+        return (float)(pt_final / pt0);
     }
 
     if (__useRochester) {
@@ -1261,7 +1280,7 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
     return true;
 }
 
-bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
+bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC, uint32_t evt, uint32_t lumi)
 {
     static int debugCounter = 0;
     const int maxDebug = 1;
@@ -1287,7 +1306,7 @@ bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC)
         return false;
     }
 
-    float corrected_pt = correctedBsPt(m, isMC);
+    float corrected_pt = correctedBsPt(m, isMC, evt, lumi);
     if (debug) {
         std::cout << "  Muon: pt_corr = " << corrected_pt
                   << ", eta = " << m._eta
@@ -1389,8 +1408,8 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs, uint32_t evt,
         return false;
 
     // HLT: require at least one muon matched to trigger with pt>26 (this is inside passMuonHLT)
-    bool hlt1OK = passMuonHLT(trigObjs, m1, __isMC);
-    bool hlt2OK = passMuonHLT(trigObjs, m2, __isMC);
+    bool hlt1OK = passMuonHLT(trigObjs, m1, __isMC, evt, lumi);
+    bool hlt2OK = passMuonHLT(trigObjs, m2, __isMC, evt, lumi);
     bool hltOK  = (hlt1OK || hlt2OK);
 
     if (!hltOK)
@@ -1579,14 +1598,18 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight, uint32_t
     const float sf1 = muCorrScale(mu1, __isMC, evt, lumi);
     const float sf2 = muCorrScale(mu2, __isMC, evt, lumi); 
 
-    // --- raw TLVs ---
-    TLorentzVector p4m1, p4m2;
-    p4m1.SetPtEtaPhiM(mu1._pt, mu1._eta, mu1._phi, PDG_MASS_Mu);
-    p4m2.SetPtEtaPhiM(mu2._pt, mu2._eta, mu2._phi, PDG_MASS_Mu);
+    const float pt1_base = (mu1._bsConstrainedPt > 0.f ? mu1._bsConstrainedPt : mu1._pt);
+    const float pt2_base = (mu2._bsConstrainedPt > 0.f ? mu2._bsConstrainedPt : mu2._pt);
 
-    // --- corrected TLVs  ---
-    TLorentzVector corr_p4m1 = p4m1 * sf1;
-    TLorentzVector corr_p4m2 = p4m2 * sf2;
+    // Raw (base) TLVs
+    TLorentzVector p4m1, p4m2;
+    p4m1.SetPtEtaPhiM(pt1_base, mu1._eta, mu1._phi, PDG_MASS_Mu);
+    p4m2.SetPtEtaPhiM(pt2_base, mu2._eta, mu2._phi, PDG_MASS_Mu);
+
+    // Corrected TLVs (consistent with KIT base)
+    TLorentzVector corr_p4m1, corr_p4m2;
+    corr_p4m1.SetPtEtaPhiM(correctedBsPt(mu1, __isMC, evt, lumi), mu1._eta, mu1._phi, PDG_MASS_Mu);
+    corr_p4m2.SetPtEtaPhiM(correctedBsPt(mu2, __isMC, evt, lumi), mu2._eta, mu2._phi, PDG_MASS_Mu);
 
     TLorentzVector corr_prefsr_p4 = corr_p4m1 + corr_p4m2;
     
@@ -1917,6 +1940,18 @@ analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight, uint32_t
     FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection, totalWeight); 
     FILL_JET_HIST(hists.setJet_PreSelection, noWeight); 
     FILL_CORR_JET_HIST(hists.corr_setJet_PreSelection, totalWeight); 
+
+    if (corr_p4dimuon.M() > 70 && corr_p4dimuon.M() < 110) {
+        if (is0jet) {
+            FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_wZpt_Z0j, totalWeight); 
+        }
+        else if (is1jet) {
+            FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_wZpt_Z1j, totalWeight); 
+        }
+        else if (is2jet) {
+            FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_wZpt_Z2j, totalWeight); 
+        }
+    }
 
     /*if (isBarrel(mu1) && isBarrel(mu2))
     {
@@ -2270,6 +2305,9 @@ void process()
     MuonSet     corr_setDM_PreSelection_Z0j(outroot, "corr_DM_Pre-Selection_Z0j");
     MuonSet     corr_setDM_PreSelection_Z1j(outroot, "corr_DM_Pre-Selection_Z1j");
     MuonSet     corr_setDM_PreSelection_Z2j(outroot, "corr_DM_Pre-Selection_Z2j");
+    MuonSet     corr_setDM_PreSelection_wZpt_Z0j(outroot, "corr_DM_Pre-Selection_wZpt_Z0j");
+    MuonSet     corr_setDM_PreSelection_wZpt_Z1j(outroot, "corr_DM_Pre-Selection_wZpt_Z1j");
+    MuonSet     corr_setDM_PreSelection_wZpt_Z2j(outroot, "corr_DM_Pre-Selection_wZpt_Z2j");
     MuonSet     setDM_PreSelection(outroot, "DM_Pre-Selection");
     MuonSet     corr_setDM_PreSelection(outroot, "corr_DM_Pre-Selection");
     JetSet      setJet_PreSelection(outroot, "Jet_Pre-Selection");
@@ -2325,6 +2363,7 @@ void process()
     
     // Pre-Selection blocks
     corr_setDM_PreSelection_Z0j, corr_setDM_PreSelection_Z1j, corr_setDM_PreSelection_Z2j, 
+    corr_setDM_PreSelection_wZpt_Z0j, corr_setDM_PreSelection_wZpt_Z1j, corr_setDM_PreSelection_wZpt_Z2j, 
     setDM_PreSelection, corr_setDM_PreSelection, setJet_PreSelection, corr_setJet_PreSelection,
     /*setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB,
     setDM_PreSelection_BO, corr_setDM_PreSelection_BO, setJet_PreSelection_BO,
