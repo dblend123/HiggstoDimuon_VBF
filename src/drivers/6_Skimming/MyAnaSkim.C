@@ -243,7 +243,7 @@ int main(int argc, char* argv[])
       "Muon_pt","Muon_eta","Muon_phi","Muon_charge",
       "Muon_isGlobal","Muon_isTracker","Muon_tightId", "Muon_mediumId", 
       "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers",
-      "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt",
+      "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt","Muon_bsConstrainedChi2","Muon_bsConstrainedPtErr",
 
       // triggers & trig objects
       "HLT_IsoMu24",
@@ -264,7 +264,7 @@ int main(int argc, char* argv[])
       "FsrPhoton_muonIdx","FsrPhoton_dROverEt2","FsrPhoton_electronIdx",
 
       // electrons
-      "nElectron","Electron_pt","Electron_eta","Electron_phi","Electron_cutBased",
+      "nElectron","Electron_pt","Electron_eta","Electron_phi","Electron_cutBased","Electron_mvaIso_WP90","Electron_mvaNoIso_WP90",
 
       // Rho
       "Rho_fixedGridRhoFastjetAll",

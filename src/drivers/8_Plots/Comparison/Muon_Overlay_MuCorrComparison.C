@@ -401,7 +401,7 @@ void Muon_Overlay_MuCorrComparison(TString era = "2024",
         h_ratio->GetYaxis()->SetLabelSize(0.10);
         h_ratio->GetXaxis()->SetTitleSize(0.12);
         h_ratio->GetXaxis()->SetLabelSize(0.11);
-        h_ratio->GetYaxis()->SetRangeUser(0.92, 1.15);
+        h_ratio->GetYaxis()->SetRangeUser(0.95, 1.05);
         h_ratio->Draw("e1");
         // dashed unity
         TLine l1(h_ratio->GetXaxis()->GetXmin(),1.0,

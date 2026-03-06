@@ -19,7 +19,7 @@ namespace analysis
 			
                 // -----  DiMuon Plots  -----
 				hDiMuonMass         = new TH1F("DiMuonMass", "DiMuonMass", 130, 70, 200);
-				hDiMuonMass_Z       = new TH1F("DiMuonMass_Z", "DiMuonMass_Z", 76, 72, 110);
+				hDiMuonMass_Z       = new TH1F("DiMuonMass_Z", "DiMuonMass_Z", 120, 75, 105);
 				hDiMuonMass_Higgs   = new TH1F("DiMuonMass_Higgs", "DiMuonMass_Higgs", 90, 115, 135);
                 hDiMuonpt           = new TH1F("DiMuonpt", "DiMuonpt", 50, 0, 200);
                 hDiMuoneta          = new TH1F("DiMuoneta", "DiMuoneta", 50, -2.5, 2.5);
@@ -306,6 +306,9 @@ namespace analysis
             analysis::processing::MuonSet& corr_setDM_PreSelection_Z0j;
             analysis::processing::MuonSet& corr_setDM_PreSelection_Z1j;
             analysis::processing::MuonSet& corr_setDM_PreSelection_Z2j;
+            analysis::processing::MuonSet& corr_setDM_PreSelection_wZpt_Z0j;
+            analysis::processing::MuonSet& corr_setDM_PreSelection_wZpt_Z1j;
+            analysis::processing::MuonSet& corr_setDM_PreSelection_wZpt_Z2j;
             analysis::processing::MuonSet& setDM_PreSelection;
             analysis::processing::MuonSet& corr_setDM_PreSelection;
             analysis::processing::JetSet&  setJet_PreSelection;

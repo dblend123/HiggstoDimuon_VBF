@@ -168,7 +168,7 @@ static double fwhmFromPdf(RooAbsPdf& pdf, RooRealVar& x, double xmin, double xma
 
 // Usage:
 //   root -l -q 'MassResolution_DSCB.C("/eos/.../VBF_all.root","12022")'
-void MassResolution_DSCB(const char* inputPath,
+void MassResolution_SCR(const char* inputPath,
                          const char* era = "12022") {
   using namespace RooFit;
 
