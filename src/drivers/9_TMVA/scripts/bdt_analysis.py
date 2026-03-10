@@ -43,7 +43,10 @@ def parse_args():
     p.add_argument("--mass-max", type=float, default=150)
     p.add_argument("--alpha", type=float, default=1e-3, help="KS p-value threshold")
     p.add_argument("--dthr-pct", type=float, default=0.20, help="KS D(%) threshold")
-    p.add_argument("--abs-weights", action="store_true", help="Use |weight| for yields/significance")
+    p.add_argument("--abs-weights", dest="abs_weights", action="store_true", default=True,
+                   help="Use |weight| for yields/significance (default: enabled)")
+    p.add_argument("--signed-weights", dest="abs_weights", action="store_false",
+                   help="Disable absolute-value transform (negative/invalid weights are still removed)")
     p.add_argument("--output", default="bdt_analysis.pdf")
     p.add_argument("--multibin-min-n", type=int, default=4,
                    help="Minimum number of BDT categories for multi-bin optimization")
@@ -81,6 +84,8 @@ def parse_args():
                    help="Upper bound of mu grid in profiled likelihood scan")
     p.add_argument("--shape-mu-points", type=int, default=121,
                    help="Number of mu scan points for profile likelihood")
+    p.add_argument("--shape-data-source", choices=["asimov", "mc-splusb", "mc-bonly"], default="asimov",
+                   help="Data used in shape-likelihood fit: Asimov S+B, MC S+B histogram, or MC B-only histogram")
     p.add_argument("--shape-core-poly-order", type=int, default=2,
                    help="Polynomial order used for core-PDF per-BDT deformation (1-2)")
     p.add_argument("--shape-core-use-lowmed", action="store_true",
@@ -142,6 +147,8 @@ def parse_args():
     # Combined era fit
     p.add_argument("--combined-eras", nargs="+", default=None,
                    help="Combine multiple eras into single fit (e.g., 12022 22022). Each era is lumi-scaled then concatenated.")
+    p.add_argument("--no-lumi-scaling", action="store_true",
+                   help="Disable era luminosity rescaling to reference luminosity")
 
     return p.parse_args()
 
@@ -255,6 +262,7 @@ def sanitize_weights(w, use_abs=False):
     w[~np.isfinite(w)] = 0.0
     if use_abs:
         w = np.abs(w)
+    w[w < 0.0] = 0.0
     return w
 
 
@@ -470,6 +478,15 @@ def parse_float_csv(spec, default_vals=None):
     return out if out else list(default_vals or [])
 
 
+def resolve_shape_data_override(shape_inputs, shape_data_source):
+    src = str(shape_data_source).strip().lower()
+    if src == "mc-splusb":
+        return np.asarray(shape_inputs["s_hist"] + shape_inputs["b_hist"], dtype=np.float64)
+    if src == "mc-bonly":
+        return np.asarray(shape_inputs["b_hist"], dtype=np.float64)
+    return None
+
+
 def compute_scores_model(model, xs):
     X = np.vstack(xs).T
     return model.Compute(X.astype(np.float32, copy=False)).astype(np.float64, copy=False)
@@ -545,7 +562,8 @@ def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
                                  sig_resolution_unc=0.10,
                                  mu_max=3.0,
                                  mu_points=121,
-                                 likelihood_topk=20):
+                                 likelihood_topk=20,
+                                 shape_data_source="asimov"):
     min_n = max(2, int(min_n))
     max_n = max(min_n, int(max_n))
     cands = candidate_boundaries(sig_scores, sig_w, bkg_scores, bkg_w, n_candidates)
@@ -620,6 +638,7 @@ def optimize_multibin_boundaries(sig_scores, sig_w, bkg_scores, bkg_w,
                     sig_resolution_unc=sig_resolution_unc,
                     mu_max=mu_max,
                     mu_points=mu_points,
+                    data_override=resolve_shape_data_override(shape_inputs, shape_data_source),
                 )
                 out = dict(res)
                 out["zexp_profile"] = float(shape_fit["zexp"])
@@ -1054,9 +1073,10 @@ def combined_era_fit(outputs_dir, combined_eras, treename, bdt_branch, weight_br
                      shape_likelihood, shape_mass_nbins, shape_poly_order,
                      shape_bkg_norm_unc, shape_poly_unc, shape_sig_norm_unc,
                      shape_sig_mass_shift_unc, shape_sig_resolution_unc,
-                     shape_mu_max, shape_mu_points,
+                     shape_mu_max, shape_mu_points, shape_data_source,
                      shape_core_poly_order, shape_core_use_lowmed,
                      shape_core_sb_threshold, shape_eps_prior_scale, dy_ge2_unc, genjet_branch,
+                     no_lumi_scaling,
                      shape_toys, shape_toy_seed, shape_toy_mu_values,
                      shape_bias_tests, shape_bias_mu_true, shape_bias_threshold,
                      shape_bias_toys, shape_bias_param_grid,
@@ -1126,12 +1146,15 @@ def combined_era_fit(outputs_dir, combined_eras, treename, bdt_branch, weight_br
                    bkg_scores.size, float(bkg_w_raw.sum()))
         
         era_lumi = get_era_luminosity_fb(era)
-        if era_lumi is not None:
+        if (not bool(no_lumi_scaling)) and era_lumi is not None:
             sig_w, bkg_w, _ = apply_lumi_scaling(sig_w_raw, bkg_w_raw, era_lumi, REF_LUMI_FB, logger)
         else:
             sig_w = sig_w_raw
             bkg_w = bkg_w_raw
-            logger.warning("%s: luminosity unknown; no scaling applied", era)
+            if bool(no_lumi_scaling):
+                logger.info("%s: luminosity scaling disabled; no scaling applied", era)
+            else:
+                logger.warning("%s: luminosity unknown; no scaling applied", era)
         
         logger.info("%s: S sum=%.3f, B sum=%.3f [post-lumi]",
                    era, float(sig_w.sum()), float(bkg_w.sum()))
@@ -1155,7 +1178,7 @@ def combined_era_fit(outputs_dir, combined_eras, treename, bdt_branch, weight_br
             dy_scores = np.asarray(dy_arr[bdt_branch], dtype=np.float64)
             dy_mass = np.asarray(dy_arr[mass_branch_era], dtype=np.float64)
             dy_w_raw = sanitize_weights(dy_arr[weight_branch], abs_weights)
-            if era_lumi is not None:
+            if (not bool(no_lumi_scaling)) and era_lumi is not None:
                 dy_w, _, _ = apply_lumi_scaling(dy_w_raw, dy_w_raw, era_lumi, REF_LUMI_FB, None)
             else:
                 dy_w = dy_w_raw
@@ -1210,6 +1233,7 @@ def combined_era_fit(outputs_dir, combined_eras, treename, bdt_branch, weight_br
         mu_max=float(shape_mu_max),
         mu_points=int(shape_mu_points),
         likelihood_topk=20,
+        shape_data_source=shape_data_source,
     )
     
     best_multi = scan["best"]
@@ -1248,6 +1272,7 @@ def combined_era_fit(outputs_dir, combined_eras, treename, bdt_branch, weight_br
             dy_ge2_unc=float(dy_ge2_unc),
             mu_max=float(shape_mu_max),
             mu_points=int(shape_mu_points),
+            data_override=resolve_shape_data_override(shape_inputs, shape_data_source),
         )
         
         logger.info("COMBINED: Shape-likelihood: Z=%.3f, q0=%.3f, mu_hat=%.3f",
@@ -1388,6 +1413,7 @@ def main():
         args.shape_sig_mass_shift_unc,
         args.shape_sig_resolution_unc,
     )
+    logger.info("Shape data source: %s", args.shape_data_source)
     logger.info(
         "Core-PDF options: core poly order=%d | low/med core=%s | core S/B threshold=%.4f | eps prior scale=%.3f | DY>=2j unc=%.3f | genjet branch=%s",
         args.shape_core_poly_order,
@@ -1408,7 +1434,10 @@ def main():
         args.shape_bias_toys,
         args.shape_bias_param_grid,
     )
-    logger.info("Luminosity scaling (multi-bin yields): reference=%.1f fb^-1", REF_LUMI_FB)
+    if args.no_lumi_scaling:
+        logger.info("Luminosity scaling: disabled")
+    else:
+        logger.info("Luminosity scaling (multi-bin yields): reference=%.1f fb^-1", REF_LUMI_FB)
     outputs_dir = os.path.abspath(args.outputs_dir)
     eras = discover_eras(outputs_dir, args.eras)
     if not eras:
@@ -1479,14 +1508,17 @@ def main():
 
                 # Apply luminosity scaling to normalize yields across eras for significance calculations
                 era_lumi = get_era_luminosity_fb(era)
-                if era_lumi is not None:
+                if (not bool(args.no_lumi_scaling)) and era_lumi is not None:
                     sig_w, bkg_w, lumi_scale = apply_lumi_scaling(sig_w, bkg_w, era_lumi, REF_LUMI_FB, logger)
                     logger.info(
                         "%s: S events=%d (sum=%.3f), B events=%d (sum=%.3f) [post-lumi scaling]",
                         era, sig_scores.size, float(sig_w.sum()), bkg_scores.size, float(bkg_w.sum())
                     )
                 else:
-                    logger.warning("%s: luminosity not known; yields will not be rescaled", era)
+                    if args.no_lumi_scaling:
+                        logger.info("%s: luminosity scaling disabled; yields will not be rescaled", era)
+                    else:
+                        logger.warning("%s: luminosity not known; yields will not be rescaled", era)
 
                 plot_score_hist(
                     pdf,
@@ -1530,6 +1562,7 @@ def main():
                     mu_max=float(args.shape_mu_max),
                     mu_points=int(args.shape_mu_points),
                     likelihood_topk=int(args.multibin_likelihood_topk),
+                    shape_data_source=args.shape_data_source,
                 )
                 best_multi = scan["best"]
                 multibin_results_by_era[era] = {
@@ -1693,6 +1726,7 @@ def main():
                                 dy_ge2_unc=float(args.dy_ge2_unc),
                                 mu_max=float(args.shape_mu_max),
                                 mu_points=int(args.shape_mu_points),
+                                data_override=resolve_shape_data_override(shape_inputs, args.shape_data_source),
                             )
                             logger.info(
                                 "%s: Shape-likelihood Asimov: Z=%.3f, q0=%.3f, mu_hat=%.3f",
@@ -2312,12 +2346,14 @@ def main():
                 shape_sig_resolution_unc=args.shape_sig_resolution_unc,
                 shape_mu_max=args.shape_mu_max,
                 shape_mu_points=args.shape_mu_points,
+                shape_data_source=args.shape_data_source,
                 shape_core_poly_order=args.shape_core_poly_order,
                 shape_core_use_lowmed=args.shape_core_use_lowmed,
                 shape_core_sb_threshold=args.shape_core_sb_threshold,
                 shape_eps_prior_scale=args.shape_eps_prior_scale,
                 dy_ge2_unc=args.dy_ge2_unc,
                 genjet_branch=args.genjet_branch,
+                no_lumi_scaling=args.no_lumi_scaling,
                 shape_toys=args.shape_toys,
                 shape_toy_seed=args.shape_toy_seed,
                 shape_toy_mu_values=toy_mu_values,

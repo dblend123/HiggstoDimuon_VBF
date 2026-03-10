@@ -371,7 +371,7 @@ def build_expected_counts(mu, nuisance_vec, shape_inputs,
 
     for i in range(shape_inputs["n_bdt"]):
         s_shape = morph_signal_shape(shape_inputs["s_shape_dscb"], shift_bins=shift_bins, sigma_bins=smear_bins)
-        s_norm = max(float(mu), 0.0) * np.exp(float(sig_norm_unc) * k_sig)
+        s_norm = max(float(mu), 0.0) * float(shape_inputs["s_y"][i]) * np.exp(float(sig_norm_unc) * k_sig)
         s = s_norm * s_shape
 
         b_ge2_nom = max(float(shape_inputs["dy_ge2_y"][i]), 0.0)
