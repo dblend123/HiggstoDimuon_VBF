@@ -4,12 +4,12 @@ Standalone BDT sideband validation workflow.
 
 This script performs three analysis tasks:
 1) Build a Run-3 sideband-only Data/MC BDT-score histogram and write a bin-count table.
-2) Reuse the multi-bin category optimization logic from bdt_analysis.py.
-3) Produce blinded per-category dimuon-mass Data/MC plots in sidebands only.
+2) Use multi-bin category optimization.
+3) Produce per-category dimuon-mass Data/MC plots in sidebands only.
 
 Mass sidebands default to:
-- left sideband:  110 <= m_mumu < 115 GeV
-- right sideband: 135 <= m_mumu <= 150 GeV
+- left sideband:  110 < m_mumu < 115 GeV
+- right sideband: 135 < m_mumu < 150 GeV
 """
 
 import argparse
@@ -44,12 +44,31 @@ from bdt_analysis import (
 
 ROOT.gROOT.SetBatch(True)
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TMVA_DIR = os.path.dirname(SCRIPT_DIR)
+DEFAULT_OUTPUTS_DIR = os.path.normpath(os.path.join(TMVA_DIR, "Outputs"))
+DEFAULT_OUTDIR = os.path.normpath(os.path.join(DEFAULT_OUTPUTS_DIR, "SidebandValidation"))
+
+
+def resolve_input_dir(path: str, reference_dir: str) -> str:
+    """Resolve an input directory robustly for different launch directories."""
+    p = os.path.expanduser(str(path).strip())
+    if os.path.isabs(p):
+        return os.path.normpath(p)
+
+    cwd_candidate = os.path.normpath(os.path.abspath(p))
+    script_candidate = os.path.normpath(os.path.join(reference_dir, p))
+    for cand in (cwd_candidate, script_candidate):
+        if os.path.isdir(cand):
+            return cand
+    return cwd_candidate
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run-3 BDT sideband validation and blinded category plots")
 
-    p.add_argument("--outputs-dir", default=os.path.join("src", "drivers", "9_TMVA", "Outputs"))
-    p.add_argument("--outdir", default=os.path.join("src", "drivers", "9_TMVA", "Outputs", "SidebandValidation"))
+    p.add_argument("--outputs-dir", default=DEFAULT_OUTPUTS_DIR)
+    p.add_argument("--outdir", default=DEFAULT_OUTDIR)
     p.add_argument("--output-prefix", default="run3_bdt_sideband_validation")
 
     p.add_argument("--eras", nargs="*", default=None,
@@ -191,6 +210,10 @@ def parse_user_inputs(args: argparse.Namespace, logger: logging.Logger) -> Tuple
     data_map: Dict[str, List[str]] = {}
     mc_map: Dict[str, List[Tuple[str, List[str]]]] = {}
 
+    logger.info("Using outputs directory: %s", args.outputs_dir)
+    if args.eras:
+        logger.info("Requested eras: %s", ", ".join(sorted(set(args.eras))))
+
     if args.data_era:
         raw_data = parse_group_map(args.data_era, "--data-era")
         for era, values in raw_data.items():
@@ -225,6 +248,8 @@ def parse_user_inputs(args: argparse.Namespace, logger: logging.Logger) -> Tuple
             data_map[era] = dfiles
         if mcentries:
             mc_map[era] = mcentries
+        if not dfiles and not mcentries:
+            logger.warning("%s: no Data/MC inputs found under %s", era, args.outputs_dir)
 
     logger.info("Discovered eras: %s", ", ".join(sorted(set(list(data_map.keys()) + list(mc_map.keys())))))
     return data_map, mc_map
@@ -783,12 +808,19 @@ def main() -> None:
     args = parse_args()
     logger = setup_logger(args.log_level)
 
+    args.outputs_dir = resolve_input_dir(args.outputs_dir, TMVA_DIR)
+    if not os.path.isabs(args.outdir):
+        args.outdir = os.path.normpath(os.path.abspath(args.outdir))
+
     os.makedirs(args.outdir, exist_ok=True)
 
     data_map, mc_map = parse_user_inputs(args, logger)
     eras = sorted(set(list(data_map.keys()) + list(mc_map.keys())))
     if not eras:
-        raise SystemExit("[error] No eras found from user input or auto-discovery.")
+        raise SystemExit(
+            "[error] No eras found from user input or auto-discovery. "
+            f"Checked outputs-dir: {args.outputs_dir}"
+        )
 
     era_payloads: Dict[str, Dict[str, object]] = {}
     for era in eras:
