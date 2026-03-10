@@ -3,9 +3,9 @@
 Standalone BDT sideband validation workflow.
 
 This script performs three analysis tasks:
-1) Build a Run-3 sideband-only Data/MC BDT-score histogram and write a bin-count table.
+1) Build a Run-3 blinded Data/MC BDT-score validation plot with ratio and MC stat uncertainty.
 2) Use multi-bin category optimization.
-3) Produce per-category dimuon-mass Data/MC plots in sidebands only.
+3) Produce a single professional PDF report with blinded mass control plot and category tables.
 
 Mass sidebands default to:
 - left sideband:  110 < m_mumu < 115 GeV
@@ -13,9 +13,9 @@ Mass sidebands default to:
 """
 
 import argparse
-import csv
 import glob
 import logging
+import math
 import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -64,12 +64,29 @@ def resolve_input_dir(path: str, reference_dir: str) -> str:
     return cwd_candidate
 
 
+def configure_plot_style() -> None:
+    plt.rcParams.update({
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "font.size": 11,
+        "axes.titlesize": 14,
+        "axes.labelsize": 12,
+        "axes.grid": True,
+        "grid.alpha": 0.25,
+        "legend.frameon": False,
+        "legend.fontsize": 9,
+        "savefig.bbox": "tight",
+    })
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run-3 BDT sideband validation and blinded category plots")
 
     p.add_argument("--outputs-dir", default=DEFAULT_OUTPUTS_DIR)
     p.add_argument("--outdir", default=DEFAULT_OUTDIR)
-    p.add_argument("--output-prefix", default="run3_bdt_sideband_validation")
+    p.add_argument("--output-prefix", default="bdt_sideband_validation")
+    p.add_argument("--report-name", default="",
+                   help="Optional PDF file name (overrides output-prefix report name)")
 
     p.add_argument("--eras", nargs="*", default=None,
                    help="Optional era list (e.g. 12022 22022 12023 22023 2024)")
@@ -78,6 +95,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--bdt-branch", default="bdt_score")
     p.add_argument("--weight-branch", default="weight")
     p.add_argument("--mass-branch", default="auto")
+    p.add_argument("--extra-cut", default="",
+                   help="Optional extra ROOT filter expression (e.g. 'njets>=2 && mjj>400')")
 
     p.add_argument("--data-era", action="append", default=[],
                    help="ERA:/path/data1.root[,/path/data2.root]")
@@ -107,6 +126,9 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--score-logy", action="store_true",
                    help="Use log scale for sideband BDT score panel")
+
+    p.add_argument("--mc-normalization", choices=["none", "sidebands"], default="sidebands",
+                   help="Normalize total MC to observed data sidebands for visual comparison")
 
     # Category boundaries
     p.add_argument("--category-edges", default="",
@@ -277,6 +299,9 @@ def make_selections(mass_branch: str, bdt_branch: str, args: argparse.Namespace)
     finite = f"TMath::Finite({bdt_branch}) && TMath::Finite({mass_branch})"
     sel_sb = f"({finite}) && ({mass_sb})"
     sel_full = f"({finite}) && ({mass_full})"
+    if args.extra_cut:
+        sel_sb = f"({sel_sb}) && ({args.extra_cut})"
+        sel_full = f"({sel_full}) && ({args.extra_cut})"
     return sel_sb, sel_full
 
 
@@ -354,6 +379,24 @@ def load_era_payload(
         except Exception as exc:
             logger.warning("%s: failed loading MC '%s': %s", era, proc, exc)
 
+    sig_full_scores = np.array([], dtype=np.float64)
+    sig_full_mass = np.array([], dtype=np.float64)
+    sig_full_weight = np.array([], dtype=np.float64)
+    sig_file = find_scored_files(args.outputs_dir, era).get("signal", None)
+    if sig_file and os.path.isfile(sig_file):
+        try:
+            sig_arr = load_arrays(
+                sig_file,
+                args.treename,
+                [args.bdt_branch, args.weight_branch, mass_branch],
+                sel_full,
+            )
+            sig_full_scores = sig_arr[args.bdt_branch]
+            sig_full_mass = sig_arr[mass_branch]
+            sig_full_weight = sanitize_weights(sig_arr[args.weight_branch], args.abs_weights)
+        except Exception as exc:
+            logger.warning("%s: failed loading scored signal '%s': %s", era, sig_file, exc)
+
     if not mc_side_groups and data_side_scores.size == 0:
         logger.warning("%s: empty sideband payload", era)
         return None
@@ -374,46 +417,161 @@ def load_era_payload(
         "data_full_mass": data_full_mass,
         "mc_side_groups": mc_side_groups,
         "mc_full_groups": mc_full_groups,
+        "sig_full_scores": sig_full_scores,
+        "sig_full_mass": sig_full_mass,
+        "sig_full_weight": sig_full_weight,
     }
 
 
-def combine_sideband_inputs(
-    era_payloads: Dict[str, Dict[str, object]]
-) -> Tuple[np.ndarray, List[Tuple[str, np.ndarray, np.ndarray]]]:
-    data_chunks: List[np.ndarray] = []
+def combine_data_side_scores(era_payloads: Dict[str, Dict[str, object]]) -> np.ndarray:
+    chunks: List[np.ndarray] = []
+    for payload in era_payloads.values():
+        chunks.append(np.asarray(payload["data_side_scores"], dtype=np.float64))  # type: ignore[index]
+    return concat_chunks(chunks)
+
+
+def combine_data_side_masses(era_payloads: Dict[str, Dict[str, object]], args: argparse.Namespace) -> np.ndarray:
+    chunks: List[np.ndarray] = []
+    for payload in era_payloads.values():
+        mass = np.asarray(payload["data_full_mass"], dtype=np.float64)  # type: ignore[index]
+        if mass.size == 0:
+            continue
+        m = sideband_mass_mask(mass, args)
+        if np.any(m):
+            chunks.append(mass[m])
+    return concat_chunks(chunks)
+
+
+def combine_mc_score_groups(
+    era_payloads: Dict[str, Dict[str, object]],
+    region: str = "full",
+) -> List[Tuple[str, np.ndarray, np.ndarray]]:
     proc_scores: Dict[str, List[np.ndarray]] = {}
     proc_weights: Dict[str, List[np.ndarray]] = {}
 
     for payload in era_payloads.values():
-        data_chunks.append(payload["data_side_scores"])  # type: ignore[index]
-        for proc, scores, weights in payload["mc_side_groups"]:  # type: ignore[index]
-            cproc = canonical_proc(proc)
-            proc_scores.setdefault(cproc, []).append(scores)
-            proc_weights.setdefault(cproc, []).append(weights)
+        if region == "side":
+            for proc, scores, weights in payload["mc_side_groups"]:  # type: ignore[index]
+                cproc = canonical_proc(proc)
+                proc_scores.setdefault(cproc, []).append(np.asarray(scores, dtype=np.float64))
+                proc_weights.setdefault(cproc, []).append(np.asarray(weights, dtype=np.float64))
+        else:
+            for proc, scores, _mass, weights in payload["mc_full_groups"]:  # type: ignore[index]
+                cproc = canonical_proc(proc)
+                proc_scores.setdefault(cproc, []).append(np.asarray(scores, dtype=np.float64))
+                proc_weights.setdefault(cproc, []).append(np.asarray(weights, dtype=np.float64))
 
-    data_scores = concat_chunks(data_chunks)
     groups: List[Tuple[str, np.ndarray, np.ndarray]] = []
     for proc in sorted(proc_scores.keys(), key=proc_sort_key):
-        s = concat_chunks(proc_scores[proc])
-        w = concat_chunks(proc_weights[proc])
-        if s.size > 0 and np.sum(w) > 0:
-            groups.append((proc, s, w))
+        scores = concat_chunks(proc_scores[proc])
+        weights = concat_chunks(proc_weights[proc])
+        if scores.size > 0 and np.sum(weights) > 0:
+            groups.append((proc, scores, weights))
+    return groups
 
-    return data_scores, groups
+
+def combine_mc_mass_groups(
+    era_payloads: Dict[str, Dict[str, object]],
+    args: argparse.Namespace,
+    region: str = "full",
+) -> List[Tuple[str, np.ndarray, np.ndarray]]:
+    proc_mass: Dict[str, List[np.ndarray]] = {}
+    proc_weights: Dict[str, List[np.ndarray]] = {}
+
+    for payload in era_payloads.values():
+        for proc, _scores, mass, weights in payload["mc_full_groups"]:  # type: ignore[index]
+            cproc = canonical_proc(proc)
+            mass = np.asarray(mass, dtype=np.float64)
+            weights = np.asarray(weights, dtype=np.float64)
+            if region == "side":
+                m = sideband_mass_mask(mass, args)
+                mass = mass[m]
+                weights = weights[m]
+            if mass.size == 0 or np.sum(weights) <= 0:
+                continue
+            proc_mass.setdefault(cproc, []).append(mass)
+            proc_weights.setdefault(cproc, []).append(weights)
+
+    groups: List[Tuple[str, np.ndarray, np.ndarray]] = []
+    for proc in sorted(proc_mass.keys(), key=proc_sort_key):
+        masses = concat_chunks(proc_mass[proc])
+        weights = concat_chunks(proc_weights[proc])
+        if masses.size > 0 and np.sum(weights) > 0:
+            groups.append((proc, masses, weights))
+    return groups
+
+
+def combine_signal_score_overlay(
+    era_payloads: Dict[str, Dict[str, object]],
+) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    sc_chunks: List[np.ndarray] = []
+    w_chunks: List[np.ndarray] = []
+    for payload in era_payloads.values():
+        sc = np.asarray(payload["sig_full_scores"], dtype=np.float64)  # type: ignore[index]
+        ww = np.asarray(payload["sig_full_weight"], dtype=np.float64)  # type: ignore[index]
+        if sc.size > 0 and np.sum(ww) > 0:
+            sc_chunks.append(sc)
+            w_chunks.append(ww)
+    if not sc_chunks:
+        return None
+    return concat_chunks(sc_chunks), concat_chunks(w_chunks)
+
+
+def scale_mc_groups(
+    groups: Sequence[Tuple[str, np.ndarray, np.ndarray]],
+    scale: float,
+) -> List[Tuple[str, np.ndarray, np.ndarray]]:
+    if abs(scale - 1.0) < 1e-12:
+        return [(p, s, w) for p, s, w in groups]
+    out: List[Tuple[str, np.ndarray, np.ndarray]] = []
+    for proc, vals, weights in groups:
+        out.append((proc, vals, weights * float(scale)))
+    return out
+
+
+def weighted_hist_and_var(
+    values: np.ndarray,
+    bins: np.ndarray,
+    weights: Optional[np.ndarray],
+) -> Tuple[np.ndarray, np.ndarray]:
+    if weights is None:
+        h, _ = np.histogram(values, bins=bins)
+        h = h.astype(np.float64, copy=False)
+        return h, h.copy()
+
+    h, _ = np.histogram(values, bins=bins, weights=weights)
+    h2, _ = np.histogram(values, bins=bins, weights=np.square(weights))
+    return h.astype(np.float64, copy=False), h2.astype(np.float64, copy=False)
 
 
 def compute_group_hists(
     groups: Sequence[Tuple[str, np.ndarray, np.ndarray]],
     bins: np.ndarray,
-) -> Tuple[Dict[str, np.ndarray], np.ndarray]:
+) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray, np.ndarray]:
     out: Dict[str, np.ndarray] = {}
+    out_var: Dict[str, np.ndarray] = {}
     total = np.zeros(len(bins) - 1, dtype=np.float64)
+    total_var = np.zeros(len(bins) - 1, dtype=np.float64)
     for proc, vals, w in groups:
-        h, _ = np.histogram(vals, bins=bins, weights=w)
-        h = h.astype(np.float64, copy=False)
+        h, v = weighted_hist_and_var(vals, bins, w)
         out[proc] = h
+        out_var[proc] = v
         total += h
-    return out, total
+        total_var += v
+    return out, out_var, total, total_var
+
+
+def compute_sideband_mc_scale(
+    data_side_scores: np.ndarray,
+    mc_side_groups: Sequence[Tuple[str, np.ndarray, np.ndarray]],
+) -> float:
+    d = float(data_side_scores.size)
+    m = 0.0
+    for _proc, _vals, w in mc_side_groups:
+        m += float(np.sum(w))
+    if d <= 0 or m <= 0:
+        return 1.0
+    return d / m
 
 
 def make_stacked_ratio_figure(
@@ -424,21 +582,26 @@ def make_stacked_ratio_figure(
     mc_groups: Sequence[Tuple[str, np.ndarray, np.ndarray]],
     logy: bool = False,
     blind_band: Optional[Tuple[float, float]] = None,
-) -> Tuple[plt.Figure, np.ndarray, Dict[str, np.ndarray], np.ndarray]:
+    category_band: Optional[Tuple[float, float]] = None,
+    signal_overlay: Optional[Tuple[np.ndarray, np.ndarray]] = None,
+    signal_label: str = "VBF expected",
+    annotation_lines: Optional[List[str]] = None,
+) -> Tuple[plt.Figure, np.ndarray, np.ndarray, Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray, np.ndarray]:
     fig, (ax_top, ax_bot) = plt.subplots(
         2,
         1,
-        figsize=(11, 9),
+        figsize=(11.5, 9.2),
         sharex=True,
-        gridspec_kw={"height_ratios": [3, 1]},
+        gridspec_kw={"height_ratios": [3.2, 1]},
     )
 
-    mc_hists, mc_sum = compute_group_hists(mc_groups, bins)
+    mc_hists, mc_vars, mc_sum, mc_var_sum = compute_group_hists(mc_groups, bins)
+    centers = 0.5 * (bins[:-1] + bins[1:])
 
-    hist_vals = []
-    hist_weights = []
-    colors = []
-    labels = []
+    hist_vals: List[np.ndarray] = []
+    hist_weights: List[np.ndarray] = []
+    colors: List[str] = []
+    labels: List[str] = []
     for proc, vals, weights in mc_groups:
         h = mc_hists.get(proc, None)
         if h is None or np.sum(h) <= 0:
@@ -457,66 +620,289 @@ def make_stacked_ratio_figure(
             color=colors,
             label=labels,
             histtype="stepfilled",
-            alpha=0.85,
+            alpha=0.9,
+            linewidth=0.4,
         )
 
-    data_hist, _ = np.histogram(data_values, bins=bins)
-    data_hist = data_hist.astype(np.float64, copy=False)
-    centers = 0.5 * (bins[:-1] + bins[1:])
-    yerr = np.sqrt(np.maximum(data_hist, 1.0))
+    mc_err = np.sqrt(np.maximum(mc_var_sum, 0.0))
+    ax_top.fill_between(
+        centers,
+        np.clip(mc_sum - mc_err, 0.0, None),
+        mc_sum + mc_err,
+        step="mid",
+        color="#9e9e9e",
+        alpha=0.35,
+        label="MC stat. unc.",
+        zorder=3,
+    )
 
-    if data_values.size > 0:
-        ax_top.errorbar(centers, data_hist, yerr=yerr, fmt="o", color="black", label="Data")
+    if signal_overlay is not None:
+        s_vals, s_w = signal_overlay
+        h_sig, _ = weighted_hist_and_var(s_vals, bins, s_w)
+        ax_top.step(
+            centers,
+            h_sig,
+            where="mid",
+            color="#1b9e77",
+            linewidth=2.0,
+            linestyle="--",
+            label=signal_label,
+            zorder=4,
+        )
+
+    data_hist, data_var = weighted_hist_and_var(data_values, bins, None)
+    data_err = np.sqrt(np.maximum(data_var, 0.0))
+    data_mask = data_hist > 0
+
+    if blind_band is not None:
+        blo, bhi = blind_band
+        data_mask &= ~((centers >= blo) & (centers <= bhi))
+
+    if np.any(data_mask):
+        ax_top.errorbar(
+            centers[data_mask],
+            data_hist[data_mask],
+            yerr=data_err[data_mask],
+            fmt="o",
+            color="black",
+            markersize=4.0,
+            linewidth=1.0,
+            label="Data",
+            zorder=5,
+        )
+
+    if blind_band is not None:
+        blo, bhi = blind_band
+        ax_top.axvspan(blo, bhi, color="#bdbdbd", alpha=0.18, zorder=1)
+        ax_bot.axvspan(blo, bhi, color="#bdbdbd", alpha=0.18, zorder=1)
+
+    if category_band is not None:
+        clo, chi = category_band
+        ax_top.axvspan(clo, chi, color="#9e9e9e", alpha=0.15, zorder=1)
+        ax_bot.axvspan(clo, chi, color="#9e9e9e", alpha=0.15, zorder=1)
+        ax_top.axvline(clo, color="#616161", linestyle="--", linewidth=1.0)
+        ax_top.axvline(chi, color="#616161", linestyle="--", linewidth=1.0)
 
     ax_top.set_title(title)
     ax_top.set_ylabel("Events / bin")
     if logy:
+        positive = mc_sum[mc_sum > 0]
+        ymin = float(np.min(positive) * 0.35) if positive.size else 1e-3
+        ymax = float(np.max(mc_sum + mc_err)) if mc_sum.size else 10.0
+        if np.any(data_mask):
+            ymax = max(ymax, float(np.max(data_hist[data_mask])))
         ax_top.set_yscale("log")
-    ax_top.grid(alpha=0.3)
-    ax_top.legend(fontsize=8, ncol=2)
+        ax_top.set_ylim(max(ymin, 1e-3), max(ymax * 3.0, 1.0))
+
+    if annotation_lines:
+        ax_top.text(
+            0.012,
+            0.975,
+            "\n".join(annotation_lines),
+            transform=ax_top.transAxes,
+            va="top",
+            ha="left",
+            fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.85, edgecolor="#b0b0b0"),
+        )
+
+    ax_top.legend(loc="upper right", ncol=2)
 
     ratio = np.divide(data_hist, mc_sum, out=np.zeros_like(data_hist), where=mc_sum > 0)
-    ratio_err = np.divide(yerr, mc_sum, out=np.zeros_like(yerr), where=mc_sum > 0)
-    ax_bot.axhline(1.0, color="gray", linestyle="--", linewidth=1.0)
-    if data_values.size > 0:
-        ax_bot.errorbar(centers, ratio, yerr=ratio_err, fmt="o", color="black")
+    ratio_err = np.divide(data_err, mc_sum, out=np.zeros_like(data_err), where=mc_sum > 0)
+    rel_mc = np.divide(mc_err, mc_sum, out=np.zeros_like(mc_err), where=mc_sum > 0)
+
+    ax_bot.axhline(1.0, color="#4d4d4d", linestyle="--", linewidth=1.0)
+    ax_bot.fill_between(
+        centers,
+        1.0 - rel_mc,
+        1.0 + rel_mc,
+        step="mid",
+        color="#9e9e9e",
+        alpha=0.35,
+        zorder=2,
+    )
+    ratio_mask = data_mask & (mc_sum > 0)
+    if np.any(ratio_mask):
+        ax_bot.errorbar(
+            centers[ratio_mask],
+            ratio[ratio_mask],
+            yerr=ratio_err[ratio_mask],
+            fmt="o",
+            color="black",
+            markersize=4.0,
+            linewidth=1.0,
+            zorder=3,
+        )
     ax_bot.set_xlabel(xlabel)
     ax_bot.set_ylabel("Data/MC")
     ax_bot.set_ylim(0.4, 1.6)
-    ax_bot.grid(alpha=0.3)
-
-    if blind_band is not None:
-        lo, hi = blind_band
-        ax_top.axvspan(lo, hi, color="gray", alpha=0.15)
-        ax_bot.axvspan(lo, hi, color="gray", alpha=0.15)
 
     fig.tight_layout()
-    return fig, data_hist, mc_hists, mc_sum
+    return fig, data_hist, data_var, mc_hists, mc_vars, mc_sum, mc_var_sum
 
 
-def write_score_bin_table(
-    out_csv: str,
+def add_text_page(pdf: PdfPages, title: str, lines: List[str]) -> None:
+    fig, ax = plt.subplots(figsize=(11.5, 8.2))
+    ax.axis("off")
+    ax.set_title(title, loc="left", fontsize=16, fontweight="bold", pad=14)
+    ax.text(0.02, 0.95, "\n".join(lines), va="top", ha="left", fontsize=11, family="monospace")
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def add_table_pages(
+    pdf: PdfPages,
+    title: str,
+    columns: List[str],
+    rows: List[List[str]],
+    max_rows: int = 24,
+) -> None:
+    if not rows:
+        add_text_page(pdf, title, ["No rows available."])
+        return
+
+    n_pages = int(math.ceil(len(rows) / float(max_rows)))
+    for page in range(n_pages):
+        chunk = rows[page * max_rows : (page + 1) * max_rows]
+        fig, ax = plt.subplots(figsize=(14.0, 8.4))
+        ax.axis("off")
+        page_title = title if n_pages == 1 else f"{title} (page {page+1}/{n_pages})"
+        ax.set_title(page_title, loc="left", fontsize=15, fontweight="bold", pad=14)
+        table = ax.table(
+            cellText=chunk,
+            colLabels=columns,
+            loc="center",
+            cellLoc="center",
+        )
+        table.auto_set_font_size(False)
+        table.set_fontsize(8.5)
+        table.scale(1.0, 1.25)
+        for (r, _c), cell in table.get_celld().items():
+            if r == 0:
+                cell.set_facecolor("#e6e6e6")
+                cell.set_text_props(weight="bold")
+            elif r % 2 == 0:
+                cell.set_facecolor("#f7f7f7")
+        pdf.savefig(fig)
+        plt.close(fig)
+
+
+def build_bdt_bin_table(
     bins: np.ndarray,
     data_hist: np.ndarray,
     mc_hists: Dict[str, np.ndarray],
+    mc_vars: Dict[str, np.ndarray],
     mc_total: np.ndarray,
-) -> None:
+    mc_total_var: np.ndarray,
+) -> Tuple[List[str], List[List[str]]]:
     procs = sorted(mc_hists.keys(), key=proc_sort_key)
-    with open(out_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["bin_low", "bin_high", "data_count", "mc_total_weight", "data_over_mc"] + procs)
-        for i in range(len(bins) - 1):
-            ratio = float(data_hist[i] / mc_total[i]) if mc_total[i] > 0 else 0.0
-            row = [
-                f"{bins[i]:.6f}",
-                f"{bins[i+1]:.6f}",
-                f"{int(round(data_hist[i]))}",
-                f"{mc_total[i]:.6f}",
-                f"{ratio:.6f}",
-            ]
-            for proc in procs:
-                row.append(f"{mc_hists[proc][i]:.6f}")
-            writer.writerow(row)
+    columns = ["Bin", "BDT range", "Data", "MC total ± stat", "Data/MC"] + procs
+    rows: List[List[str]] = []
+    for i in range(len(bins) - 1):
+        mc = float(mc_total[i])
+        mc_err = math.sqrt(max(float(mc_total_var[i]), 0.0))
+        ratio = (float(data_hist[i]) / mc) if mc > 0 else 0.0
+        row = [
+            str(i + 1),
+            f"[{bins[i]:.3f}, {bins[i+1]:.3f})",
+            f"{int(data_hist[i])}",
+            f"{mc:.2f} ± {mc_err:.2f}",
+            f"{ratio:.3f}",
+        ]
+        for proc in procs:
+            row.append(f"{float(mc_hists[proc][i]):.2f}")
+        rows.append(row)
+    return columns, rows
+
+
+def summarize_categories_sideband(
+    era_payloads: Dict[str, Dict[str, object]],
+    edges: np.ndarray,
+    args: argparse.Namespace,
+    mc_weight_scale: float = 1.0,
+) -> Dict[int, Dict[str, float]]:
+    ncat = len(edges) - 1
+    summary: Dict[int, Dict[str, float]] = {i: {} for i in range(ncat)}
+
+    for payload in era_payloads.values():
+        d_sc = np.asarray(payload["data_full_scores"], dtype=np.float64)  # type: ignore[index]
+        d_m = np.asarray(payload["data_full_mass"], dtype=np.float64)  # type: ignore[index]
+        if d_sc.size > 0 and d_m.size > 0:
+            d_idx = category_index(d_sc, edges)
+            d_sb = sideband_mass_mask(d_m, args)
+            for i in range(ncat):
+                mask = (d_idx == i) & d_sb
+                if np.any(mask):
+                    summary[i]["data_count"] = summary[i].get("data_count", 0.0) + float(np.count_nonzero(mask))
+
+        for proc, m_sc, m_mass, m_w in payload["mc_full_groups"]:  # type: ignore[index]
+            cproc = canonical_proc(proc)
+            idx = category_index(np.asarray(m_sc, dtype=np.float64), edges)
+            mass = np.asarray(m_mass, dtype=np.float64)
+            w = np.asarray(m_w, dtype=np.float64) * float(mc_weight_scale)
+            sb = sideband_mass_mask(mass, args)
+            for i in range(ncat):
+                mask = (idx == i) & sb
+                if not np.any(mask):
+                    continue
+                y = float(np.sum(w[mask]))
+                e2 = float(np.sum(np.square(w[mask])))
+                pkey = f"mc_{cproc}"
+                pkey_e2 = f"mcerr2_{cproc}"
+                summary[i][pkey] = summary[i].get(pkey, 0.0) + y
+                summary[i][pkey_e2] = summary[i].get(pkey_e2, 0.0) + e2
+                summary[i]["mc_total"] = summary[i].get("mc_total", 0.0) + y
+                summary[i]["mc_total_err2"] = summary[i].get("mc_total_err2", 0.0) + e2
+
+    return summary
+
+
+def build_category_summary_table(
+    edges: np.ndarray,
+    summary: Dict[int, Dict[str, float]],
+) -> Tuple[List[str], List[List[str]]]:
+    columns = ["Category", "BDT range", "Data (sidebands)", "MC (sidebands) ± stat", "Data/MC"]
+    rows: List[List[str]] = []
+    for i in range(len(edges) - 1):
+        vals = summary.get(i, {})
+        d = float(vals.get("data_count", 0.0))
+        m = float(vals.get("mc_total", 0.0))
+        me = math.sqrt(max(float(vals.get("mc_total_err2", 0.0)), 0.0))
+        ratio = d / m if m > 0 else 0.0
+        rows.append([
+            str(i),
+            f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+            f"{d:.0f}",
+            f"{m:.2f} ± {me:.2f}",
+            f"{ratio:.3f}",
+        ])
+    return columns, rows
+
+
+def build_category_process_table(
+    edges: np.ndarray,
+    summary: Dict[int, Dict[str, float]],
+) -> Tuple[List[str], List[List[str]]]:
+    proc_keys = set()
+    for vals in summary.values():
+        for k in vals.keys():
+            if k.startswith("mc_") and (not k.startswith("mcerr2_")):
+                proc_keys.add(k)
+    procs = sorted([k.replace("mc_", "") for k in proc_keys], key=proc_sort_key)
+
+    columns = ["Category", "BDT range"] + procs
+    rows: List[List[str]] = []
+    for i in range(len(edges) - 1):
+        vals = summary.get(i, {})
+        row = [
+            str(i),
+            f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+        ]
+        for p in procs:
+            row.append(f"{float(vals.get(f'mc_{p}', 0.0)):.2f}")
+        rows.append(row)
+    return columns, rows
 
 
 def parse_category_edges_arg(text: str) -> Optional[np.ndarray]:
@@ -696,117 +1082,10 @@ def optimize_category_edges(
     return edges
 
 
-def write_category_edges_csv(path: str, edges: np.ndarray) -> None:
-    with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["category", "bdt_low", "bdt_high"])
-        for i in range(len(edges) - 1):
-            writer.writerow([i, f"{edges[i]:.6f}", f"{edges[i+1]:.6f}"])
-
-
-def build_category_mass_groups(
-    era_payloads: Dict[str, Dict[str, object]],
-    edges: np.ndarray,
-    args: argparse.Namespace,
-) -> Tuple[List[np.ndarray], List[List[Tuple[str, np.ndarray, np.ndarray]]], Dict[int, Dict[str, float]]]:
-    ncat = len(edges) - 1
-    data_by_cat: List[List[np.ndarray]] = [[] for _ in range(ncat)]
-
-    proc_mass_by_cat: List[Dict[str, List[np.ndarray]]] = [dict() for _ in range(ncat)]
-    proc_w_by_cat: List[Dict[str, List[np.ndarray]]] = [dict() for _ in range(ncat)]
-
-    # Yield summary per category
-    summary: Dict[int, Dict[str, float]] = {i: {} for i in range(ncat)}
-
-    for payload in era_payloads.values():
-        d_sc = payload["data_full_scores"]  # type: ignore[index]
-        d_m = payload["data_full_mass"]  # type: ignore[index]
-        if d_sc.size > 0 and d_m.size > 0:
-            d_idx = category_index(d_sc, edges)
-            d_sb = sideband_mass_mask(d_m, args)
-            for i in range(ncat):
-                mask = (d_idx == i) & d_sb
-                if np.any(mask):
-                    data_by_cat[i].append(d_m[mask])
-                    summary[i]["data_count"] = summary[i].get("data_count", 0.0) + float(np.count_nonzero(mask))
-
-        for proc, m_sc, m_mass, m_w in payload["mc_full_groups"]:  # type: ignore[index]
-            cproc = canonical_proc(proc)
-            idx = category_index(m_sc, edges)
-            sb = sideband_mass_mask(m_mass, args)
-            for i in range(ncat):
-                mask = (idx == i) & sb
-                if not np.any(mask):
-                    continue
-                proc_mass_by_cat[i].setdefault(cproc, []).append(m_mass[mask])
-                proc_w_by_cat[i].setdefault(cproc, []).append(m_w[mask])
-                key = f"mc_{cproc}"
-                summary[i][key] = summary[i].get(key, 0.0) + float(np.sum(m_w[mask]))
-
-    out_data = [concat_chunks(chs) for chs in data_by_cat]
-    out_mc: List[List[Tuple[str, np.ndarray, np.ndarray]]] = []
-    for i in range(ncat):
-        groups: List[Tuple[str, np.ndarray, np.ndarray]] = []
-        for proc in sorted(proc_mass_by_cat[i].keys(), key=proc_sort_key):
-            masses = concat_chunks(proc_mass_by_cat[i][proc])
-            weights = concat_chunks(proc_w_by_cat[i][proc])
-            if masses.size > 0 and np.sum(weights) > 0:
-                groups.append((proc, masses, weights))
-        out_mc.append(groups)
-
-        mc_total = 0.0
-        for _, _, w in groups:
-            mc_total += float(np.sum(w))
-        summary[i]["mc_total"] = mc_total
-
-    return out_data, out_mc, summary
-
-
-def write_category_yield_table(
-    out_csv: str,
-    edges: np.ndarray,
-    summary: Dict[int, Dict[str, float]],
-) -> None:
-    all_proc_keys = set()
-    for vals in summary.values():
-        for k in vals.keys():
-            if k.startswith("mc_"):
-                all_proc_keys.add(k)
-
-    proc_cols = sorted(all_proc_keys, key=lambda x: proc_sort_key(x.replace("mc_", "")))
-
-    with open(out_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            "category",
-            "bdt_low",
-            "bdt_high",
-            "data_sideband_count",
-            "mc_sideband_weight",
-            "data_over_mc",
-        ] + proc_cols)
-
-        for i in range(len(edges) - 1):
-            vals = summary.get(i, {})
-            d = float(vals.get("data_count", 0.0))
-            m = float(vals.get("mc_total", 0.0))
-            ratio = d / m if m > 0 else 0.0
-            row = [
-                i,
-                f"{edges[i]:.6f}",
-                f"{edges[i+1]:.6f}",
-                f"{d:.0f}",
-                f"{m:.6f}",
-                f"{ratio:.6f}",
-            ]
-            for col in proc_cols:
-                row.append(f"{float(vals.get(col, 0.0)):.6f}")
-            writer.writerow(row)
-
-
 def main() -> None:
     args = parse_args()
     logger = setup_logger(args.log_level)
+    configure_plot_style()
 
     args.outputs_dir = resolve_input_dir(args.outputs_dir, TMVA_DIR)
     if not os.path.isabs(args.outdir):
@@ -837,69 +1116,110 @@ def main() -> None:
     if not era_payloads:
         raise SystemExit("[error] No valid era payloads were loaded.")
 
-    score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
-    run3_data_scores, run3_mc_groups = combine_sideband_inputs(era_payloads)
+    edges = optimize_category_edges(args, eras, logger)
+    interior = np.asarray(edges[1:-1], dtype=np.float64)
+    category_band = None
+    if interior.size >= 1:
+        category_band = (float(np.min(interior)), float(np.max(interior)))
 
-    if run3_data_scores.size == 0 and not run3_mc_groups:
-        raise SystemExit("[error] Run-3 sideband inputs are empty.")
+    run3_data_side_scores = combine_data_side_scores(era_payloads)
+    run3_data_side_mass = combine_data_side_masses(era_payloads, args)
+
+    run3_mc_score_side = combine_mc_score_groups(era_payloads, region="side")
+    run3_mc_score_full = combine_mc_score_groups(era_payloads, region="full")
+    run3_mc_mass_full = combine_mc_mass_groups(era_payloads, args, region="full")
+
+    if run3_data_side_scores.size == 0:
+        raise SystemExit("[error] No data events found in sidebands for the selected eras.")
+    if not run3_mc_score_full:
+        raise SystemExit("[error] No MC events found for BDT plotting.")
+
+    mc_scale = 1.0
+    if args.mc_normalization == "sidebands":
+        mc_scale = compute_sideband_mc_scale(run3_data_side_scores, run3_mc_score_side)
+        logger.info("MC normalization (sidebands): scale factor = %.6f", mc_scale)
+
+    run3_mc_score_full = scale_mc_groups(run3_mc_score_full, mc_scale)
+    run3_mc_mass_full = scale_mc_groups(run3_mc_mass_full, mc_scale)
+
+    sig_overlay = combine_signal_score_overlay(era_payloads)
+    if sig_overlay is not None and abs(mc_scale - 1.0) > 1e-12:
+        sig_overlay = (sig_overlay[0], sig_overlay[1] * mc_scale)
+
+    score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
 
     score_title = (
-        "Run-3 BDT score validation in mass sidebands "
-        f"[{args.sb1_min:.0f},{args.sb1_max:.0f}) U [{args.sb2_min:.0f},{args.sb2_max:.0f}] GeV"
+        "Observed BDT output vs simulated SM backgrounds (VBF selection)\n"
+        f"Data blinded in m_mumu: [{args.blind_min:.0f}, {args.blind_max:.0f}] GeV"
     )
-    fig_score, data_hist, mc_hists, mc_total = make_stacked_ratio_figure(
+    fig_score, data_hist, _data_var, mc_hists, mc_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
         title=score_title,
         xlabel="BDT score",
         bins=score_bins,
-        data_values=run3_data_scores,
-        mc_groups=run3_mc_groups,
+        data_values=run3_data_side_scores,
+        mc_groups=run3_mc_score_full,
         logy=args.score_logy,
+        category_band=category_band,
+        signal_overlay=sig_overlay,
+        signal_label="VBF expected",
+        annotation_lines=[
+            f"Eras: {', '.join(sorted(era_payloads.keys()))}",
+            f"Mass window (MC): {args.mass_min:.0f} < m_mumu < {args.mass_max:.0f} GeV",
+            f"Data region: sidebands [{args.sb1_min:.0f}, {args.sb1_max:.0f}) U [{args.sb2_min:.0f}, {args.sb2_max:.0f}] GeV",
+            f"Category-boundary span: {category_band[0]:.3f} to {category_band[1]:.3f}" if category_band else "Category-boundary span: N/A",
+            f"MC normalization: {args.mc_normalization} (scale={mc_scale:.4f})",
+        ],
     )
 
-    score_pdf = os.path.join(args.outdir, f"{args.output_prefix}_score_sidebands.pdf")
-    score_png = os.path.join(args.outdir, f"{args.output_prefix}_score_sidebands.png")
-    fig_score.savefig(score_pdf)
-    fig_score.savefig(score_png, dpi=160)
-    plt.close(fig_score)
-
-    score_csv = os.path.join(args.outdir, f"{args.output_prefix}_score_sideband_bin_table.csv")
-    write_score_bin_table(score_csv, score_bins, data_hist, mc_hists, mc_total)
-
-    edges = optimize_category_edges(args, eras, logger)
-    edges_csv = os.path.join(args.outdir, f"{args.output_prefix}_category_edges.csv")
-    write_category_edges_csv(edges_csv, edges)
-
-    cat_data, cat_mc, cat_summary = build_category_mass_groups(era_payloads, edges, args)
-    cat_yield_csv = os.path.join(args.outdir, f"{args.output_prefix}_category_sideband_yields.csv")
-    write_category_yield_table(cat_yield_csv, edges, cat_summary)
-
     mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
-    mass_pdf = os.path.join(args.outdir, f"{args.output_prefix}_mass_sidebands_by_category.pdf")
+    fig_mass, _m_dhist, _m_dvar, _m_hists, _m_vars, _m_tot, _m_tot_var = make_stacked_ratio_figure(
+        title="Blinded dimuon mass: data sidebands with full MC expectation",
+        xlabel="m_mumu [GeV]",
+        bins=mass_bins,
+        data_values=run3_data_side_mass,
+        mc_groups=run3_mc_mass_full,
+        logy=False,
+        blind_band=(args.blind_min, args.blind_max),
+        annotation_lines=[
+            "Data points are hidden in the signal window (blinded).",
+            "MC is shown across the full fit range.",
+        ],
+    )
 
-    with PdfPages(mass_pdf) as pdf:
-        for i in range(len(edges) - 1):
-            title = (
-                f"Category {i}: BDT in [{edges[i]:.3f}, {edges[i+1]:.3f}) | "
-                f"blinded [{args.blind_min:.0f}, {args.blind_max:.0f}] GeV"
-            )
-            fig_cat, _, _, _ = make_stacked_ratio_figure(
-                title=title,
-                xlabel="m_mumu [GeV]",
-                bins=mass_bins,
-                data_values=cat_data[i],
-                mc_groups=cat_mc[i],
-                logy=False,
-                blind_band=(args.blind_min, args.blind_max),
-            )
-            pdf.savefig(fig_cat)
-            plt.close(fig_cat)
+    bdt_cols, bdt_rows = build_bdt_bin_table(score_bins, data_hist, mc_hists, mc_vars, mc_total, mc_total_var)
 
-    logger.info("Wrote sideband score plots: %s | %s", score_pdf, score_png)
-    logger.info("Wrote score bin-count table: %s", score_csv)
-    logger.info("Wrote category edges: %s", edges_csv)
-    logger.info("Wrote category sideband yields: %s", cat_yield_csv)
-    logger.info("Wrote blinded category mass plots: %s", mass_pdf)
-    print(f"[done] Outputs written to {args.outdir}")
+    cat_summary = summarize_categories_sideband(era_payloads, edges, args, mc_weight_scale=mc_scale)
+    cat_cols, cat_rows = build_category_summary_table(edges, cat_summary)
+    cat_proc_cols, cat_proc_rows = build_category_process_table(edges, cat_summary)
+
+    report_name = args.report_name.strip() if args.report_name else f"{args.output_prefix}_report.pdf"
+    report_path = report_name if os.path.isabs(report_name) else os.path.join(args.outdir, report_name)
+
+    with PdfPages(report_path) as pdf:
+        add_text_page(
+            pdf,
+            "Run-3 BDT Sideband Validation Report",
+            [
+                f"Outputs directory: {args.outputs_dir}",
+                f"Eras used: {', '.join(sorted(era_payloads.keys()))}",
+                f"Extra cut: {args.extra_cut if args.extra_cut else '(none)'}",
+                f"Blinding window: {args.blind_min:.0f} < m_mumu < {args.blind_max:.0f} GeV",
+                f"Sidebands: ({args.sb1_min:.0f}, {args.sb1_max:.0f}) U ({args.sb2_min:.0f}, {args.sb2_max:.0f}) GeV",
+                f"Optimized category edges: {', '.join([f'{x:.4f}' for x in edges])}",
+                f"MC normalization mode: {args.mc_normalization} (scale={mc_scale:.6f})",
+            ],
+        )
+        pdf.savefig(fig_score)
+        pdf.savefig(fig_mass)
+        add_table_pages(pdf, "BDT bin-by-bin comparison", bdt_cols, bdt_rows, max_rows=20)
+        add_table_pages(pdf, "Optimized category summary (sidebands)", cat_cols, cat_rows, max_rows=20)
+        add_table_pages(pdf, "Category composition by process (sidebands)", cat_proc_cols, cat_proc_rows, max_rows=20)
+
+    plt.close(fig_score)
+    plt.close(fig_mass)
+
+    logger.info("Wrote report PDF: %s", report_path)
+    print(f"[done] Wrote report: {report_path}")
 
 
 if __name__ == "__main__":
