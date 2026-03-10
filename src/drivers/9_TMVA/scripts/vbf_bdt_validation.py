@@ -2,7 +2,7 @@
 """
 VBF-focused BDT validation script.
 
-This is a fresh standalone analysis script that reuses the logic style from:
+Standalone analysis script that does:
 - tmva_ScanYields.py
 - tmva_PlotScored.py
 - tmva_MassSculpt.py
@@ -10,10 +10,6 @@ This is a fresh standalone analysis script that reuses the logic style from:
 - tmva_DataMC_BDT.py
 - tmva102_Testing.py
 
-Main goals:
-1) Cross-check requested VBF feature names against real tree branches.
-2) Build VBF-centric validation plots and tables.
-3) Keep running even if some branches are unavailable, with explicit warnings.
 """
 
 import argparse
@@ -127,7 +123,6 @@ REQUESTED_VBF_FEATURES = [
     "year",
 ]
 
-# alias_kind: "alias" is expected close match, "proxy" is approximate physics proxy
 REQUESTED_ALIAS_MAP = {
     "jet1_qgl": [("jet1_qgl", "alias", "")],
     "jet1_eta": [("jet1_eta", "alias", ""), ("eta_j1", "alias", "")],
@@ -272,6 +267,16 @@ def discover_auto_inputs(outputs_dir: str, era: str, logger: logging.Logger) -> 
                 files.append(path)
 
     for path in files:
+        # Skip obviously broken placeholder files before ROOT touches them.
+        try:
+            fsize = os.path.getsize(path)
+        except OSError:
+            logger.warning("Skipping file with failed stat(): %s", path)
+            continue
+        if fsize < 1024:
+            logger.warning("Skipping tiny file (<1KB), likely corrupt/incomplete: %s", path)
+            continue
+
         base = os.path.basename(path)
         low = base.lower()
         if "data_scored" in low or low.startswith(f"{era.lower()}_data"):
@@ -288,7 +293,7 @@ def discover_auto_inputs(outputs_dir: str, era: str, logger: logging.Logger) -> 
             elif proc_u == "SIGNAL":
                 mc_map.setdefault("SIGNAL", []).append(path)
             elif proc_u == "TEST":
-                mc_map.setdefault("BACKGROUND", []).append(path)
+                logger.info("Skipping non-physics scored test file: %s", path)
             else:
                 mc_map.setdefault(proc, []).append(path)
 
@@ -297,22 +302,57 @@ def discover_auto_inputs(outputs_dir: str, era: str, logger: logging.Logger) -> 
 
 
 def list_branches(path: str, treename: str) -> List[str]:
-    f = ROOT.TFile.Open(path)
+    if not os.path.exists(path):
+        return []
+    try:
+        if os.path.getsize(path) < 1024:
+            return []
+    except OSError:
+        return []
+
+    f = None
+    try:
+        f = ROOT.TFile.Open(path)
+    except Exception:
+        return []
+
     if not f or f.IsZombie():
+        try:
+            if f:
+                f.Close()
+        except Exception:
+            pass
         return []
-    t = f.Get(treename)
-    if not t:
+
+    try:
+        t = f.Get(treename)
+        if not t:
+            f.Close()
+            return []
+        out = [br.GetName() for br in t.GetListOfBranches()]
         f.Close()
+        return out
+    except Exception:
+        try:
+            f.Close()
+        except Exception:
+            pass
         return []
-    out = [br.GetName() for br in t.GetListOfBranches()]
-    f.Close()
-    return out
 
 
-def union_branches(file_list: Sequence[str], treename: str) -> List[str]:
+def union_branches(file_list: Sequence[str], treename: str, logger: Optional[logging.Logger] = None) -> List[str]:
     names = set()
+    skipped = 0
     for path in file_list:
-        names.update(list_branches(path, treename))
+        cols = list_branches(path, treename)
+        if not cols:
+            skipped += 1
+            if logger is not None:
+                logger.warning("Skipping unreadable/invalid file during branch scan: %s", path)
+            continue
+        names.update(cols)
+    if skipped and logger is not None:
+        logger.warning("Branch scan skipped %d unreadable/invalid file(s)", skipped)
     return sorted(names)
 
 
@@ -521,11 +561,15 @@ def load_sample(
             logger.warning("No readable branches in %s", path)
             continue
 
-        df = ROOT.RDataFrame(treename, path)
-        if selection:
-            df = df.Filter(selection)
+        try:
+            df = ROOT.RDataFrame(treename, path)
+            if selection:
+                df = df.Filter(selection)
+            arrs = df.AsNumpy(sorted(read_branches))
+        except Exception as exc:
+            logger.warning("Skipping file due read failure: %s (%s)", path, exc)
+            continue
 
-        arrs = df.AsNumpy(sorted(read_branches))
         if len(arrs) == 0:
             continue
 
@@ -831,7 +875,7 @@ def main() -> None:
         raise SystemExit("[error] No MC files found. Provide --mc or use a valid --outputs-dir/--era.")
 
     all_files = data_files + [p for files in mc_map.values() for p in files]
-    available = union_branches(all_files, args.treename)
+    available = union_branches(all_files, args.treename, logger=logger)
     if not available:
         raise SystemExit("[error] Could not read branches from input trees.")
 
