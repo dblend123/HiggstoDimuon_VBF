@@ -8,7 +8,6 @@ Standalone analysis script that does:
 - tmva_MassSculpt.py
 - tmva_KS_perfold.py
 - tmva_DataMC_BDT.py
-- tmva102_Testing.py
 
 """
 
@@ -250,6 +249,7 @@ def parse_mc_entries(entries: Sequence[str]) -> Dict[str, List[str]]:
 def discover_auto_inputs(outputs_dir: str, era: str, logger: logging.Logger) -> Tuple[List[str], Dict[str, List[str]]]:
     data_files: List[str] = []
     mc_map: Dict[str, List[str]] = {}
+    tiny_files: List[str] = []
 
     patterns = [
         os.path.join(outputs_dir, f"{era}_scored_*.root"),
@@ -274,7 +274,7 @@ def discover_auto_inputs(outputs_dir: str, era: str, logger: logging.Logger) -> 
             logger.warning("Skipping file with failed stat(): %s", path)
             continue
         if fsize < 1024:
-            logger.warning("Skipping tiny file (<1KB), likely corrupt/incomplete: %s", path)
+            tiny_files.append(path)
             continue
 
         base = os.path.basename(path)
@@ -296,6 +296,17 @@ def discover_auto_inputs(outputs_dir: str, era: str, logger: logging.Logger) -> 
                 logger.info("Skipping non-physics scored test file: %s", path)
             else:
                 mc_map.setdefault(proc, []).append(path)
+
+    if tiny_files:
+        if data_files or mc_map:
+            logger.info(
+                "Ignored %d tiny file(s) (<1KB); using valid discovered inputs instead. Example: %s",
+                len(tiny_files),
+                tiny_files[0],
+            )
+        else:
+            for path in tiny_files:
+                logger.warning("Skipping tiny file (<1KB), likely corrupt/incomplete: %s", path)
 
     logger.info("Auto-discovery: data files=%d, MC groups=%d", len(data_files), len(mc_map))
     return data_files, mc_map
@@ -390,6 +401,12 @@ def add_note_page(pdf: PdfPages, title: str, lines: Sequence[str]) -> None:
     ax.text(0.01, 0.98, "\n".join(lines), transform=ax.transAxes, va="top", family="monospace", fontsize=10)
     pdf.savefig(fig)
     plt.close(fig)
+
+
+def safe_legend(ax, **kwargs) -> None:
+    handles, labels = ax.get_legend_handles_labels()
+    if handles and any(str(lbl).strip() and not str(lbl).startswith("_") for lbl in labels):
+        ax.legend(**kwargs)
 
 
 def sanitize_weights(w: np.ndarray) -> np.ndarray:
@@ -675,15 +692,9 @@ def crosscheck_requested_features(
         if not found:
             rows.append((req, "missing", "-", "not found in tree branches"))
 
-    out_path = os.path.join(output_dir, f"{era}_requested_feature_crosscheck.txt")
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write("requested_feature,status,resolved_as,notes\n")
-        for r in rows:
-            f.write(f"{r[0]},{r[1]},{r[2]},{r[3]}\n")
-
     miss = sum(1 for r in rows if r[1] == "missing")
     proxy = sum(1 for r in rows if r[1] == "proxy")
-    logger.info("Feature cross-check: missing=%d, proxy=%d, report=%s", miss, proxy, out_path)
+    logger.info("Feature cross-check: missing=%d, proxy=%d", miss, proxy)
     return rows
 
 
@@ -764,7 +775,7 @@ def stack_and_ratio(
     if logy:
         ax_top.set_yscale("log")
     ax_top.grid(alpha=0.3)
-    ax_top.legend(fontsize=8, ncol=2)
+    safe_legend(ax_top, fontsize=8, ncol=2)
 
 
 def profile_mean(x: np.ndarray, y: np.ndarray, w: np.ndarray, bins: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -916,6 +927,42 @@ def main() -> None:
     signal_set = [canonical_proc(x) for x in parse_csv(args.signal_procs)]
     vbf_set = [canonical_proc(x) for x in parse_csv(args.vbf_procs)]
 
+    available_groups = set(mc_groups.keys())
+    if not any(sig in available_groups for sig in signal_set):
+        if "SIGNAL" in available_groups:
+            logger.warning(
+                "No groups matched --signal-procs='%s'. Falling back to discovered SIGNAL group.",
+                args.signal_procs,
+            )
+            signal_set = ["SIGNAL"]
+        else:
+            logger.warning(
+                "No groups matched --signal-procs='%s'. Available groups: %s",
+                args.signal_procs,
+                ", ".join(sorted(available_groups)),
+            )
+
+    if not any(vbf in available_groups for vbf in vbf_set):
+        if any(sig in available_groups for sig in signal_set):
+            logger.warning(
+                "No groups matched --vbf-procs='%s'. Falling back to signal groups: %s",
+                args.vbf_procs,
+                ", ".join(signal_set),
+            )
+            vbf_set = list(dict.fromkeys(signal_set))
+        elif "SIGNAL" in available_groups:
+            logger.warning(
+                "No groups matched --vbf-procs='%s'. Falling back to discovered SIGNAL group.",
+                args.vbf_procs,
+            )
+            vbf_set = ["SIGNAL"]
+        else:
+            logger.warning(
+                "No groups matched --vbf-procs='%s'. Available groups: %s",
+                args.vbf_procs,
+                ", ".join(sorted(available_groups)),
+            )
+
     sig_arr = combine_group_arrays(mc_groups, signal_set)
     bkg_arr = combine_group_arrays(mc_groups, [p for p in mc_groups.keys() if p not in set(signal_set)])
     all_arr = all_mc_arrays(mc_groups)
@@ -923,14 +970,23 @@ def main() -> None:
     if sig_arr["score"].size == 0 or bkg_arr["score"].size == 0:
         logger.warning("Signal or background group is empty with current --signal-procs setting.")
 
+    sm = make_mass_masks(sig_arr, args)["sr"]
+    bm = make_mass_masks(bkg_arr, args)["sr"]
+    s_sc = sig_arr["score"][sm]
+    s_w = sig_arr["weight"][sm]
+    b_sc = bkg_arr["score"][bm]
+    b_w = bkg_arr["weight"][bm]
+
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
 
     pdf_path = os.path.join(args.output_dir, f"{args.era}_vbf_bdt_validation.pdf")
-    summary_path = os.path.join(args.output_dir, f"{args.era}_vbf_bdt_validation_summary.txt")
 
     summary_lines = []
     summary_lines.append(f"Era: {args.era}")
     summary_lines.append(f"Inputs: data_files={len(data_files)} mc_groups={len(mc_groups)}")
+    summary_lines.append(f"Signal groups: {', '.join(signal_set) if signal_set else '(none)'}")
+    summary_lines.append(f"VBF groups: {', '.join(vbf_set) if vbf_set else '(none)'}")
+    summary_lines.append(f"SR weighted yields: S={float(np.sum(s_w)):.3f}, B={float(np.sum(b_w)):.3f}")
 
     with PdfPages(pdf_path) as pdf:
         # Header page
@@ -938,8 +994,8 @@ def main() -> None:
             pdf,
             f"VBF BDT Validation - {args.era}",
             [
-                "New standalone script: vbf_bdt_validation.py",
-                "Logic references: ScanYields / PlotScored / MassSculpt / KS_perfold / DataMC / tmva102",
+                "Streamlined standalone script: vbf_bdt_validation.py",
+                "Logic references: ScanYields / PlotScored / MassSculpt / KS_perfold / DataMC",
                 f"Resolved branches: {branch_map}",
             ],
         )
@@ -984,7 +1040,7 @@ def main() -> None:
             plt.close(fig)
             summary_lines.append(f"Feature importance source: {fi_path}")
         else:
-            add_note_page(pdf, "A) Feature importance ranking", ["No feature-importance file found."])
+            logger.info("Skipping feature-importance ranking page: no feature-importance file found.")
 
         # Optional fold-wise stability
         fold_files = [p for p in parse_csv(args.fold_importance_files) if os.path.exists(p)]
@@ -1010,37 +1066,14 @@ def main() -> None:
             pdf.savefig(fig)
             plt.close(fig)
 
-        # 2) BDT score in SR vs sidebands with Data/MC ratio
-        if data_sample is not None:
-            data_masks = make_mass_masks(data_sample.arrays, args)
-            data_sr = data_sample.arrays["score"][data_masks["sr"]]
-            data_sb = data_sample.arrays["score"][data_masks["sb"]]
-        else:
-            data_sr = None
-            data_sb = None
-
-        mc_sr = build_stack_inputs(mc_groups, "sr", args)
-        mc_sb = build_stack_inputs(mc_groups, "sb", args)
-
-        fig = plt.figure(figsize=(14, 9))
-        gs = fig.add_gridspec(2, 2, height_ratios=[3, 1], hspace=0.05)
-        ax1 = fig.add_subplot(gs[0, 0])
-        ax2 = fig.add_subplot(gs[0, 1])
-        ax1r = fig.add_subplot(gs[1, 0], sharex=ax1)
-        ax2r = fig.add_subplot(gs[1, 1], sharex=ax2)
-
-        stack_and_ratio(ax1, ax1r, score_bins, "B) SR: 110 < m_mumu < 150 GeV", mc_sr, data_sr, logy=True)
-        stack_and_ratio(ax2, ax2r, score_bins, "B) Sidebands: [100,115] U [135,150] GeV", mc_sb, data_sb, logy=True)
-        pdf.savefig(fig)
-        plt.close(fig)
-
-        # 3) Score vs jet multiplicity
+        # BDT score vs jet multiplicity
         if np.isfinite(all_arr["njets"]).any():
             dy_like = combine_group_arrays(mc_groups, ["DY", "DYVBF"])
             vbf_like = combine_group_arrays(mc_groups, vbf_set)
             dy_masks = make_mass_masks(dy_like, args)
             vbf_masks = make_mass_masks(vbf_like, args)
             fig, axes = plt.subplots(1, 3, figsize=(16, 5), sharey=True)
+            any_curve = False
             cats = [
                 ("Njets = 2", lambda a: np.isfinite(a["njets"]) & (a["njets"] >= 2) & (a["njets"] < 3)),
                 ("Njets = 3", lambda a: np.isfinite(a["njets"]) & (a["njets"] >= 3) & (a["njets"] < 4)),
@@ -1057,27 +1090,39 @@ def main() -> None:
 
                 hd = weighted_hist(s_dy, bins=score_bins, weights=w_dy)
                 hv = weighted_hist(s_vbf, bins=score_bins, weights=w_vbf)
-                hd = hd / hd.sum() if hd.sum() > 0 else hd
-                hv = hv / hv.sum() if hv.sum() > 0 else hv
                 centers = 0.5 * (score_bins[:-1] + score_bins[1:])
 
-                ax.step(centers, hd, where="mid", color=PROC_COLOR["DY"], linewidth=2, label="DY-like")
-                ax.step(centers, hv, where="mid", color=PROC_COLOR["VBF"], linewidth=2, label="VBF-like")
+                plotted = False
+                if hd.sum() > 0:
+                    hd = hd / hd.sum()
+                    ax.step(centers, hd, where="mid", color=PROC_COLOR["DY"], linewidth=2, label="DY-like")
+                    plotted = True
+                    any_curve = True
+                if hv.sum() > 0:
+                    hv = hv / hv.sum()
+                    ax.step(centers, hv, where="mid", color=PROC_COLOR["VBF"], linewidth=2, label="VBF-like")
+                    plotted = True
+                    any_curve = True
+
+                if not plotted:
+                    ax.text(0.5, 0.5, "No events", transform=ax.transAxes, ha="center", va="center", fontsize=10)
                 ax.set_title(title)
                 ax.set_xlabel("BDT score")
                 ax.grid(alpha=0.3)
-            axes[0].set_ylabel("Normalized entries")
-            axes[0].legend()
-            fig.suptitle("C) BDT score vs jet multiplicity (SR)")
-            pdf.savefig(fig)
+
+            if any_curve:
+                axes[0].set_ylabel("Normalized entries")
+                safe_legend(axes[0])
+                fig.suptitle("BDT score vs jet multiplicity (SR)")
+                pdf.savefig(fig)
+            else:
+                logger.info("Skipping jet-multiplicity page: no non-empty DY/VBF histograms.")
             plt.close(fig)
         else:
-            add_note_page(pdf, "C) Score vs jet multiplicity", ["Skipped: njets branch not available."])
+            logger.info("Skipping jet-multiplicity page: njets branch not available.")
 
-        # 4) mjj vs score 2D S/(S+B)
+        # mjj vs score 2D S/(S+B)
         if np.isfinite(sig_arr["mjj"]).any() and np.isfinite(bkg_arr["mjj"]).any():
-            sm = make_mass_masks(sig_arr, args)["sr"]
-            bm = make_mass_masks(bkg_arr, args)["sr"]
             s2d, xedges, yedges = np.histogram2d(
                 sig_arr["score"][sm],
                 sig_arr["mjj"][sm],
@@ -1104,67 +1149,9 @@ def main() -> None:
             pdf.savefig(fig)
             plt.close(fig)
         else:
-            add_note_page(pdf, "D) mjj vs score 2D", ["Skipped: mjj branch not available."])
+            logger.info("Skipping mjj-vs-score 2D page: mjj branch not available.")
 
-        # 5) ROC + VBF-specific operating points + simple cut comparison point
-        sm = make_mass_masks(sig_arr, args)["sr"]
-        bm = make_mass_masks(bkg_arr, args)["sr"]
-        s_sc = sig_arr["score"][sm]
-        s_w = sig_arr["weight"][sm]
-        b_sc = bkg_arr["score"][bm]
-        b_w = bkg_arr["weight"][bm]
-
-        fpr, tpr = compute_roc(s_sc, s_w, b_sc, b_w)
-        auc = safe_auc(fpr, tpr)
-        tpr_1pct = interpolate_tpr_at_fpr(fpr, tpr, 0.01)
-        tpr_01pct = interpolate_tpr_at_fpr(fpr, tpr, 0.001)
-
-        fig, ax = plt.subplots(figsize=(8, 7))
-        if fpr.size > 0:
-            ax.plot(fpr, tpr, linewidth=2, label=f"BDT ROC (AUC={auc:.4f})")
-            ax.scatter([0.01], [tpr_1pct], color="tab:red", label=f"TPR@1%FPR={tpr_1pct:.3f}")
-            ax.scatter([0.001], [tpr_01pct], color="tab:purple", label=f"TPR@0.1%FPR={tpr_01pct:.3f}")
-
-        simple_point_added = False
-        if np.isfinite(sig_arr["mjj"]).any() and np.isfinite(sig_arr["deta_jj"]).any() and np.isfinite(sig_arr["njets"]).any():
-            s_simple = (
-                sm
-                & (sig_arr["mjj"] > 500.0)
-                & (np.abs(sig_arr["deta_jj"]) > 3.5)
-                & (sig_arr["njets"] >= 2)
-            )
-            b_simple = (
-                bm
-                & (bkg_arr["mjj"] > 500.0)
-                & (np.abs(bkg_arr["deta_jj"]) > 3.5)
-                & (bkg_arr["njets"] >= 2)
-            )
-            if np.isfinite(sig_arr["njet_gap"]).any() and np.isfinite(bkg_arr["njet_gap"]).any():
-                s_simple = s_simple & (sig_arr["njet_gap"] <= 0)
-                b_simple = b_simple & (bkg_arr["njet_gap"] <= 0)
-
-            s_eff = float(sig_arr["weight"][s_simple].sum() / max(sig_arr["weight"][sm].sum(), 1e-12))
-            b_eff = float(bkg_arr["weight"][b_simple].sum() / max(bkg_arr["weight"][bm].sum(), 1e-12))
-            ax.scatter([b_eff], [s_eff], marker="*", s=140, color="black", label="Simple VBF cuts")
-            simple_point_added = True
-            summary_lines.append(f"Simple-cut point: BkgEff={b_eff:.4f}, SigEff={s_eff:.4f}")
-
-        ax.plot([0, 1], [0, 1], linestyle="--", color="gray", linewidth=1)
-        ax.set_xlim(0.0, 1.0)
-        ax.set_ylim(0.0, 1.0)
-        ax.set_xlabel("Background efficiency")
-        ax.set_ylabel("Signal efficiency")
-        ax.set_title("3) ROC with VBF-specific efficiency points")
-        ax.grid(alpha=0.3)
-        ax.legend(fontsize=8)
-        pdf.savefig(fig)
-        plt.close(fig)
-
-        summary_lines.append(f"ROC AUC={auc:.5f}  TPR@1%={tpr_1pct:.4f}  TPR@0.1%={tpr_01pct:.4f}")
-        if not simple_point_added:
-            summary_lines.append("Simple-cut ROC point not available (missing mjj/deta_jj/njets).")
-
-        # 6) BDT output by VBF topology (tight/medium/loose)
+        # BDT output by VBF topology (tight/medium/loose)
         if np.isfinite(all_arr["mjj"]).any() and np.isfinite(all_arr["deta_jj"]).any():
             topo = {
                 "tight_VBF": (700.0, 4.0),
@@ -1223,9 +1210,9 @@ def main() -> None:
                 pdf.savefig(fig)
                 plt.close(fig)
         else:
-            add_note_page(pdf, "4) Topology validation", ["Skipped: mjj and/or deta_jj unavailable."])
+            logger.info("Skipping topology page(s): mjj and/or deta_jj unavailable.")
 
-        # 7) BDT category boundaries optimization
+        # BDT category boundaries optimization
         if s_sc.size > 0 and b_sc.size > 0:
             cat_edges, cat_s, cat_b = optimize_categories_high_to_low(
                 s_sc,
@@ -1240,12 +1227,6 @@ def main() -> None:
             z_tot = multi_bin_asimov_z(cat_s, cat_b)
             summary_lines.append(f"Optimized categories: n={len(cat_edges)-1}, Z_Asimov={z_tot:.4f}")
 
-            cat_csv = os.path.join(args.output_dir, f"{args.era}_optimized_bdt_categories.csv")
-            with open(cat_csv, "w", encoding="utf-8") as f:
-                f.write("bin_low,bin_high,S,B,S_over_B\n")
-                for lo, hi, ss, bb in zip(cat_edges[:-1], cat_edges[1:], cat_s, cat_b):
-                    f.write(f"{lo:.6f},{hi:.6f},{ss:.6f},{bb:.6f},{(ss/max(bb,1e-12)):.6f}\n")
-
             fig, ax = plt.subplots(figsize=(11, 7))
             idx = np.arange(len(cat_s))
             ax.bar(idx - 0.2, cat_s, width=0.4, label="Signal", color=PROC_COLOR["VBF"])
@@ -1256,14 +1237,14 @@ def main() -> None:
             ax.set_ylabel("Weighted yield")
             ax.set_title("5) Optimized BDT categories (high-to-low merge)")
             ax.grid(alpha=0.3)
-            ax.legend()
+            safe_legend(ax)
             ax.text(0.01, 0.96, f"Total multibin Z_Asimov={z_tot:.3f}", transform=ax.transAxes)
             pdf.savefig(fig)
             plt.close(fig)
         else:
-            add_note_page(pdf, "5) BDT category optimization", ["Skipped: signal/background score arrays are empty."])
+            logger.info("Skipping category-optimization page: signal/background score arrays are empty.")
 
-        # 8) Overfitting checks using fold branch (if available)
+        # Fold-based KS checks (no ROC curves)
         fold_ok = np.isfinite(sig_arr["fold"]).any() and np.isfinite(bkg_arr["fold"]).any()
         if fold_ok:
             s_fold = sig_arr["fold"].astype(np.int32)
@@ -1278,118 +1259,79 @@ def main() -> None:
             va_b = b_mask_sr & np.isin(b_fold, [2])
             te_b = b_mask_sr & np.isin(b_fold, [3])
 
-            fpr_tr, tpr_tr = compute_roc(sig_arr["score"][tr_s], sig_arr["weight"][tr_s], bkg_arr["score"][tr_b], bkg_arr["weight"][tr_b])
-            fpr_va, tpr_va = compute_roc(sig_arr["score"][va_s], sig_arr["weight"][va_s], bkg_arr["score"][va_b], bkg_arr["weight"][va_b])
-            fpr_te, tpr_te = compute_roc(sig_arr["score"][te_s], sig_arr["weight"][te_s], bkg_arr["score"][te_b], bkg_arr["weight"][te_b])
-
-            fig, ax = plt.subplots(figsize=(8, 7))
-            if fpr_tr.size:
-                ax.plot(fpr_tr, tpr_tr, label=f"Train AUC={safe_auc(fpr_tr,tpr_tr):.4f}")
-            if fpr_va.size:
-                ax.plot(fpr_va, tpr_va, label=f"Validation AUC={safe_auc(fpr_va,tpr_va):.4f}")
-            if fpr_te.size:
-                ax.plot(fpr_te, tpr_te, label=f"Test AUC={safe_auc(fpr_te,tpr_te):.4f}")
-            ax.plot([0, 1], [0, 1], "--", color="gray")
-            ax.set_xlabel("Background efficiency")
-            ax.set_ylabel("Signal efficiency")
-            ax.set_title("6) Overfitting: train/valid/test ROC by fold")
-            ax.grid(alpha=0.3)
-            ax.legend()
-            pdf.savefig(fig)
-            plt.close(fig)
-
             d_sig, p_sig = ks_2samp(sig_arr["score"][tr_s], sig_arr["score"][va_s])
             d_bkg, p_bkg = ks_2samp(bkg_arr["score"][tr_b], bkg_arr["score"][va_b])
             summary_lines.append(f"KS(signal train-vs-valid): D={d_sig:.4f}, p={p_sig:.4g}")
             summary_lines.append(f"KS(bkg train-vs-valid): D={d_bkg:.4f}, p={p_bkg:.4g}")
 
+            fold_lines = [
+                f"KS(signal train-vs-valid): D={d_sig:.4f}, p={p_sig:.4g}",
+                f"KS(bkg train-vs-valid): D={d_bkg:.4f}, p={p_bkg:.4g}",
+                f"Train/valid/test counts signal: {np.count_nonzero(tr_s)}/{np.count_nonzero(va_s)}/{np.count_nonzero(te_s)}",
+                f"Train/valid/test counts bkg: {np.count_nonzero(tr_b)}/{np.count_nonzero(va_b)}/{np.count_nonzero(te_b)}",
+            ]
+
             if np.isfinite(sig_arr["njets"]).any() and np.isfinite(bkg_arr["njets"]).any():
                 corr_sig = weighted_corr(sig_arr["njets"][s_mask_sr], sig_arr["score"][s_mask_sr], sig_arr["weight"][s_mask_sr])
                 corr_bkg = weighted_corr(bkg_arr["njets"][b_mask_sr], bkg_arr["score"][b_mask_sr], bkg_arr["weight"][b_mask_sr])
                 summary_lines.append(f"Corr(score, njets) signal={corr_sig:.3f}, background={corr_bkg:.3f}")
+                fold_lines.append(f"Corr(score, njets) signal={corr_sig:.3f}, background={corr_bkg:.3f}")
+
+            add_note_page(pdf, "Fold-based KS checks", fold_lines)
         else:
-            add_note_page(pdf, "6) Overfitting checks", ["Skipped fold-based checks: fold branch not available."])
+            logger.info("Skipping fold-based KS checks: fold branch not available.")
 
-        # 9) Control-region response checks
-        fig, axes = plt.subplots(1, 3, figsize=(16, 5), sharey=True)
-        region_names = ["zpeak", "highsb", "sr"]
-        region_titles = ["7) Z-peak (70-110)", "7) high sideband (>150)", "7) SR (110-150)"]
-
-        for ax, rname, rtitle in zip(axes, region_names, region_titles):
+        # Control-region response checks (only non-empty regions)
+        region_defs = [
+            ("zpeak", "Z-peak (70-110)"),
+            ("highsb", "High sideband (>150)"),
+            ("sr", "SR (110-150)"),
+        ]
+        region_payloads: List[Tuple[str, np.ndarray, Optional[np.ndarray]]] = []
+        for rname, rtitle in region_defs:
             m_mc = make_mass_masks(all_arr, args)[rname]
-            s = all_arr["score"][m_mc]
-            w = all_arr["weight"][m_mc]
-            h_mc = weighted_hist(s, score_bins, w)
-            h_mc = h_mc / h_mc.sum() if h_mc.sum() > 0 else h_mc
-            centers = 0.5 * (score_bins[:-1] + score_bins[1:])
-            ax.step(centers, h_mc, where="mid", color="tab:blue", linewidth=2, label="MC total")
+            h_mc = weighted_hist(all_arr["score"][m_mc], score_bins, all_arr["weight"][m_mc])
 
+            h_data: Optional[np.ndarray] = None
             if data_sample is not None:
                 m_d = make_mass_masks(data_sample.arrays, args)[rname]
-                hd = weighted_hist(data_sample.arrays["score"][m_d], score_bins, None)
-                hd = hd / hd.sum() if hd.sum() > 0 else hd
-                ax.step(centers, hd, where="mid", color="black", linewidth=1.5, label="Data")
+                h_data = weighted_hist(data_sample.arrays["score"][m_d], score_bins, None)
 
-            ax.set_title(rtitle)
-            ax.set_xlabel("BDT score")
-            ax.grid(alpha=0.3)
-        axes[0].set_ylabel("Normalized entries")
-        axes[0].legend()
-        pdf.savefig(fig)
-        plt.close(fig)
+            has_mc = float(np.sum(h_mc)) > 0.0
+            has_data = h_data is not None and float(np.sum(h_data)) > 0.0
+            if has_mc or has_data:
+                region_payloads.append((rtitle, h_mc, h_data))
+            else:
+                logger.info("Skipping empty control region '%s'", rname)
 
-        # 10) BDT vs simple cuts table
-        simple_rows = []
-        if np.isfinite(sig_arr["mjj"]).any() and np.isfinite(sig_arr["deta_jj"]).any() and np.isfinite(sig_arr["njets"]).any():
-            s_sr = make_mass_masks(sig_arr, args)["sr"]
-            b_sr = make_mass_masks(bkg_arr, args)["sr"]
+        if region_payloads:
+            nreg = len(region_payloads)
+            fig, axes = plt.subplots(1, nreg, figsize=(5.4 * nreg, 5), sharey=True)
+            axes_arr = np.atleast_1d(axes)
+            centers = 0.5 * (score_bins[:-1] + score_bins[1:])
 
-            s_simple = s_sr & (sig_arr["mjj"] > 500.0) & (np.abs(sig_arr["deta_jj"]) > 3.5) & (sig_arr["njets"] >= 2)
-            b_simple = b_sr & (bkg_arr["mjj"] > 500.0) & (np.abs(bkg_arr["deta_jj"]) > 3.5) & (bkg_arr["njets"] >= 2)
+            for ax, (rtitle, h_mc, h_data) in zip(axes_arr, region_payloads):
+                if np.sum(h_mc) > 0:
+                    h_mc = h_mc / h_mc.sum()
+                    ax.step(centers, h_mc, where="mid", color="tab:blue", linewidth=2, label="MC total")
 
-            if np.isfinite(sig_arr["njet_gap"]).any() and np.isfinite(bkg_arr["njet_gap"]).any():
-                s_simple = s_simple & (sig_arr["njet_gap"] <= 0)
-                b_simple = b_simple & (bkg_arr["njet_gap"] <= 0)
+                if h_data is not None and np.sum(h_data) > 0:
+                    h_data = h_data / h_data.sum()
+                    ax.step(centers, h_data, where="mid", color="black", linewidth=1.5, label="Data")
 
-            s_tot = float(sig_arr["weight"][s_sr].sum())
-            b_tot = float(bkg_arr["weight"][b_sr].sum())
-            s_sel = float(sig_arr["weight"][s_simple].sum())
-            b_sel = float(bkg_arr["weight"][b_simple].sum())
-            z_sel = s_sel / math.sqrt(max(b_sel, 1e-12)) if b_sel > 0 else float("nan")
-            simple_rows.append(["Simple cuts", s_sel / max(s_tot, 1e-12), b_sel / max(b_tot, 1e-12), z_sel])
+                ax.set_title(rtitle)
+                ax.set_xlabel("BDT score")
+                ax.grid(alpha=0.3)
 
-            for thr in parse_csv_floats(args.simple_bdt_thresholds):
-                s_mask = s_sr & (sig_arr["score"] >= thr)
-                b_mask = b_sr & (bkg_arr["score"] >= thr)
-                ss = float(sig_arr["weight"][s_mask].sum())
-                bb = float(bkg_arr["weight"][b_mask].sum())
-                zz = ss / math.sqrt(max(bb, 1e-12)) if bb > 0 else float("nan")
-                simple_rows.append([f"BDT > {thr:.2f}", ss / max(s_tot, 1e-12), bb / max(b_tot, 1e-12), zz])
+            axes_arr[0].set_ylabel("Normalized entries")
+            safe_legend(axes_arr[0])
+            fig.suptitle("Control-region BDT response")
+            pdf.savefig(fig)
+            plt.close(fig)
         else:
-            for thr in parse_csv_floats(args.simple_bdt_thresholds):
-                simple_rows.append([f"BDT > {thr:.2f}", float("nan"), float("nan"), float("nan")])
+            logger.info("Skipping control-region page: no non-empty regions available.")
 
-        simple_csv = os.path.join(args.output_dir, f"{args.era}_simple_vs_bdt.csv")
-        with open(simple_csv, "w", encoding="utf-8") as f:
-            f.write("Selection,SignalEff,BackgroundEff,S_over_sqrtB\n")
-            for row in simple_rows:
-                f.write(f"{row[0]},{row[1]:.6f},{row[2]:.6f},{row[3]:.6f}\n")
-
-        fig, ax = plt.subplots(figsize=(9, 4))
-        ax.axis("off")
-        ax.set_title("8) BDT vs simple-cuts comparison")
-        tbl = ax.table(
-            cellText=[[r[0], f"{r[1]:.3f}", f"{r[2]:.3f}", f"{r[3]:.3f}"] for r in simple_rows],
-            colLabels=["Selection", "Signal Eff", "Bkg Eff", "S/sqrt(B)"],
-            loc="center",
-        )
-        tbl.auto_set_font_size(False)
-        tbl.set_fontsize(10)
-        tbl.scale(1, 1.4)
-        pdf.savefig(fig)
-        plt.close(fig)
-
-        # 11) BDT score vs VBF kinematics profiles
+        # BDT score vs VBF kinematics profiles
         prof_done = False
         fig, axes = plt.subplots(1, 3, figsize=(16, 5))
 
@@ -1404,7 +1346,7 @@ def main() -> None:
             axes[0].set_xlabel("mjj [GeV]")
             axes[0].set_ylabel("<BDT score>")
             axes[0].grid(alpha=0.3)
-            axes[0].legend(fontsize=8)
+            safe_legend(axes[0], fontsize=8)
             prof_done = True
         else:
             axes[0].axis("off")
@@ -1440,14 +1382,14 @@ def main() -> None:
             axes[2].axis("off")
 
         if prof_done:
-            fig.suptitle("9) BDT score vs VBF kinematics")
+            fig.suptitle("BDT score vs VBF kinematics")
             pdf.savefig(fig)
             plt.close(fig)
         else:
             plt.close(fig)
-            add_note_page(pdf, "9) BDT score vs VBF kinematics", ["Skipped: missing mjj/deta_jj/pt_j1 branches."])
+            logger.info("Skipping BDT-vs-kinematics page: missing mjj/deta_jj/pt_j1 branches.")
 
-        # 12) VBF acceptance by BDT score
+        # VBF acceptance by BDT score
         vbf_arr = combine_group_arrays(mc_groups, vbf_set)
         non_vbf_arr = combine_group_arrays(mc_groups, [k for k in mc_groups.keys() if k not in set(vbf_set)])
         if vbf_arr["score"].size > 0:
@@ -1486,12 +1428,6 @@ def main() -> None:
                 purity = s_bin / max(s_bin + b_bin, 1e-12)
                 rows.append([lo, hi, frac_vbf, frac_simple, purity])
 
-            acc_csv = os.path.join(args.output_dir, f"{args.era}_vbf_acceptance_by_bdt.csv")
-            with open(acc_csv, "w", encoding="utf-8") as f:
-                f.write("bin_low,bin_high,frac_vbf_signal,frac_vbf_passing_simple,purity\n")
-                for r in rows:
-                    f.write(f"{r[0]:.4f},{r[1]:.4f},{r[2]:.6f},{r[3]:.6f},{r[4]:.6f}\n")
-
             fig, ax = plt.subplots(figsize=(11, 6))
             labels = [f"[{r[0]:.2f},{r[1]:.2f})" for r in rows]
             x = np.arange(len(rows))
@@ -1504,21 +1440,18 @@ def main() -> None:
             ax.set_ylabel("Fraction")
             ax.set_title("10) VBF signal acceptance and purity by BDT score")
             ax.grid(alpha=0.3)
-            ax.legend()
+            safe_legend(ax)
             pdf.savefig(fig)
             plt.close(fig)
 
             high_bin_purity = rows[-1][4] if rows else float("nan")
             summary_lines.append(f"Highest BDT-bin purity={high_bin_purity:.3f}")
         else:
-            add_note_page(pdf, "10) VBF acceptance by BDT", ["Skipped: no VBF-labeled sample after process mapping."])
+            logger.info("Skipping VBF-acceptance page: no VBF-labeled sample after process mapping.")
 
-    with open(summary_path, "w", encoding="utf-8") as f:
-        for line in summary_lines:
-            f.write(line + "\n")
+        add_note_page(pdf, "Validation Summary", summary_lines)
 
     logger.info("Wrote: %s", pdf_path)
-    logger.info("Wrote: %s", summary_path)
 
 
 if __name__ == "__main__":
