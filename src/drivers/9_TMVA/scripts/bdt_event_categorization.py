@@ -612,6 +612,7 @@ def make_stacked_ratio_figure(
     show_mc_unc_band: bool = True,
     shade_category_band: bool = True,
     show_mc_fraction_inset: bool = False,
+    ratio_ylabel: str = "Data/MC",
 ) -> Tuple[plt.Figure, np.ndarray, np.ndarray, Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray, np.ndarray]:
     fig, (ax_top, ax_bot) = plt.subplots(
         2,
@@ -628,11 +629,16 @@ def make_stacked_ratio_figure(
     hist_weights: List[np.ndarray] = []
     colors: List[str] = []
     labels: List[str] = []
-    plot_groups = sorted(
-        list(mc_groups),
-        key=lambda x: float(np.sum(mc_hists.get(x[0], np.zeros(len(bins) - 1, dtype=np.float64)))),
-        reverse=True,
-    )
+    def _stack_sort_key(item: Tuple[str, np.ndarray, np.ndarray]) -> Tuple[int, float, int]:
+        proc = item[0]
+        cproc = canonical_proc(proc)
+        yld = float(np.sum(mc_hists.get(proc, np.zeros(len(bins) - 1, dtype=np.float64))))
+        # Keep DY at the bottom so sub-dominant backgrounds are visible on top.
+        if cproc == "DY":
+            return (0, 0.0, proc_sort_key(proc))
+        return (1, -yld, proc_sort_key(proc))
+
+    plot_groups = sorted(list(mc_groups), key=_stack_sort_key)
 
     for proc, vals, weights in plot_groups:
         h = mc_hists.get(proc, None)
@@ -655,6 +661,23 @@ def make_stacked_ratio_figure(
             alpha=0.9,
             linewidth=0.5,
             edgecolor="#2e2e2e",
+        )
+
+    cumulative = np.zeros(len(bins) - 1, dtype=np.float64)
+    for proc, _vals, _weights in plot_groups:
+        hh = mc_hists.get(proc, None)
+        if hh is None or np.sum(hh) <= 0:
+            continue
+        cumulative += hh
+        # Draw each stacked layer boundary to make buried components visible.
+        ax_top.step(
+            centers,
+            cumulative,
+            where="mid",
+            color=proc_color(proc),
+            linewidth=1.0,
+            alpha=0.95,
+            zorder=2,
         )
 
     if np.any(mc_sum > 0):
@@ -808,7 +831,7 @@ def make_stacked_ratio_figure(
             zorder=3,
         )
     ax_bot.set_xlabel(xlabel)
-    ax_bot.set_ylabel("Data/MC")
+    ax_bot.set_ylabel(ratio_ylabel)
     ax_bot.set_ylim(0.4, 1.6)
 
     fig.tight_layout()
@@ -1458,7 +1481,7 @@ def main() -> None:
         category_band=category_band,
         show_mc_unc_band=False,
         shade_category_band=False,
-        show_mc_fraction_inset=True,
+        ratio_ylabel="Data/Bkg",
         annotation_lines=[
             f"Eras: {', '.join(sorted(era_payloads.keys()))}",
             f"BDT uses sidebands: ({args.sb1_min:.0f}, {args.sb1_max:.0f}) U ({args.sb2_min:.0f}, {args.sb2_max:.0f}) GeV",
