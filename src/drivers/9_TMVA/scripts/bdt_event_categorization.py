@@ -142,7 +142,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--multibin-min-bkg", type=float, default=5.0)
     p.add_argument("--multibin-no-monotonic", action="store_true")
     p.add_argument("--multibin-objective", choices=["asimov", "likelihood"], default="asimov")
-    p.add_argument("--multibin-likelihood-topk", type=int, default=20)
+    p.add_argument("--multibin-likelihood-topk", type=int, default=13)
 
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
 
@@ -150,7 +150,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def setup_logger(level: str) -> logging.Logger:
-    logger = logging.getLogger("bdt_sideband_validation")
+    logger = logging.getLogger("bdt_validation")
     logger.setLevel(getattr(logging, level.upper()))
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
@@ -816,31 +816,42 @@ def add_table_pages(
         plt.close(fig)
 
 
-def build_bdt_bin_table(
+def build_bdt_signal_background_table(
     bins: np.ndarray,
+    signal_hist: np.ndarray,
+    bkg_hist: np.ndarray,
+    bkg_var: np.ndarray,
     data_hist: np.ndarray,
-    mc_hists: Dict[str, np.ndarray],
-    mc_vars: Dict[str, np.ndarray],
-    mc_total: np.ndarray,
-    mc_total_var: np.ndarray,
 ) -> Tuple[List[str], List[List[str]]]:
-    procs = sorted(mc_hists.keys(), key=proc_sort_key)
-    columns = ["Bin", "BDT range", "Data", "MC total ± stat", "Data/MC"] + procs
+    columns = [
+        "BDT bin",
+        "Total signal",
+        "Bkg. ± DeltaB",
+        "Data",
+        "S/(S+B) (%)",
+        "S/sqrt(B)",
+    ]
     rows: List[List[str]] = []
-    for i in range(len(bins) - 1):
-        mc = float(mc_total[i])
-        mc_err = math.sqrt(max(float(mc_total_var[i]), 0.0))
-        ratio = (float(data_hist[i]) / mc) if mc > 0 else 0.0
-        row = [
-            str(i + 1),
+
+    nbins = len(bins) - 1
+    for i in range(nbins):
+        s = float(signal_hist[i]) if i < signal_hist.size else 0.0
+        b = float(bkg_hist[i]) if i < bkg_hist.size else 0.0
+        db = math.sqrt(max(float(bkg_var[i]), 0.0)) if i < bkg_var.size else 0.0
+        d = float(data_hist[i]) if i < data_hist.size else 0.0
+
+        purity = (100.0 * s / (s + b)) if (s + b) > 0 else 0.0
+        signif = (s / math.sqrt(b)) if b > 0 else 0.0
+
+        rows.append([
             f"[{bins[i]:.3f}, {bins[i+1]:.3f})",
-            f"{int(data_hist[i])}",
-            f"{mc:.2f} ± {mc_err:.2f}",
-            f"{ratio:.3f}",
-        ]
-        for proc in procs:
-            row.append(f"{float(mc_hists[proc][i]):.2f}")
-        rows.append(row)
+            f"{s:.3f}",
+            f"{b:.2f} ± {db:.2f}",
+            f"{int(round(d))}",
+            f"{purity:.2f}",
+            f"{signif:.3f}",
+        ])
+
     return columns, rows
 
 
@@ -969,13 +980,28 @@ def build_category_mass_grid(
     ncat = len(edges) - 1
     ncols = 2 if ncat > 1 else 1
     nrows = int(math.ceil(ncat / float(ncols)))
-    fig, axes = plt.subplots(nrows, ncols, figsize=(14.0, 4.2 * nrows), sharex=True)
-    axes_flat = np.atleast_1d(axes).ravel()
+    fig = plt.figure(figsize=(14.0, 5.8 * nrows))
+    gs = fig.add_gridspec(
+        nrows * 2,
+        ncols,
+        height_ratios=[3.0, 1.0] * nrows,
+        hspace=0.12,
+        wspace=0.24,
+    )
+
+    top_axes = []
+    residual_axes = []
 
     centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
 
     for i in range(ncat):
-        ax = axes_flat[i]
+        row = i // ncols
+        col = i % ncols
+
+        ax = fig.add_subplot(gs[2 * row, col])
+        ax_res = fig.add_subplot(gs[2 * row + 1, col], sharex=ax)
+        top_axes.append(ax)
+        residual_axes.append(ax_res)
 
         data_mass_chunks: List[np.ndarray] = []
         bkg_mass_chunks: List[np.ndarray] = []
@@ -1091,22 +1117,54 @@ def build_category_mass_grid(
         ax.set_title(f"Cat {i}: [{lo:.3f}, {hi:.3f})")
         ax.set_ylabel("Events / bin")
         ax.grid(alpha=0.25)
+        ax.tick_params(labelbottom=False)
 
-    for j in range(ncat, len(axes_flat)):
-        axes_flat[j].axis("off")
+        residual = h_data - h_bkg_fit
+        residual_err = np.sqrt(np.maximum(v_data, 1.0))
 
-    for ax in axes_flat[:max(ncat, 1)]:
+        ax_res.axhline(0.0, color="#4d4d4d", linestyle="--", linewidth=1.0)
+        if np.any(dmask):
+            ax_res.errorbar(
+                centers[dmask],
+                residual[dmask],
+                yerr=residual_err[dmask],
+                fmt="o",
+                color="black",
+                markersize=3.2,
+                linewidth=0.9,
+                zorder=4,
+            )
+
+        ax_res.axvspan(args.blind_min, args.blind_max, color="#bdbdbd", alpha=0.18, zorder=0)
+        ax_res.set_ylabel("Data-Bkg")
+        ax_res.grid(alpha=0.25)
+
+        residual_span = 1.0
+        if np.any(dmask):
+            residual_span = float(np.max(np.abs(residual[dmask]) + residual_err[dmask]))
+        residual_span = max(residual_span, 1.0)
+        ax_res.set_ylim(-1.25 * residual_span, 1.25 * residual_span)
+
+    for j in range(ncat, nrows * ncols):
+        row = j // ncols
+        col = j % ncols
+        ax_empty_top = fig.add_subplot(gs[2 * row, col])
+        ax_empty_res = fig.add_subplot(gs[2 * row + 1, col], sharex=ax_empty_top)
+        ax_empty_top.axis("off")
+        ax_empty_res.axis("off")
+
+    for ax in residual_axes:
         ax.set_xlabel("m_mumu [GeV]")
 
     if ncat > 0:
-        axes_flat[0].legend(loc="upper right", ncol=2)
+        top_axes[0].legend(loc="upper right", ncol=2)
 
     fig.suptitle(
         "Per-category dimuon mass: Data (blinded), Bkg fit, and S+B fit",
         fontsize=15,
         y=0.995,
     )
-    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.975])
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.972])
     return fig
 
 
@@ -1349,7 +1407,7 @@ def main() -> None:
     run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_full)
 
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
-    fig_score, data_hist, _data_var, mc_hists, mc_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
+    fig_score, data_hist, _data_var, _score_hists, _score_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
         title="BDT output distribution",
         xlabel="BDT score",
         bins=score_bins,
@@ -1363,6 +1421,26 @@ def main() -> None:
             f"Eras: {', '.join(sorted(era_payloads.keys()))}",
             f"Boundary range: {category_band[0]:.3f} to {category_band[1]:.3f}" if category_band else "Boundary range: N/A",
         ],
+    )
+
+    signal_hist = np.zeros(len(score_bins) - 1, dtype=np.float64)
+    score_signal_overlay = combine_signal_score_overlay(era_payloads)
+    if score_signal_overlay is not None:
+        sig_scores, sig_weights = score_signal_overlay
+        scaled_sig_weights = np.asarray(sig_weights, dtype=np.float64) * float(mc_scale)
+        if sig_scores.size > 0 and np.sum(scaled_sig_weights) > 0:
+            signal_hist, _ = weighted_hist_and_var(
+                np.asarray(sig_scores, dtype=np.float64),
+                score_bins,
+                scaled_sig_weights,
+            )
+
+    bdt_cols, bdt_rows = build_bdt_signal_background_table(
+        score_bins,
+        signal_hist,
+        mc_total,
+        mc_total_var,
+        data_hist,
     )
 
     mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
@@ -1385,8 +1463,6 @@ def main() -> None:
         mc_weight_scale=mc_scale,
     )
 
-    bdt_cols, bdt_rows = build_bdt_bin_table(score_bins, data_hist, mc_hists, mc_vars, mc_total, mc_total_var)
-
     cat_summary = summarize_categories(era_payloads, edges, args, mc_weight_scale=mc_scale)
     cat_cols, cat_rows = build_category_summary_table(edges, cat_summary)
     cat_proc_cols, cat_proc_rows = build_category_process_table(edges, cat_summary)
@@ -1408,9 +1484,9 @@ def main() -> None:
             ],
         )
         pdf.savefig(fig_score)
+        add_table_pages(pdf, "BDT bin summary: signal, background, and sensitivity", bdt_cols, bdt_rows, max_rows=20)
         pdf.savefig(fig_mass)
         pdf.savefig(fig_cat_mass)
-        add_table_pages(pdf, "BDT bin-by-bin comparison", bdt_cols, bdt_rows, max_rows=20)
         add_table_pages(pdf, "Optimized category summary", cat_cols, cat_rows, max_rows=20)
         add_table_pages(pdf, "Category composition by process (full mass window)", cat_proc_cols, cat_proc_rows, max_rows=20)
 
