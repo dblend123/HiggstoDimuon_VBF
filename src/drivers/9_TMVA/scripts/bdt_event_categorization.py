@@ -529,6 +529,29 @@ def scale_mc_groups(
     return out
 
 
+def group_backgrounds_for_display(
+    groups: Sequence[Tuple[str, np.ndarray, np.ndarray]],
+    major_labels: Optional[Sequence[str]] = None,
+) -> List[Tuple[str, np.ndarray, np.ndarray]]:
+    majors = set(["DY", "Top", "Diboson", "EWK"] if major_labels is None else [str(x) for x in major_labels])
+    score_map: Dict[str, List[np.ndarray]] = {}
+    weight_map: Dict[str, List[np.ndarray]] = {}
+
+    for proc, scores, weights in groups:
+        cproc = canonical_proc(proc)
+        label = cproc if cproc in majors else "Other"
+        score_map.setdefault(label, []).append(np.asarray(scores, dtype=np.float64))
+        weight_map.setdefault(label, []).append(np.asarray(weights, dtype=np.float64))
+
+    out: List[Tuple[str, np.ndarray, np.ndarray]] = []
+    for label in sorted(score_map.keys(), key=proc_sort_key):
+        sc = concat_chunks(score_map[label])
+        ww = concat_chunks(weight_map[label])
+        if sc.size > 0 and np.sum(ww) > 0:
+            out.append((label, sc, ww))
+    return out
+
+
 def weighted_hist_and_var(
     values: np.ndarray,
     bins: np.ndarray,
@@ -586,6 +609,8 @@ def make_stacked_ratio_figure(
     signal_overlay: Optional[Tuple[np.ndarray, np.ndarray]] = None,
     signal_label: str = "VBF expected",
     annotation_lines: Optional[List[str]] = None,
+    show_mc_unc_band: bool = True,
+    shade_category_band: bool = True,
 ) -> Tuple[plt.Figure, np.ndarray, np.ndarray, Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray, np.ndarray]:
     fig, (ax_top, ax_bot) = plt.subplots(
         2,
@@ -625,16 +650,17 @@ def make_stacked_ratio_figure(
         )
 
     mc_err = np.sqrt(np.maximum(mc_var_sum, 0.0))
-    ax_top.fill_between(
-        centers,
-        np.clip(mc_sum - mc_err, 0.0, None),
-        mc_sum + mc_err,
-        step="mid",
-        color="#9e9e9e",
-        alpha=0.35,
-        label="MC stat. unc.",
-        zorder=3,
-    )
+    if show_mc_unc_band:
+        ax_top.fill_between(
+            centers,
+            np.clip(mc_sum - mc_err, 0.0, None),
+            mc_sum + mc_err,
+            step="mid",
+            color="#9e9e9e",
+            alpha=0.35,
+            label="MC stat. unc.",
+            zorder=3,
+        )
 
     if signal_overlay is not None:
         s_vals, s_w = signal_overlay
@@ -678,8 +704,9 @@ def make_stacked_ratio_figure(
 
     if category_band is not None:
         clo, chi = category_band
-        ax_top.axvspan(clo, chi, color="#9e9e9e", alpha=0.15, zorder=1)
-        ax_bot.axvspan(clo, chi, color="#9e9e9e", alpha=0.15, zorder=1)
+        if shade_category_band:
+            ax_top.axvspan(clo, chi, color="#9e9e9e", alpha=0.15, zorder=1)
+            ax_bot.axvspan(clo, chi, color="#9e9e9e", alpha=0.15, zorder=1)
         ax_top.axvline(clo, color="#616161", linestyle="--", linewidth=1.0)
         ax_top.axvline(chi, color="#616161", linestyle="--", linewidth=1.0)
 
@@ -713,15 +740,16 @@ def make_stacked_ratio_figure(
     rel_mc = np.divide(mc_err, mc_sum, out=np.zeros_like(mc_err), where=mc_sum > 0)
 
     ax_bot.axhline(1.0, color="#4d4d4d", linestyle="--", linewidth=1.0)
-    ax_bot.fill_between(
-        centers,
-        1.0 - rel_mc,
-        1.0 + rel_mc,
-        step="mid",
-        color="#9e9e9e",
-        alpha=0.35,
-        zorder=2,
-    )
+    if show_mc_unc_band:
+        ax_bot.fill_between(
+            centers,
+            1.0 - rel_mc,
+            1.0 + rel_mc,
+            step="mid",
+            color="#9e9e9e",
+            alpha=0.35,
+            zorder=2,
+        )
     ratio_mask = data_mask & (mc_sum > 0)
     if np.any(ratio_mask):
         ax_bot.errorbar(
@@ -929,6 +957,157 @@ def build_category_process_table(
             row.append(f"{float(vals.get(f'mc_full_{p}', 0.0)):.2f}")
         rows.append(row)
     return columns, rows
+
+
+def build_category_mass_grid(
+    era_payloads: Dict[str, Dict[str, object]],
+    edges: np.ndarray,
+    args: argparse.Namespace,
+    mass_bins: np.ndarray,
+    mc_weight_scale: float = 1.0,
+) -> plt.Figure:
+    ncat = len(edges) - 1
+    ncols = 2 if ncat > 1 else 1
+    nrows = int(math.ceil(ncat / float(ncols)))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(14.0, 4.2 * nrows), sharex=True)
+    axes_flat = np.atleast_1d(axes).ravel()
+
+    centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
+
+    for i in range(ncat):
+        ax = axes_flat[i]
+
+        data_mass_chunks: List[np.ndarray] = []
+        bkg_mass_chunks: List[np.ndarray] = []
+        bkg_weight_chunks: List[np.ndarray] = []
+        sig_mass_chunks: List[np.ndarray] = []
+        sig_weight_chunks: List[np.ndarray] = []
+
+        lo, hi = float(edges[i]), float(edges[i + 1])
+
+        for payload in era_payloads.values():
+            d_sc = np.asarray(payload["data_full_scores"], dtype=np.float64)  # type: ignore[index]
+            d_m = np.asarray(payload["data_full_mass"], dtype=np.float64)  # type: ignore[index]
+            if d_sc.size > 0 and d_m.size > 0:
+                d_cat = (d_sc >= lo) & (d_sc < hi)
+                d_sb = sideband_mass_mask(d_m, args)
+                dsel = d_cat & d_sb
+                if np.any(dsel):
+                    data_mass_chunks.append(d_m[dsel])
+
+            for _proc, m_sc, m_mass, m_w in payload["mc_full_groups"]:  # type: ignore[index]
+                m_sc = np.asarray(m_sc, dtype=np.float64)
+                m_mass = np.asarray(m_mass, dtype=np.float64)
+                m_w = np.asarray(m_w, dtype=np.float64) * float(mc_weight_scale)
+                msel = (m_sc >= lo) & (m_sc < hi)
+                if np.any(msel):
+                    bkg_mass_chunks.append(m_mass[msel])
+                    bkg_weight_chunks.append(m_w[msel])
+
+            s_sc = np.asarray(payload["sig_full_scores"], dtype=np.float64)  # type: ignore[index]
+            s_mass = np.asarray(payload["sig_full_mass"], dtype=np.float64)  # type: ignore[index]
+            s_w = np.asarray(payload["sig_full_weight"], dtype=np.float64)  # type: ignore[index]
+            if s_sc.size > 0 and s_mass.size > 0 and s_w.size > 0:
+                ssel = (s_sc >= lo) & (s_sc < hi)
+                if np.any(ssel):
+                    sig_mass_chunks.append(s_mass[ssel])
+                    sig_weight_chunks.append(s_w[ssel] * float(mc_weight_scale))
+
+        data_mass = concat_chunks(data_mass_chunks)
+        bkg_mass = concat_chunks(bkg_mass_chunks)
+        bkg_w = concat_chunks(bkg_weight_chunks)
+        sig_mass = concat_chunks(sig_mass_chunks)
+        sig_w = concat_chunks(sig_weight_chunks)
+
+        h_data, v_data = weighted_hist_and_var(data_mass, mass_bins, None)
+        h_bkg, _ = weighted_hist_and_var(bkg_mass, mass_bins, bkg_w if bkg_w.size > 0 else None)
+        h_sig, _ = weighted_hist_and_var(sig_mass, mass_bins, sig_w if sig_w.size > 0 else None)
+        h_sb = h_bkg + h_sig
+
+        # Sideband-only polynomial fit to data for the background curve.
+        fit_mask = (centers < args.blind_min) | (centers > args.blind_max)
+        fit_x = centers[fit_mask]
+        fit_y = h_data[fit_mask]
+        fit_w = 1.0 / np.sqrt(np.maximum(v_data[fit_mask], 1.0))
+        if fit_x.size >= 4 and np.sum(fit_y) > 0:
+            try:
+                coeffs = np.polyfit(fit_x, fit_y, deg=2, w=fit_w)
+                h_bkg_fit = np.polyval(coeffs, centers)
+                h_bkg_fit = np.clip(h_bkg_fit, 0.0, None)
+            except Exception:
+                h_bkg_fit = h_bkg.copy()
+        else:
+            h_bkg_fit = h_bkg.copy()
+
+        # S+B model: background fit + expected signal template
+        h_sb_fit = h_bkg_fit + h_sig
+
+        width = (mass_bins[1] - mass_bins[0]) if len(mass_bins) > 1 else 1.0
+        ax.bar(
+            centers,
+            h_bkg,
+            width=width,
+            color="#4f79a7",
+            alpha=0.35,
+            edgecolor="#2f4f6f",
+            linewidth=0.4,
+            label="Bkg component" if i == 0 else None,
+            zorder=1,
+        )
+        ax.step(
+            centers,
+            h_bkg_fit,
+            where="mid",
+            color="#1f77b4",
+            linewidth=2.0,
+            label="Bkg fit" if i == 0 else None,
+            zorder=3,
+        )
+        ax.step(
+            centers,
+            h_sb_fit,
+            where="mid",
+            color="#d62728",
+            linewidth=2.0,
+            label="S+B fit" if i == 0 else None,
+            zorder=4,
+        )
+
+        dmask = (centers < args.blind_min) | (centers > args.blind_max)
+        if np.any(dmask):
+            ax.errorbar(
+                centers[dmask],
+                h_data[dmask],
+                yerr=np.sqrt(np.maximum(v_data[dmask], 1.0)),
+                fmt="o",
+                color="black",
+                markersize=3.5,
+                linewidth=1.0,
+                label="Data" if i == 0 else None,
+                zorder=5,
+            )
+
+        ax.axvspan(args.blind_min, args.blind_max, color="#bdbdbd", alpha=0.18, zorder=0)
+        ax.set_title(f"Cat {i}: [{lo:.3f}, {hi:.3f})")
+        ax.set_ylabel("Events / bin")
+        ax.grid(alpha=0.25)
+
+    for j in range(ncat, len(axes_flat)):
+        axes_flat[j].axis("off")
+
+    for ax in axes_flat[:max(ncat, 1)]:
+        ax.set_xlabel("m_mumu [GeV]")
+
+    if ncat > 0:
+        axes_flat[0].legend(loc="upper right", ncol=2)
+
+    fig.suptitle(
+        "Per-category dimuon mass: Data (blinded), Bkg fit, and S+B fit",
+        fontsize=15,
+        y=0.995,
+    )
+    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.975])
+    return fig
 
 
 def parse_category_edges_arg(text: str) -> Optional[np.ndarray]:
@@ -1143,6 +1322,10 @@ def main() -> None:
         raise SystemExit("[error] No valid era payloads were loaded.")
 
     edges = optimize_category_edges(args, eras, logger)
+    interior = np.asarray(edges[1:-1], dtype=np.float64)
+    category_band = None
+    if interior.size >= 1:
+        category_band = (float(np.min(interior)), float(np.max(interior)))
 
     run3_data_side_scores = combine_data_side_scores(era_payloads)
     run3_data_side_mass = combine_data_side_masses(era_payloads, args)
@@ -1163,24 +1346,43 @@ def main() -> None:
 
     run3_mc_score_full = scale_mc_groups(run3_mc_score_full, mc_scale)
     run3_mc_mass_full = scale_mc_groups(run3_mc_mass_full, mc_scale)
+    run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_full)
 
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
-    data_hist, _data_var = weighted_hist_and_var(run3_data_side_scores, score_bins, None)
-    mc_hists, mc_vars, mc_total, mc_total_var = compute_group_hists(run3_mc_score_full, score_bins)
+    fig_score, data_hist, _data_var, mc_hists, mc_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
+        title="BDT output distribution",
+        xlabel="BDT score",
+        bins=score_bins,
+        data_values=run3_data_side_scores,
+        mc_groups=run3_mc_score_display,
+        logy=args.score_logy,
+        category_band=category_band,
+        show_mc_unc_band=False,
+        shade_category_band=False,
+        annotation_lines=[
+            f"Eras: {', '.join(sorted(era_payloads.keys()))}",
+            f"Boundary range: {category_band[0]:.3f} to {category_band[1]:.3f}" if category_band else "Boundary range: N/A",
+        ],
+    )
 
     mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
     fig_mass, _m_dhist, _m_dvar, _m_hists, _m_vars, _m_tot, _m_tot_var = make_stacked_ratio_figure(
-        title="Blinded dimuon mass: data sidebands with full MC expectation",
+        title="Blinded dimuon mass: data sidebands with MC expectation",
         xlabel="m_mumu [GeV]",
         bins=mass_bins,
         data_values=run3_data_side_mass,
         mc_groups=run3_mc_mass_full,
         logy=False,
         blind_band=(args.blind_min, args.blind_max),
-        annotation_lines=[
-            "Data points are hidden in the signal window (blinded).",
-            "MC is shown across the full fit range.",
-        ],
+        show_mc_unc_band=False,
+    )
+
+    fig_cat_mass = build_category_mass_grid(
+        era_payloads=era_payloads,
+        edges=edges,
+        args=args,
+        mass_bins=mass_bins,
+        mc_weight_scale=mc_scale,
     )
 
     bdt_cols, bdt_rows = build_bdt_bin_table(score_bins, data_hist, mc_hists, mc_vars, mc_total, mc_total_var)
@@ -1205,12 +1407,16 @@ def main() -> None:
                 f"Optimized category edges: {', '.join([f'{x:.4f}' for x in edges])}",
             ],
         )
+        pdf.savefig(fig_score)
         pdf.savefig(fig_mass)
+        pdf.savefig(fig_cat_mass)
         add_table_pages(pdf, "BDT bin-by-bin comparison", bdt_cols, bdt_rows, max_rows=20)
         add_table_pages(pdf, "Optimized category summary", cat_cols, cat_rows, max_rows=20)
         add_table_pages(pdf, "Category composition by process (full mass window)", cat_proc_cols, cat_proc_rows, max_rows=20)
 
+    plt.close(fig_score)
     plt.close(fig_mass)
+    plt.close(fig_cat_mass)
 
     logger.info("Wrote report PDF: %s", report_path)
     print(f"[done] Wrote report: {report_path}")
