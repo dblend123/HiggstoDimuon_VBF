@@ -1453,22 +1453,21 @@ def main() -> None:
     run3_data_side_mass = combine_data_side_masses(era_payloads, args)
 
     run3_mc_score_side = combine_mc_score_groups(era_payloads, region="side")
-    run3_mc_score_full = combine_mc_score_groups(era_payloads, region="full")
     run3_mc_mass_full = combine_mc_mass_groups(era_payloads, args, region="full")
 
     if run3_data_side_scores.size == 0:
         raise SystemExit("[error] No data events found in sidebands for the selected eras.")
-    if not run3_mc_score_full:
-        raise SystemExit("[error] No MC events found for BDT plotting.")
+    if not run3_mc_score_side:
+        raise SystemExit("[error] No sideband MC events found for BDT plotting.")
 
     mc_scale = 1.0
     if args.mc_normalization == "sidebands":
         mc_scale = compute_sideband_mc_scale(run3_data_side_scores, run3_mc_score_side)
         logger.info("MC normalization (sidebands): scale factor = %.6f", mc_scale)
 
-    run3_mc_score_full = scale_mc_groups(run3_mc_score_full, mc_scale)
+    run3_mc_score_side = scale_mc_groups(run3_mc_score_side, mc_scale)
     run3_mc_mass_full = scale_mc_groups(run3_mc_mass_full, mc_scale)
-    run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_full)
+    run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_side)
 
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
     fig_score, data_hist, _data_var, _score_hists, _score_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
