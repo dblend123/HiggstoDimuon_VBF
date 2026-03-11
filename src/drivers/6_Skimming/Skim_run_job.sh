@@ -115,11 +115,10 @@ echo "Using skimmer: ${SKIM_BIN}"
 command -v md5sum >/dev/null && md5sum "./${SKIM_BIN}" || stat "./${SKIM_BIN}"
 
 # Capture ldd once, print it, then test it
-LDD_OUT="$(ldd "./${SKIM_BIN}" 2>&1 | tee /dev/stderr)"
+LDD_OUT="$(ldd "./${SKIM_BIN}" 2>&1)"
 if grep -q '/usr/lib64/root' <<<"${LDD_OUT}"; then
-  echo "FATAL: ${SKIM_BIN} is linked against system ROOT (/usr/lib64/root). Rebuild in LCG_105 with:" >&2
-  echo "  c++ -O2 -std=gnu++17 MyAnaSkim.C -o my_skim \\" >&2
-  echo "     \$(root-config --cflags) \$(root-config --libs) -Wl,-rpath,\$(root-config --libdir) -Wl,--enable-new-dtags" >&2
+  echo "FATAL: ${SKIM_BIN} is linked against system ROOT (/usr/lib64/root)." >&2
+  echo "${LDD_OUT}" >&2
   exit 88
 fi
 
@@ -140,10 +139,21 @@ echo "Using cleaned TAG: ${TAG_CLEAN}"
 # ---------------------------
 set +e
 echo "Running: ./${SKIM_BIN} '${LIST_LOCAL}' '${MAX_EVENTS}'"
-"./${SKIM_BIN}" "${LIST_LOCAL}" "${MAX_EVENTS}"
+
+"./${SKIM_BIN}" "${LIST_LOCAL}" "${MAX_EVENTS}" > skim.stdout.log 2> skim.stderr.log
 SKIM_RC=$?
+
+# Keep condor logs small:
+if [[ ${SKIM_RC} -ne 0 ]]; then
+  echo "my_skim FAILED (exit ${SKIM_RC})" >&2
+  echo "---- last 200 lines of skim.stderr.log ----" >&2
+  tail -n 200 skim.stderr.log >&2 || true
+else
+  # optional: show a tiny amount of normal output
+  echo "---- last 50 lines of skim.stdout.log ----"
+  tail -n 50 skim.stdout.log || true
+fi
 set -e
-echo "my_skim exit code: ${SKIM_RC}"
 
 # ---------------------------
 # Stage-out to EOS (and remove local files)

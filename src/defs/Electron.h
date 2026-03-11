@@ -36,6 +36,7 @@ namespace analysis
                     _mvahzzid_loose = false;
                     
                     _cutBased = 0;
+                    _mvaIso_WP90 = false;
                 }
 
                 std::vector<bool> _ids;
@@ -58,6 +59,7 @@ namespace analysis
                 bool _mvahzzid_loose;
 
                 char _cutBased;
+                bool _mvaIso_WP90;
 
         };
 

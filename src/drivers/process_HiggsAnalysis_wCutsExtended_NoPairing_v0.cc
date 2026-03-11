@@ -190,6 +190,10 @@ std::string g_zptRWFile      = "None";
 static ZPtReweighter g_zptRW;
 std::atomic<bool> __continueRunning = true;
 
+static bool g_disableBeamConstraint = false;  // if true, skip Beamspot Constrained Pt 
+static inline bool useBeamConstraintPt(const analysis::core::Muon& mu);
+static inline float baseMuonPtForCorrections(const analysis::core::Muon& mu);
+
 // MVA tree
 TTree* gMvaTree = nullptr;
 
@@ -249,18 +253,18 @@ std::string g_selected_lumi_key = "unset";
 
 // Kinematic Cuts  
 enum MuonType {kLead=0, kSubLead=1};  // Muon Id --> lead = 0, sublead =1
-double _leadmuonPt = 26.;  // +2 GeV of HLT trigger 
-double _subleadmuonPt = 20.;
-double _leadmuonEta = 2.4;
-double _subleadmuonEta = 2.4;
-double _leadmuonIso = 0.25;
-double _subleadmuonIso = 0.25;
-double _leadJetPt = 35.; //Kind of unsure --> Purdue has 50 GeV w/out Loose PU ID
-double _subleadJetPt = 25.;
-double _leadJetEta = 4.7;
-double _subleadJetEta = 4.7;
-double _dijetMass_VBF = 400;
-double _dijetdEta_VBF = 2.5;
+double _leadmuonPt          = 26.;  // +2 GeV of HLT trigger 
+double _subleadmuonPt       = 20.;
+double _leadmuonEta         = 2.4;
+double _subleadmuonEta      = 2.4;
+double _leadmuonIso         = 0.25;
+double _subleadmuonIso      = 0.25;
+double _leadJetPt           = 35.; //Kind of unsure --> Purdue has 50 GeV w/out Loose PU ID
+double _subleadJetPt        = 25.;
+double _leadJetEta          = 4.7;
+double _subleadJetEta       = 4.7;
+double _dijetMass_VBF       = 400;
+double _dijetdEta_VBF       = 2.5;
 
 // Namespace 
 namespace po = boost::program_options;
@@ -737,10 +741,50 @@ void loadPileupCorrections() {
 //             GOLDEN JSON
 // -------------------------------------
 
-static std::unordered_map<unsigned, std::vector<std::pair<unsigned,unsigned>>> g_lumiMask;
-
+static std::map<unsigned, std::vector<std::pair<unsigned,unsigned>>> g_lumiMask;
 std::string g_goldenDir  = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/Golden_json";
 std::string g_goldenJSON = "auto"; 
+
+static void skipWS(const std::string& s, size_t& i) {
+    while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
+}
+
+static bool consume(const std::string& s, size_t& i, char c) {
+    skipWS(s, i);
+    if (i < s.size() && s[i] == c) { ++i; return true; }
+    return false;
+}
+
+static unsigned parseUInt(const std::string& s, size_t& i) {
+    skipWS(s, i);
+    if (i >= s.size() || !std::isdigit(static_cast<unsigned char>(s[i]))) {
+        throw std::runtime_error("Expected unsigned integer while parsing golden JSON");
+    }
+    unsigned val = 0;
+    while (i < s.size() && std::isdigit(static_cast<unsigned char>(s[i]))) {
+        val = val * 10 + (s[i] - '0');
+        ++i;
+    }
+    return val;
+}
+
+static std::string parseQuotedString(const std::string& s, size_t& i) {
+    skipWS(s, i);
+    if (i >= s.size() || s[i] != '"') {
+        throw std::runtime_error("Expected quoted string while parsing golden JSON");
+    }
+    ++i; // skip opening quote
+    std::string out;
+    while (i < s.size() && s[i] != '"') {
+        out.push_back(s[i]);
+        ++i;
+    }
+    if (i >= s.size()) {
+        throw std::runtime_error("Unterminated quoted string in golden JSON");
+    }
+    ++i; // skip closing quote
+    return out;
+}
 
 static std::string goldenFileForEra(const std::string& era) {
   if (g_goldenJSON != "auto") return g_goldenJSON;
@@ -755,43 +799,104 @@ static std::string goldenFileForEra(const std::string& era) {
   return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
 }
 
-// Tiny parser for the CMS golden JSON schema:
-// { "315257": [[1,23],[25,178]], "315259": [[1,90]] , ... }
 static void loadGoldenJsonCorrections() {
-  g_lumiMask.clear();
+    g_lumiMask.clear();
 
-  const std::string path = goldenFileForEra(g_era);
-  try {
+    const std::string path = goldenFileForEra(g_era);
+    if (path.empty()) {
+        std::cerr << "[GOLDEN] No golden JSON configured for era " << g_era << "\n";
+        return;
+    }
+
     std::ifstream in(path);
     if (!in) {
-      std::cerr << "[GOLDEN load ERROR] Cannot open " << path << "\n";
-      return;
-    }
-    const std::string s{ std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>() };
-
-    std::regex block_re("\"(\\d+)\"\\s*:\\s*\\[([\\s\\S]*?)\\]");
-    std::regex pair_re("\\[\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\]");
-
-    for (std::sregex_iterator it(s.begin(), s.end(), block_re), end; it != end; ++it) {
-      unsigned run = static_cast<unsigned>(std::stoul((*it)[1].str()));
-      std::string inner = (*it)[2].str();
-
-      std::vector<std::pair<unsigned,unsigned>> ranges;
-      for (std::sregex_iterator jt(inner.begin(), inner.end(), pair_re), jend; jt != jend; ++jt) {
-        unsigned a = static_cast<unsigned>(std::stoul((*jt)[1].str()));
-        unsigned b = static_cast<unsigned>(std::stoul((*jt)[2].str()));
-        if (a <= b) ranges.emplace_back(a, b);
-      }
-      if (!ranges.empty()) g_lumiMask.emplace(run, std::move(ranges));
+        std::cerr << "[GOLDEN] Failed to open file: " << path << "\n";
+        return;
     }
 
-    std::cerr << "[GOLDEN] Loaded " << g_lumiMask.size() << " runs from " << path << "\n";
-  } catch (const std::exception& e) {
-    std::cerr << "[GOLDEN load EXCEPTION] " << e.what() << "\n";
-    std::cerr << "[GOLDEN load ERROR] era=" << g_era
-              << " file=" << path << "\n";
-    g_lumiMask.clear();
-  }
+    std::string text((std::istreambuf_iterator<char>(in)),
+                      std::istreambuf_iterator<char>());
+
+    std::cerr << "[GOLDEN] Raw file size = " << text.size() << " bytes\n";
+
+    try {
+        size_t i = 0;
+        skipWS(text, i);
+
+        if (!consume(text, i, '{')) {
+            throw std::runtime_error("Expected opening '{'");
+        }
+
+        while (true) {
+            skipWS(text, i);
+            if (i < text.size() && text[i] == '}') {
+                ++i;
+                break;
+            }
+
+            std::string runStr = parseQuotedString(text, i);
+            unsigned run = static_cast<unsigned>(std::stoul(runStr));
+
+            if (!consume(text, i, ':')) {
+                throw std::runtime_error("Expected ':' after run number");
+            }
+            if (!consume(text, i, '[')) {
+                throw std::runtime_error("Expected '[' starting lumi-range list");
+            }
+
+            std::vector<std::pair<unsigned,unsigned>> ranges;
+
+            while (true) {
+                skipWS(text, i);
+                if (i < text.size() && text[i] == ']') {
+                    ++i; // end of this run's lumi list
+                    break;
+                }
+
+                if (!consume(text, i, '[')) {
+                    throw std::runtime_error("Expected '[' starting lumi pair");
+                }
+
+                unsigned a = parseUInt(text, i);
+
+                if (!consume(text, i, ',')) {
+                    throw std::runtime_error("Expected ',' inside lumi pair");
+                }
+
+                unsigned b = parseUInt(text, i);
+
+                if (!consume(text, i, ']')) {
+                    throw std::runtime_error("Expected ']' ending lumi pair");
+                }
+
+                ranges.emplace_back(a, b);
+
+                skipWS(text, i);
+                if (i < text.size() && text[i] == ',') {
+                    ++i; // next lumi pair
+                    continue;
+                }
+            }
+
+            if (!ranges.empty()) {
+                g_lumiMask.emplace(run, std::move(ranges));
+            }
+
+            skipWS(text, i);
+            if (i < text.size() && text[i] == ',') {
+                ++i; // next run block
+                continue;
+            }
+        }
+
+        std::cerr << "[GOLDEN] Loaded " << g_lumiMask.size()
+                  << " runs from " << path << "\n";
+
+    } catch (const std::exception& e) {
+        std::cerr << "[GOLDEN] Parse error: " << e.what() << "\n";
+        std::cerr << "[GOLDEN] File: " << path << "\n";
+        g_lumiMask.clear();
+    }
 }
 
 // Fast membership test (same idea as your PU accessors)
@@ -825,7 +930,7 @@ float getMuonRochester(const Muon& mu, bool isMC)
 
     // --- Sanitize inputs ---
     int   charge = (mu._charge > 0) ? +1 : (mu._charge < 0 ? -1 : +1); // zero -> +1
-    float pt     = std::isfinite(mu._bsConstrainedPt) ? mu._bsConstrainedPt : mu._pt;
+    float pt     = baseMuonPtForCorrections(mu);
     float eta    = std::isfinite(mu._eta) ? mu._eta : 0.0f;
     float phi    = std::isfinite(mu._phi) ? mu._phi : 0.0f;
 
@@ -1178,8 +1283,8 @@ inline bool passFlagFilters(const Flags* fv, bool isData /* = !__isMC */) {
     if (g_disableFlagFilters) return true;
     if (!fv || fv->empty()) return true; // be permissive if not present
     const Flag& f = fv->front();
-    return  f._goodVertices
-         && f._globalSuperTightHalo2016Filter
+    return  //f._goodVertices
+         f._globalSuperTightHalo2016Filter
          && f._EcalDeadCellTriggerPrimitiveFilter
          && f._BadPFMuonFilter
          && f._BadPFMuonDzFilter
@@ -1201,6 +1306,24 @@ inline bool passVertex(const Vertices* v) {
 //          MUON/LEPTONS CRITERIA 
 // -------------------------------------
 
+static inline bool useBeamConstraintPt(const Muon& mu) {
+
+  if (g_disableBeamConstraint) return false;
+
+  // mimic awkward mask: (bsConstrainedChi2 < 30)
+  if (!std::isfinite(mu._bsConstrainedChi2)) return false;
+  if (mu._bsConstrainedChi2 >= 30.f) return false;
+
+  if (!std::isfinite(mu._bsConstrainedPt)) return false;
+  if (mu._bsConstrainedPt <= 0.f) return false;
+
+  return true;
+}
+
+static inline float baseMuonPtForCorrections(const Muon& mu) {
+  return useBeamConstraintPt(mu) ? mu._bsConstrainedPt : mu._pt;
+}
+
 inline float muCorrScale(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t lumi = 0) {
     if (__noMuCorr) return 1.0f;
 
@@ -1209,7 +1332,7 @@ inline float muCorrScale(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t l
     if (__useKIT) {
         if (!kitCorrections) return 1.0f;
 
-        const double pt0 = kit::basePt(mu);
+        const double pt0 = baseMuonPtForCorrections(mu);
         if (pt0 <= 0.0) return 1.0f;
 
         const bool is_data = !isMC;
@@ -1244,7 +1367,8 @@ inline float muCorrScale(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t l
 }
 
 inline float correctedBsPt(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t lumi = 0) {
-    return mu._bsConstrainedPt * muCorrScale(mu, isMC, evt, lumi);
+  const float pt0 = baseMuonPtForCorrections(mu);
+  return pt0 * muCorrScale(mu, isMC, evt, lumi);
 }
 
 bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
@@ -1253,7 +1377,7 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
 
     // Count muons with pT>20, |eta|<2.4, global||tracker
     for (const auto& mu : *muons) {
-        float ptCorr = mu._pt * muCorrScale(mu, isMC);
+        float ptCorr = baseMuonPtForCorrections(mu) * muCorrScale(mu, isMC);
 
         if (ptCorr <= 20.0f)       continue;
         if (std::abs(mu._eta) >= 2.4f) continue;
@@ -1267,14 +1391,16 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
         return false;
     }
 
-    // Electron veto: pT>20, |eta|<2.5, loose ID
+    // Electron veto: pT>20, |eta|<2.5, ignoring 1.44<|eta|<1.57, passing WP90 MVA-based ID
     for (const auto& el : *electrons) {
-        if (el._pt > 20.0f &&
-            std::abs(el._eta) < 2.5f &&
-            el._cutBased >= 1)
-        {
-            return false;
-        }
+        const float aeta = std::abs(el._eta);
+
+        if (el._pt <= 20.0f) continue;
+        if (aeta >= 2.5f)    continue;
+        if (aeta > 1.44f && aeta < 1.57f) continue;
+        if (!el._mvaIso_WP90) continue; 
+
+        return false; // veto event
     }
 
     return true;
@@ -2445,6 +2571,8 @@ void process()
     SET_BRANCH_UINT(nMuon);
     SET_BRANCH_FLOAT_ARRAY(Muon_pt);
     SET_BRANCH_FLOAT_ARRAY(Muon_bsConstrainedPt);
+    SET_BRANCH_FLOAT_ARRAY(Muon_bsConstrainedChi2);
+    SET_BRANCH_FLOAT_ARRAY(Muon_bsConstrainedPtErr);
     SET_BRANCH_FLOAT_ARRAY(Muon_phi);
     SET_BRANCH_FLOAT_ARRAY(Muon_eta);
     SET_BRANCH_INT_ARRAY(Muon_charge);
@@ -2549,6 +2677,7 @@ void process()
     SET_BRANCH_FLOAT_ARRAY(Electron_eta);
     SET_BRANCH_FLOAT_ARRAY(Electron_phi);
     SET_BRANCH_UCHAR_ARRAY(Electron_cutBased);
+    SET_BRANCH_BOOL_ARRAY(Electron_mvaIso_WP90);
 
     //Setting Branch Array for Rho Properties
     SET_BRANCH_FLOAT(fixedGridRhoFastjetAll);
@@ -2646,6 +2775,11 @@ void process()
         std::cerr << "[INFO] TrigObj binding = LEAFLIST mode (counter=nTrigObj, max=" << TO_MAX << ")\n";
     }
 
+std::cout << "[BRANCH CHECK] Flag_goodVertices exists = "
+          << (ROOT_CHAIN->GetBranch("Flag_goodVertices") != nullptr) << "\n";
+std::cout << "[BRANCH CHECK] PV_npvsGood exists = "
+          << (ROOT_CHAIN->GetBranch("PV_npvsGood") != nullptr) << "\n";
+
 // --- DEBUG COUNTERS ---
 long long n_afterGolden = 0;
 long long n_afterFlags  = 0;
@@ -2678,21 +2812,23 @@ long long n_afterPair   = 0;
 
         for (size_t i=0; i<nMuon; i++) {
             Muon mu;
-            mu._pt              = Muon_pt[i];
-            mu._bsConstrainedPt = Muon_bsConstrainedPt[i];
-            mu._eta             = Muon_eta[i];
-            mu._phi             = Muon_phi[i];
-            mu._charge          = Muon_charge[i];
-            mu._isGlobal        = Muon_isGlobal[i];
-            mu._isTracker       = Muon_isTracker[i];
-            mu._tightId         = Muon_tightId[i];
-            mu._mediumId        = Muon_mediumId[i];
-            mu._looseId         = Muon_looseId[i];
-            mu._isPFcand        = Muon_isPFcand[i];
-            mu._dxy             = Muon_dxy[i];
-            mu._dz              = Muon_dz[i];
-            mu._pfRelIso04_all  = Muon_pfRelIso04_all[i];
-            mu._nTrackerLayers  = Muon_nTrackerLayers[i];
+            mu._pt                  = Muon_pt[i];
+            mu._bsConstrainedPt     = Muon_bsConstrainedPt[i];
+            mu._bsConstrainedChi2   = Muon_bsConstrainedChi2[i];
+            mu._bsConstrainedPtErr  = Muon_bsConstrainedPtErr[i];
+            mu._eta             	= Muon_eta[i];
+            mu._phi             	= Muon_phi[i];
+            mu._charge          	= Muon_charge[i];
+            mu._isGlobal        	= Muon_isGlobal[i];
+            mu._isTracker       	= Muon_isTracker[i];
+            mu._tightId         	= Muon_tightId[i];
+            mu._mediumId        	= Muon_mediumId[i];
+            mu._looseId         	= Muon_looseId[i];
+            mu._isPFcand        	= Muon_isPFcand[i];
+            mu._dxy             	= Muon_dxy[i];
+            mu._dz              	= Muon_dz[i];
+            mu._pfRelIso04_all  	= Muon_pfRelIso04_all[i];
+            mu._nTrackerLayers  	= Muon_nTrackerLayers[i];
 
             muons->push_back(std::move(mu));
         }
@@ -2761,10 +2897,11 @@ long long n_afterPair   = 0;
         
         for (size_t i=0; i<nElectron; i++) {
             Electron electron;
-            electron._pt = Electron_pt[i];
-            electron._eta = Electron_eta[i];
-            electron._phi = Electron_phi[i]; 
-            electron._cutBased = Electron_cutBased[i];
+            electron._pt          = Electron_pt[i];
+            electron._eta         = Electron_eta[i];
+            electron._phi         = Electron_phi[i]; 
+            electron._cutBased    = Electron_cutBased[i];
+            electron._mvaIso_WP90 = Electron_mvaIso_WP90[i];
 
             electrons->push_back(std::move(electron));
         }
@@ -2843,11 +2980,36 @@ std::cout << std::setprecision(10)
        }
        ++n_afterGolden;
 
-    
+        static int dbg = 0;
+if (!__isMC && !g_lumiMask.empty() && dbg < 10) {
+    unsigned run  = static_cast<unsigned>(event->_run);
+    unsigned lumi = static_cast<unsigned>(event->_lumi);
+    std::cout << "[GOLDEN DBG] run=" << run
+              << " lumi=" << lumi
+              << " pass=" << passGolden(run, lumi) << "\n";
+    ++dbg;
+}
+
+static int flagDbg = 0;
+if (flagDbg < 10 && flags && !flags->empty()) {
+    const auto& f = flags->front();
+    std::cout
+        << "[FLAG DBG] "
+        << "goodVertices=" << f._goodVertices
+        << " globalSuperTightHalo2016Filter=" << f._globalSuperTightHalo2016Filter
+        << " EcalDeadCellTriggerPrimitiveFilter=" << f._EcalDeadCellTriggerPrimitiveFilter
+        << " BadPFMuonFilter=" << f._BadPFMuonFilter
+        << " BadPFMuonDzFilter=" << f._BadPFMuonDzFilter
+        << " hfNoisyHitsFilter=" << f._hfNoisyHitsFilter
+        << " ecalBadCalibFilter=" << f._ecalBadCalibFilter
+        << " eeBadScFilter=" << f._eeBadScFilter
+        << std::endl;
+    ++flagDbg;
+}
         //	Selections
         if (!passFlagFilters(flags, !__isMC)) continue;
         ++n_afterFlags;
-        //if (!passVertex(vertices)) continue;
+        if (!passVertex(vertices)) continue;
         ++n_afterVtx;
         if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
         ++n_afterVeto;
@@ -2932,6 +3094,7 @@ int main(int argc, char** argv)
         ("noPU",            po::bool_switch(&g_disablePUWeights)->default_value(false),         "Disable pileup reweighting (Pileup_nTrueInt -> weight = 1)")
         ("noFSR",           po::bool_switch(&g_disableFSRRecovery)->default_value(false),       "Disable FSR photon recovery (use pre-FSR muon four-vectors)")
         ("noZPtRW",         po::bool_switch(&g_disableZPtRW)->default_value(false),             "Disable DY Z-pT reweighting")
+        ("noBeamConstraint", po::bool_switch(&g_disableBeamConstraint)->default_value(false),   "Disable beam-constrained muon pT usage (bsConstrainedPt)")
         ("leadmuonPt",      po::value<double>(&_leadmuonPt)->default_value(_leadmuonPt),        "Muon Pt Cut")
         ("subleadmuonPt",   po::value<double>(&_subleadmuonPt)->default_value(_subleadmuonPt),  "Muon Pt Cut")
         ("leadmuonEta",     po::value<double>(&_leadmuonEta)->default_value(_leadmuonEta),      "Muon Eta Cut")
@@ -2971,7 +3134,11 @@ int main(int argc, char** argv)
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	po::notify(vm);
-    
+   
+    std::cout << "[CONFIG] Beam constraint pT: " 
+              << (g_disableBeamConstraint ? "DISABLED" : "ENABLED")
+              << std::endl;
+
     if (vm.count("help") || argc<2)
 	{
 		std::cout << desc << std::endl;
@@ -2979,8 +3146,9 @@ int main(int argc, char** argv)
 	}
 
     if (!vm.count("output")) {
-    std::cerr << "Error: --output option is missing!" << std::endl;
-    exit(1);
+        std::cerr << "Error: --output option is missing!" 
+                  << std::endl;
+        exit(1);
     }
 	
 	//	Assign globals
@@ -3100,6 +3268,7 @@ std::cout << std::fixed
     }
 	if (!__isMC && !noGolden) {             		  // loads Golden Json files 
         loadGoldenJsonCorrections();
+        std::cout << "[GoldenJSON] runs loaded = " << g_lumiMask.size() << std::endl;
     }
     process();
 

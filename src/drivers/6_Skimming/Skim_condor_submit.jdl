@@ -5,8 +5,8 @@ output                  = outs/$(tag)_$(ClusterId).out
 error                   = errors/$(tag)_$(ClusterId).err
 log                     = logs/$(tag)_$(ClusterId).log
 
-stream_output           = True
-stream_error            = True
+stream_output           = False
+stream_error            = False
 
 use_x509userproxy       = true
 x509userproxy           = x509up.cert
@@ -39,7 +39,7 @@ request_cpus            = 1
 request_memory          = 2000
 request_disk            = 4000
 
-era       = 2024
+era       = 22023
 # era       = X
 # era       = X
 # era       = X
@@ -147,14 +147,14 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
-# sample    = DATA_22023_Muon1
-# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+sample    = DATA_22023_Muon1
+queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
 
 # ===== 2024 DATA queue =====
 
 # # Muon0
-sample    = DATA_2024_Muon0
-queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
+# sample    = DATA_2024_Muon0
+# queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
 # sample    = DATA_2024_Muon1
