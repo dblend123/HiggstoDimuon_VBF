@@ -209,6 +209,23 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--fold-importance-files", default="",
                    help="Comma-separated fold-wise feature-importance txt files")
 
+    # Fold KS diagnostic thresholds (CMS-style loose/nominal/tight defaults)
+    p.add_argument(
+        "--ks-threshold-labels",
+        default="Run2-loose,Run2-nominal,Run2-tight",
+        help="Comma-separated labels for fold-KS threshold profiles",
+    )
+    p.add_argument(
+        "--ks-p-thresholds",
+        default="0.01,0.05,0.10",
+        help="Comma-separated minimum p-values for each KS profile",
+    )
+    p.add_argument(
+        "--ks-d-thresholds",
+        default="0.15,0.10,0.07",
+        help="Comma-separated maximum KS-D values for each KS profile",
+    )
+
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     return p.parse_args()
 
@@ -407,6 +424,39 @@ def safe_legend(ax, **kwargs) -> None:
     handles, labels = ax.get_legend_handles_labels()
     if handles and any(str(lbl).strip() and not str(lbl).startswith("_") for lbl in labels):
         ax.legend(**kwargs)
+
+
+def build_ks_threshold_profiles(args: argparse.Namespace, logger: logging.Logger) -> List[Tuple[str, float, float]]:
+    labels = parse_csv(args.ks_threshold_labels)
+    pvals = parse_csv_floats(args.ks_p_thresholds)
+    dvals = parse_csv_floats(args.ks_d_thresholds)
+
+    n = min(len(labels), len(pvals), len(dvals))
+    if n == 0:
+        logger.warning("Invalid KS profile inputs; using fallback profile p>=0.05, D<=0.10")
+        return [("Nominal", 0.05, 0.10)]
+
+    if not (len(labels) == len(pvals) == len(dvals)):
+        logger.warning(
+            "KS profile lengths mismatch labels/p/d = %d/%d/%d; truncating to %d",
+            len(labels),
+            len(pvals),
+            len(dvals),
+            n,
+        )
+
+    out: List[Tuple[str, float, float]] = []
+    for i in range(n):
+        out.append((str(labels[i]).strip(), max(float(pvals[i]), 0.0), max(float(dvals[i]), 0.0)))
+    return out
+
+
+def ks_profile_status(d_val: float, p_val: float, p_min: float, d_max: float) -> str:
+    if p_val >= p_min and d_val <= d_max:
+        return "PASS"
+    if p_val >= 0.5 * p_min and d_val <= 1.3 * d_max:
+        return "WARN"
+    return "FAIL"
 
 
 def sanitize_weights(w: np.ndarray) -> np.ndarray:
@@ -988,6 +1038,10 @@ def main() -> None:
     summary_lines.append(f"VBF groups: {', '.join(vbf_set) if vbf_set else '(none)'}")
     summary_lines.append(f"SR weighted yields: S={float(np.sum(s_w)):.3f}, B={float(np.sum(b_w)):.3f}")
 
+    ks_profiles = build_ks_threshold_profiles(args, logger)
+    profile_desc = "; ".join([f"{name}: p>={pmin:.3g}, D<={dmax:.3g}" for name, pmin, dmax in ks_profiles])
+    summary_lines.append(f"KS profiles: {profile_desc}")
+
     with PdfPages(pdf_path) as pdf:
         # Header page
         add_note_page(
@@ -1100,7 +1154,15 @@ def main() -> None:
                     any_curve = True
                 if hv.sum() > 0:
                     hv = hv / hv.sum()
-                    ax.step(centers, hv, where="mid", color=PROC_COLOR["VBF"], linewidth=2, label="VBF-like")
+                    ax.step(
+                        centers,
+                        hv,
+                        where="mid",
+                        color=PROC_COLOR["VBF"],
+                        linewidth=2.4,
+                        linestyle="--",
+                        label="VBF-like",
+                    )
                     plotted = True
                     any_curve = True
 
@@ -1109,6 +1171,7 @@ def main() -> None:
                 ax.set_title(title)
                 ax.set_xlabel("BDT score")
                 ax.grid(alpha=0.3)
+                safe_legend(ax, fontsize=8)
 
             if any_curve:
                 axes[0].set_ylabel("Normalized entries")
@@ -1229,22 +1292,41 @@ def main() -> None:
 
             fig, ax = plt.subplots(figsize=(11, 7))
             idx = np.arange(len(cat_s))
-            ax.bar(idx - 0.2, cat_s, width=0.4, label="Signal", color=PROC_COLOR["VBF"])
-            ax.bar(idx + 0.2, cat_b, width=0.4, label="Background", color=PROC_COLOR["DY"])
+            ax.bar(idx, cat_b, width=0.62, label="Background", color=PROC_COLOR["DY"], alpha=0.75)
+
+            ax_sig = ax.twinx()
+            ax_sig.plot(
+                idx,
+                cat_s,
+                color=PROC_COLOR["VBF"],
+                marker="o",
+                linewidth=2.0,
+                label="Signal",
+            )
             labels = [f"[{cat_edges[i]:.2f},{cat_edges[i+1]:.2f})" for i in range(len(cat_s))]
             ax.set_xticks(idx)
             ax.set_xticklabels(labels, rotation=35, ha="right")
-            ax.set_ylabel("Weighted yield")
+            ax.set_ylabel("Background weighted yield")
+            ax_sig.set_ylabel("Signal weighted yield")
+
+            b_max = float(np.max(cat_b)) if cat_b.size else 0.0
+            s_max = float(np.max(cat_s)) if cat_s.size else 0.0
+            ax.set_ylim(0.0, max(1.0, b_max * 1.25))
+            ax_sig.set_ylim(0.0, max(1.0e-4, s_max * 1.35))
+
             ax.set_title("5) Optimized BDT categories (high-to-low merge)")
             ax.grid(alpha=0.3)
-            safe_legend(ax)
+            h1, l1 = ax.get_legend_handles_labels()
+            h2, l2 = ax_sig.get_legend_handles_labels()
+            if h1 or h2:
+                ax.legend(h1 + h2, l1 + l2, loc="upper right")
             ax.text(0.01, 0.96, f"Total multibin Z_Asimov={z_tot:.3f}", transform=ax.transAxes)
             pdf.savefig(fig)
             plt.close(fig)
         else:
             logger.info("Skipping category-optimization page: signal/background score arrays are empty.")
 
-        # Fold-based KS checks (no ROC curves)
+        # Fold-based KS checks (detailed diagnostic page)
         fold_ok = np.isfinite(sig_arr["fold"]).any() and np.isfinite(bkg_arr["fold"]).any()
         if fold_ok:
             s_fold = sig_arr["fold"].astype(np.int32)
@@ -1264,72 +1346,208 @@ def main() -> None:
             summary_lines.append(f"KS(signal train-vs-valid): D={d_sig:.4f}, p={p_sig:.4g}")
             summary_lines.append(f"KS(bkg train-vs-valid): D={d_bkg:.4f}, p={p_bkg:.4g}")
 
-            fold_lines = [
-                f"KS(signal train-vs-valid): D={d_sig:.4f}, p={p_sig:.4g}",
-                f"KS(bkg train-vs-valid): D={d_bkg:.4f}, p={p_bkg:.4g}",
-                f"Train/valid/test counts signal: {np.count_nonzero(tr_s)}/{np.count_nonzero(va_s)}/{np.count_nonzero(te_s)}",
-                f"Train/valid/test counts bkg: {np.count_nonzero(tr_b)}/{np.count_nonzero(va_b)}/{np.count_nonzero(te_b)}",
+            m_sig_tr, _ = weighted_mean_std(sig_arr["score"][tr_s], sig_arr["weight"][tr_s])
+            m_sig_va, _ = weighted_mean_std(sig_arr["score"][va_s], sig_arr["weight"][va_s])
+            m_sig_te, _ = weighted_mean_std(sig_arr["score"][te_s], sig_arr["weight"][te_s])
+            m_bkg_tr, _ = weighted_mean_std(bkg_arr["score"][tr_b], bkg_arr["weight"][tr_b])
+            m_bkg_va, _ = weighted_mean_std(bkg_arr["score"][va_b], bkg_arr["weight"][va_b])
+            m_bkg_te, _ = weighted_mean_std(bkg_arr["score"][te_b], bkg_arr["weight"][te_b])
+
+            fig = plt.figure(figsize=(14, 9))
+            gs = fig.add_gridspec(2, 2, height_ratios=[2.1, 1.4], hspace=0.25)
+            ax_sig = fig.add_subplot(gs[0, 0])
+            ax_bkg = fig.add_subplot(gs[0, 1], sharex=ax_sig)
+            ax_tbl = fig.add_subplot(gs[1, :])
+
+            centers = 0.5 * (score_bins[:-1] + score_bins[1:])
+
+            def _norm_hist(vals: np.ndarray, ww: np.ndarray) -> np.ndarray:
+                h = weighted_hist(vals, score_bins, ww)
+                return h / h.sum() if h.sum() > 0 else h
+
+            h_sig_tr = _norm_hist(sig_arr["score"][tr_s], sig_arr["weight"][tr_s])
+            h_sig_va = _norm_hist(sig_arr["score"][va_s], sig_arr["weight"][va_s])
+            h_sig_te = _norm_hist(sig_arr["score"][te_s], sig_arr["weight"][te_s])
+
+            h_bkg_tr = _norm_hist(bkg_arr["score"][tr_b], bkg_arr["weight"][tr_b])
+            h_bkg_va = _norm_hist(bkg_arr["score"][va_b], bkg_arr["weight"][va_b])
+            h_bkg_te = _norm_hist(bkg_arr["score"][te_b], bkg_arr["weight"][te_b])
+
+            ax_sig.step(centers, h_sig_tr, where="mid", linewidth=1.9, color="#1f77b4", label="Signal train")
+            ax_sig.step(centers, h_sig_va, where="mid", linewidth=1.9, color="#ff7f0e", label="Signal valid")
+            ax_sig.step(centers, h_sig_te, where="mid", linewidth=1.6, linestyle="--", color="#2ca02c", label="Signal test")
+            ax_sig.set_title("Signal score by fold split")
+            ax_sig.set_ylabel("Normalized entries")
+            ax_sig.grid(alpha=0.3)
+            safe_legend(ax_sig, fontsize=8)
+
+            ax_bkg.step(centers, h_bkg_tr, where="mid", linewidth=1.9, color="#1f77b4", label="Bkg train")
+            ax_bkg.step(centers, h_bkg_va, where="mid", linewidth=1.9, color="#ff7f0e", label="Bkg valid")
+            ax_bkg.step(centers, h_bkg_te, where="mid", linewidth=1.6, linestyle="--", color="#2ca02c", label="Bkg test")
+            ax_bkg.set_title("Background score by fold split")
+            ax_bkg.grid(alpha=0.3)
+            safe_legend(ax_bkg, fontsize=8)
+
+            for aa in (ax_sig, ax_bkg):
+                aa.set_xlabel("BDT score")
+
+            ax_tbl.axis("off")
+            status_col_labels = [name for name, _pmin, _dmax in ks_profiles]
+            table_cols = [
+                "Sample",
+                "N train",
+                "N valid",
+                "N test",
+                "Mean(train)",
+                "Mean(valid)",
+                "Mean(test)",
+                "KS D",
+                "KS p",
+            ] + status_col_labels
+
+            sig_statuses = [
+                ks_profile_status(d_sig, p_sig, pmin, dmax)
+                for _name, pmin, dmax in ks_profiles
             ]
+            bkg_statuses = [
+                ks_profile_status(d_bkg, p_bkg, pmin, dmax)
+                for _name, pmin, dmax in ks_profiles
+            ]
+
+            table_rows = [
+                [
+                    "Signal",
+                    f"{np.count_nonzero(tr_s)}",
+                    f"{np.count_nonzero(va_s)}",
+                    f"{np.count_nonzero(te_s)}",
+                    f"{m_sig_tr:.4f}",
+                    f"{m_sig_va:.4f}",
+                    f"{m_sig_te:.4f}",
+                    f"{d_sig:.4f}",
+                    f"{p_sig:.4g}",
+                ] + sig_statuses,
+                [
+                    "Background",
+                    f"{np.count_nonzero(tr_b)}",
+                    f"{np.count_nonzero(va_b)}",
+                    f"{np.count_nonzero(te_b)}",
+                    f"{m_bkg_tr:.4f}",
+                    f"{m_bkg_va:.4f}",
+                    f"{m_bkg_te:.4f}",
+                    f"{d_bkg:.4f}",
+                    f"{p_bkg:.4g}",
+                ] + bkg_statuses,
+            ]
+            tbl = ax_tbl.table(cellText=table_rows, colLabels=table_cols, loc="center", cellLoc="center")
+            tbl.auto_set_font_size(False)
+            tbl.set_fontsize(8.2)
+            tbl.scale(1.0, 1.35)
+            ax_tbl.set_title("Fold-based KS checks (train vs validation)", fontsize=12, pad=10)
+
+            status_start_col = len(table_cols) - len(ks_profiles)
+            for r in range(1, 1 + len(table_rows)):
+                for c in range(status_start_col, len(table_cols)):
+                    cell = tbl[(r, c)]
+                    val = str(table_rows[r - 1][c])
+                    if val == "PASS":
+                        cell.set_facecolor("#d9f2d9")
+                    elif val == "WARN":
+                        cell.set_facecolor("#fff4cc")
+                    else:
+                        cell.set_facecolor("#f8d7da")
+                    cell.set_text_props(weight="bold")
+
+            for c in range(len(table_cols)):
+                hcell = tbl[(0, c)]
+                hcell.set_facecolor("#e9ecef")
+                hcell.set_text_props(weight="bold")
+
+            ax_tbl.text(
+                0.01,
+                0.96,
+                "KS thresholds: " + profile_desc,
+                transform=ax_tbl.transAxes,
+                fontsize=8.5,
+                ha="left",
+                va="top",
+            )
+
+            summary_lines.append("KS profile checks (Signal): " + ", ".join([f"{nm}={st}" for (nm, _, _), st in zip(ks_profiles, sig_statuses)]))
+            summary_lines.append("KS profile checks (Background): " + ", ".join([f"{nm}={st}" for (nm, _, _), st in zip(ks_profiles, bkg_statuses)]))
 
             if np.isfinite(sig_arr["njets"]).any() and np.isfinite(bkg_arr["njets"]).any():
                 corr_sig = weighted_corr(sig_arr["njets"][s_mask_sr], sig_arr["score"][s_mask_sr], sig_arr["weight"][s_mask_sr])
                 corr_bkg = weighted_corr(bkg_arr["njets"][b_mask_sr], bkg_arr["score"][b_mask_sr], bkg_arr["weight"][b_mask_sr])
                 summary_lines.append(f"Corr(score, njets) signal={corr_sig:.3f}, background={corr_bkg:.3f}")
-                fold_lines.append(f"Corr(score, njets) signal={corr_sig:.3f}, background={corr_bkg:.3f}")
+                ax_tbl.text(
+                    0.01,
+                    0.02,
+                    f"Corr(score, njets): signal={corr_sig:.3f}, background={corr_bkg:.3f}",
+                    transform=ax_tbl.transAxes,
+                    fontsize=9,
+                    ha="left",
+                    va="bottom",
+                )
 
-            add_note_page(pdf, "Fold-based KS checks", fold_lines)
+            pdf.savefig(fig)
+            plt.close(fig)
         else:
             logger.info("Skipping fold-based KS checks: fold branch not available.")
 
-        # Control-region response checks (only non-empty regions)
+        # Control-region response checks (always show zpeak/highSB/SR, annotate empty)
         region_defs = [
             ("zpeak", "Z-peak (70-110)"),
             ("highsb", "High sideband (>150)"),
             ("sr", "SR (110-150)"),
         ]
-        region_payloads: List[Tuple[str, np.ndarray, Optional[np.ndarray]]] = []
-        for rname, rtitle in region_defs:
+        fig, axes = plt.subplots(1, 3, figsize=(16, 5), sharey=False)
+        centers = 0.5 * (score_bins[:-1] + score_bins[1:])
+
+        for ax, (rname, rtitle) in zip(axes, region_defs):
             m_mc = make_mass_masks(all_arr, args)[rname]
             h_mc = weighted_hist(all_arr["score"][m_mc], score_bins, all_arr["weight"][m_mc])
+            mc_yield = float(np.sum(all_arr["weight"][m_mc]))
 
             h_data: Optional[np.ndarray] = None
+            data_yield = 0.0
             if data_sample is not None:
                 m_d = make_mass_masks(data_sample.arrays, args)[rname]
                 h_data = weighted_hist(data_sample.arrays["score"][m_d], score_bins, None)
+                data_yield = float(np.sum(h_data))
 
-            has_mc = float(np.sum(h_mc)) > 0.0
-            has_data = h_data is not None and float(np.sum(h_data)) > 0.0
-            if has_mc or has_data:
-                region_payloads.append((rtitle, h_mc, h_data))
-            else:
-                logger.info("Skipping empty control region '%s'", rname)
+            plotted = False
+            if np.sum(h_mc) > 0:
+                h_mc = h_mc / h_mc.sum()
+                ax.step(centers, h_mc, where="mid", color="tab:blue", linewidth=2, label="MC total")
+                plotted = True
 
-        if region_payloads:
-            nreg = len(region_payloads)
-            fig, axes = plt.subplots(1, nreg, figsize=(5.4 * nreg, 5), sharey=True)
-            axes_arr = np.atleast_1d(axes)
-            centers = 0.5 * (score_bins[:-1] + score_bins[1:])
+            if h_data is not None and np.sum(h_data) > 0:
+                h_data = h_data / h_data.sum()
+                ax.step(centers, h_data, where="mid", color="black", linewidth=1.5, label="Data")
+                plotted = True
 
-            for ax, (rtitle, h_mc, h_data) in zip(axes_arr, region_payloads):
-                if np.sum(h_mc) > 0:
-                    h_mc = h_mc / h_mc.sum()
-                    ax.step(centers, h_mc, where="mid", color="tab:blue", linewidth=2, label="MC total")
+            if not plotted:
+                ax.text(0.5, 0.5, "No events", transform=ax.transAxes, ha="center", va="center", fontsize=10)
 
-                if h_data is not None and np.sum(h_data) > 0:
-                    h_data = h_data / h_data.sum()
-                    ax.step(centers, h_data, where="mid", color="black", linewidth=1.5, label="Data")
+            ax.text(
+                0.03,
+                0.96,
+                f"MC={mc_yield:.1f}\nData={data_yield:.0f}",
+                transform=ax.transAxes,
+                va="top",
+                ha="left",
+                fontsize=8,
+                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+            )
+            ax.set_title(rtitle)
+            ax.set_xlabel("BDT score")
+            ax.grid(alpha=0.3)
+            safe_legend(ax, fontsize=8)
 
-                ax.set_title(rtitle)
-                ax.set_xlabel("BDT score")
-                ax.grid(alpha=0.3)
-
-            axes_arr[0].set_ylabel("Normalized entries")
-            safe_legend(axes_arr[0])
-            fig.suptitle("Control-region BDT response")
-            pdf.savefig(fig)
-            plt.close(fig)
-        else:
-            logger.info("Skipping control-region page: no non-empty regions available.")
+        axes[0].set_ylabel("Normalized entries")
+        fig.suptitle("Control-region BDT response")
+        pdf.savefig(fig)
+        plt.close(fig)
 
         # BDT score vs VBF kinematics profiles
         prof_done = False
@@ -1362,6 +1580,7 @@ def main() -> None:
             axes[1].set_xlabel("|deta_jj|")
             axes[1].set_ylabel("<BDT score>")
             axes[1].grid(alpha=0.3)
+            safe_legend(axes[1], fontsize=8)
             prof_done = True
         else:
             axes[1].axis("off")
@@ -1377,6 +1596,7 @@ def main() -> None:
             axes[2].set_xlabel("jet1 pt [GeV]")
             axes[2].set_ylabel("<BDT score>")
             axes[2].grid(alpha=0.3)
+            safe_legend(axes[2], fontsize=8)
             prof_done = True
         else:
             axes[2].axis("off")
@@ -1389,7 +1609,7 @@ def main() -> None:
             plt.close(fig)
             logger.info("Skipping BDT-vs-kinematics page: missing mjj/deta_jj/pt_j1 branches.")
 
-        # VBF acceptance by BDT score
+        # VBF acceptance and purity by BDT score
         vbf_arr = combine_group_arrays(mc_groups, vbf_set)
         non_vbf_arr = combine_group_arrays(mc_groups, [k for k in mc_groups.keys() if k not in set(vbf_set)])
         if vbf_arr["score"].size > 0:
@@ -1431,16 +1651,30 @@ def main() -> None:
             fig, ax = plt.subplots(figsize=(11, 6))
             labels = [f"[{r[0]:.2f},{r[1]:.2f})" for r in rows]
             x = np.arange(len(rows))
-            ax.plot(x, [r[2] for r in rows], marker="o", label="Fraction of VBF signal")
-            ax.plot(x, [r[3] for r in rows], marker="s", label="VBF passing simple cuts")
-            ax.plot(x, [r[4] for r in rows], marker="^", label="Purity S/(S+B)")
+            frac_vbf = np.asarray([r[2] for r in rows], dtype=np.float64)
+            frac_simple = np.asarray([r[3] for r in rows], dtype=np.float64)
+            purity = np.asarray([r[4] for r in rows], dtype=np.float64)
+
+            ax.plot(x, frac_vbf, marker="o", linewidth=2.0, label="Fraction of VBF signal", color="#1f77b4")
+
+            ax_zoom = ax.twinx()
+            ax_zoom.plot(x, frac_simple, marker="s", linewidth=2.0, label="VBF passing simple cuts", color="#ff7f0e")
+            ax_zoom.plot(x, purity, marker="^", linewidth=2.0, label="Purity S/(S+B)", color="#2ca02c")
             ax.set_xticks(x)
             ax.set_xticklabels(labels, rotation=35, ha="right")
-            ax.set_ylim(0, 1.05)
-            ax.set_ylabel("Fraction")
+            ax.set_ylim(0.0, max(1.0, float(np.nanmax(frac_vbf)) * 1.15))
+            small_max = float(np.nanmax(np.nan_to_num(np.concatenate([frac_simple, purity]), nan=0.0)))
+            ax_zoom.set_ylim(0.0, max(0.02, small_max * 1.3))
+
+            ax.set_ylabel("Fraction of VBF signal")
+            ax_zoom.set_ylabel("Small-fraction metrics")
             ax.set_title("10) VBF signal acceptance and purity by BDT score")
             ax.grid(alpha=0.3)
-            safe_legend(ax)
+
+            h1, l1 = ax.get_legend_handles_labels()
+            h2, l2 = ax_zoom.get_legend_handles_labels()
+            if h1 or h2:
+                ax.legend(h1 + h2, l1 + l2, loc="upper right", fontsize=8)
             pdf.savefig(fig)
             plt.close(fig)
 
