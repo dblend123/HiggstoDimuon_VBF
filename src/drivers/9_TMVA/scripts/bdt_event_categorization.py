@@ -611,6 +611,7 @@ def make_stacked_ratio_figure(
     annotation_lines: Optional[List[str]] = None,
     show_mc_unc_band: bool = True,
     shade_category_band: bool = True,
+    show_mc_fraction_inset: bool = False,
 ) -> Tuple[plt.Figure, np.ndarray, np.ndarray, Dict[str, np.ndarray], Dict[str, np.ndarray], np.ndarray, np.ndarray]:
     fig, (ax_top, ax_bot) = plt.subplots(
         2,
@@ -627,7 +628,13 @@ def make_stacked_ratio_figure(
     hist_weights: List[np.ndarray] = []
     colors: List[str] = []
     labels: List[str] = []
-    for proc, vals, weights in mc_groups:
+    plot_groups = sorted(
+        list(mc_groups),
+        key=lambda x: float(np.sum(mc_hists.get(x[0], np.zeros(len(bins) - 1, dtype=np.float64)))),
+        reverse=True,
+    )
+
+    for proc, vals, weights in plot_groups:
         h = mc_hists.get(proc, None)
         if h is None or np.sum(h) <= 0:
             continue
@@ -646,7 +653,19 @@ def make_stacked_ratio_figure(
             label=labels,
             histtype="stepfilled",
             alpha=0.9,
-            linewidth=0.4,
+            linewidth=0.5,
+            edgecolor="#2e2e2e",
+        )
+
+    if np.any(mc_sum > 0):
+        ax_top.step(
+            centers,
+            mc_sum,
+            where="mid",
+            color="#2b2b2b",
+            linewidth=1.3,
+            label="MC total",
+            zorder=3,
         )
 
     mc_err = np.sqrt(np.maximum(mc_var_sum, 0.0))
@@ -732,6 +751,32 @@ def make_stacked_ratio_figure(
             fontsize=9,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.85, edgecolor="#b0b0b0"),
         )
+
+    if show_mc_fraction_inset and len(plot_groups) > 1 and np.any(mc_sum > 0):
+        ax_frac = ax_top.inset_axes([0.60, 0.08, 0.36, 0.30])
+        frac_base = np.zeros_like(mc_sum)
+        for proc, _vals, _weights in plot_groups:
+            hh = mc_hists.get(proc, None)
+            if hh is None:
+                continue
+            frac = np.divide(100.0 * hh, mc_sum, out=np.zeros_like(hh), where=mc_sum > 0)
+            frac_top = frac_base + frac
+            ax_frac.fill_between(
+                centers,
+                frac_base,
+                frac_top,
+                step="mid",
+                color=proc_color(proc),
+                alpha=0.85,
+                linewidth=0.0,
+            )
+            frac_base = frac_top
+        ax_frac.set_ylim(0.0, 100.0)
+        ax_frac.set_yticks([0.0, 50.0, 100.0])
+        ax_frac.set_xticks([])
+        ax_frac.set_title("MC composition [%]", fontsize=8)
+        ax_frac.tick_params(axis="y", labelsize=7)
+        ax_frac.grid(alpha=0.2)
 
     ax_top.legend(loc="upper right", ncol=2)
 
@@ -1048,7 +1093,6 @@ def build_category_mass_grid(
         h_data, v_data = weighted_hist_and_var(data_mass, mass_bins, None)
         h_bkg, _ = weighted_hist_and_var(bkg_mass, mass_bins, bkg_w if bkg_w.size > 0 else None)
         h_sig, _ = weighted_hist_and_var(sig_mass, mass_bins, sig_w if sig_w.size > 0 else None)
-        h_sb = h_bkg + h_sig
 
         # Sideband-only polynomial fit to data for the background curve.
         fit_mask = (centers < args.blind_min) | (centers > args.blind_max)
@@ -1068,16 +1112,14 @@ def build_category_mass_grid(
         # S+B model: background fit + expected signal template
         h_sb_fit = h_bkg_fit + h_sig
 
-        width = (mass_bins[1] - mass_bins[0]) if len(mass_bins) > 1 else 1.0
-        ax.bar(
+        ax.fill_between(
             centers,
-            h_bkg,
-            width=width,
+            0.0,
+            h_bkg_fit,
+            step="mid",
             color="#4f79a7",
-            alpha=0.35,
-            edgecolor="#2f4f6f",
-            linewidth=0.4,
-            label="Bkg component" if i == 0 else None,
+            alpha=0.28,
+            label="Bkg component (fit)" if i == 0 else None,
             zorder=1,
         )
         ax.step(
@@ -1085,8 +1127,7 @@ def build_category_mass_grid(
             h_bkg_fit,
             where="mid",
             color="#1f77b4",
-            linewidth=2.0,
-            label="Bkg fit" if i == 0 else None,
+            linewidth=2.2,
             zorder=3,
         )
         ax.step(
@@ -1094,7 +1135,7 @@ def build_category_mass_grid(
             h_sb_fit,
             where="mid",
             color="#d62728",
-            linewidth=2.0,
+            linewidth=2.2,
             label="S+B fit" if i == 0 else None,
             zorder=4,
         )
@@ -1408,7 +1449,7 @@ def main() -> None:
 
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
     fig_score, data_hist, _data_var, _score_hists, _score_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
-        title="BDT output distribution",
+        title="BDT score in sidebands: Data vs stacked MC",
         xlabel="BDT score",
         bins=score_bins,
         data_values=run3_data_side_scores,
@@ -1417,8 +1458,10 @@ def main() -> None:
         category_band=category_band,
         show_mc_unc_band=False,
         shade_category_band=False,
+        show_mc_fraction_inset=True,
         annotation_lines=[
             f"Eras: {', '.join(sorted(era_payloads.keys()))}",
+            f"BDT uses sidebands: ({args.sb1_min:.0f}, {args.sb1_max:.0f}) U ({args.sb2_min:.0f}, {args.sb2_max:.0f}) GeV",
             f"Boundary range: {category_band[0]:.3f} to {category_band[1]:.3f}" if category_band else "Boundary range: N/A",
         ],
     )
@@ -1445,7 +1488,7 @@ def main() -> None:
 
     mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
     fig_mass, _m_dhist, _m_dvar, _m_hists, _m_vars, _m_tot, _m_tot_var = make_stacked_ratio_figure(
-        title="Blinded dimuon mass: data sidebands with MC expectation",
+        title="Blinded m_mumu spectrum: sideband data points with MC expectation",
         xlabel="m_mumu [GeV]",
         bins=mass_bins,
         data_values=run3_data_side_mass,
