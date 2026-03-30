@@ -1553,7 +1553,31 @@ def optimize_category_edges(
 
     best = scan.get("best", None)
     if best is None:
-        raise SystemExit("[error] Category optimization failed to find a valid boundary set.")
+        # Fallback for low-stat / non-monotonic eras: derive robust quantile edges
+        # so the report can still be produced per era.
+        target_n = int(max(args.multibin_min_n, min(args.multibin_max_n, 6)))
+        q = np.linspace(0.0, 1.0, target_n + 1)
+        try:
+            q_edges = np.quantile(sig_scores, q)
+            q_edges = np.asarray(q_edges, dtype=np.float64)
+            q_edges[0] = 0.0
+            q_edges[-1] = 1.0
+            q_edges = np.clip(q_edges, 0.0, 1.0)
+            q_edges = np.unique(q_edges)
+            if q_edges.size < 3:
+                raise ValueError("degenerate quantile edges")
+            logger.warning(
+                "Category optimization found no valid set; using quantile fallback edges: %s",
+                ", ".join([f"{x:.6f}" for x in q_edges]),
+            )
+            return q_edges
+        except Exception:
+            uni_edges = np.linspace(0.0, 1.0, target_n + 1, dtype=np.float64)
+            logger.warning(
+                "Category optimization found no valid set; using uniform fallback edges: %s",
+                ", ".join([f"{x:.6f}" for x in uni_edges]),
+            )
+            return uni_edges
 
     edges = np.asarray(best["edges"], dtype=np.float64)
     metric_label = best.get("metric_label", "ZA(total)")
