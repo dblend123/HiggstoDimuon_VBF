@@ -154,8 +154,17 @@ def parse_args():
 
 
 def list_branches(path, treename):
-    f = ROOT.TFile.Open(path)
+    f = None
+    try:
+        f = ROOT.TFile.Open(path)
+    except Exception:
+        return []
     if not f or f.IsZombie():
+        try:
+            if f:
+                f.Close()
+        except Exception:
+            pass
         return []
     t = f.Get(treename)
     if not t:
@@ -164,6 +173,32 @@ def list_branches(path, treename):
     names = [br.GetName() for br in t.GetListOfBranches()]
     f.Close()
     return names
+
+
+def _is_readable_root_file(path, treename=None):
+    f = None
+    try:
+        f = ROOT.TFile.Open(path)
+    except Exception:
+        return False
+    if not f or f.IsZombie():
+        try:
+            if f:
+                f.Close()
+        except Exception:
+            pass
+        return False
+    ok = True
+    if treename:
+        try:
+            ok = bool(f.Get(treename))
+        except Exception:
+            ok = False
+    try:
+        f.Close()
+    except Exception:
+        pass
+    return ok
 
 
 def infer_mass_branch(path, treename, preferred):
@@ -269,14 +304,47 @@ def sanitize_weights(w, use_abs=False):
 def load_arrays(files, treename, branches, selection):
     if isinstance(files, str):
         files = [files]
+
+    valid_files = [f for f in files if _is_readable_root_file(f, treename)]
+    if not valid_files:
+        raise OSError(f"No readable ROOT files for tree '{treename}'")
+    if len(valid_files) < len(files):
+        logging.warning(
+            "Skipping %d unreadable ROOT file(s) while loading arrays for tree '%s'",
+            len(files) - len(valid_files),
+            treename,
+        )
+
     flist = ROOT.std.vector("string")()
-    for f in files:
+    for f in valid_files:
         flist.push_back(f)
-    df = ROOT.RDataFrame(treename, flist)
-    if selection:
-        df = df.Filter(selection)
-    arrs = df.AsNumpy(branches)
-    return {b: np.asarray(arrs[b], dtype=np.float64) for b in branches}
+    try:
+        df = ROOT.RDataFrame(treename, flist)
+        if selection:
+            df = df.Filter(selection)
+        arrs = df.AsNumpy(branches)
+        return {b: np.asarray(arrs[b], dtype=np.float64) for b in branches}
+    except Exception:
+        # Fallback path: load file-by-file to salvage good files when one bad file breaks a chain.
+        collected = {b: [] for b in branches}
+        n_ok = 0
+        for f in valid_files:
+            try:
+                df1 = ROOT.RDataFrame(treename, f)
+                if selection:
+                    df1 = df1.Filter(selection)
+                arr1 = df1.AsNumpy(branches)
+                for b in branches:
+                    collected[b].append(np.asarray(arr1[b], dtype=np.float64))
+                n_ok += 1
+            except Exception:
+                logging.warning("Failed to read '%s' in fallback mode; skipping", f)
+        if n_ok == 0:
+            raise OSError(f"Failed to load arrays from all readable files for tree '{treename}'")
+        return {
+            b: (np.concatenate(collected[b]).astype(np.float64, copy=False) if collected[b] else np.array([], dtype=np.float64))
+            for b in branches
+        }
 
 
 def ks_2samp(x, y):
