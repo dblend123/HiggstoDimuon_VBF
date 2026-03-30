@@ -60,7 +60,7 @@ echo "Starting TMVA BDT workflow for era: ${ERA}"
 echo "========================================="
 
 #Prepare data for TMVA training and testing
- python3 tmva100_DataPreparation.py --era ${ERA} --base /eos/user/m/memmad/Analyzed_SkimmedFiles/{era}/Rochester/noScaleSmear_noBtagSF --signal-subdir VBF --treename-in mva --make-all --keep-branches "m_mumu,Muon_pt,Muon_eta,Muon_phi,Muon_charge,Muon_tightId,Jet_btagDeepFlavB,Pileup_nTrueInt,run,luminosityBlock,event"
+python3 tmva100_DataPreparation.py --era ${ERA} --base /eos/user/m/memmad/Analyzed_SkimmedFiles/{era}/Rochester/noScaleSmear_noBtagSF --signal-subdir VBF --treename-in mva --make-all --keep-branches "m_mumu,Muon_pt,Muon_eta,Muon_phi,Muon_charge,Muon_tightId,Jet_btagDeepFlavB,Pileup_nTrueInt,run,luminosityBlock,event"
 
 # Create necessary directories if they don't exist
 mkdir -p Outputs/Training/${ERA}

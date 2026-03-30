@@ -567,6 +567,140 @@ def weighted_hist_and_var(
     return h.astype(np.float64, copy=False), h2.astype(np.float64, copy=False)
 
 
+def _weighted_linear_prediction(
+    A_fit: np.ndarray,
+    y_fit: np.ndarray,
+    sigma_fit: np.ndarray,
+    A_eval: np.ndarray,
+) -> Optional[Tuple[np.ndarray, int]]:
+    try:
+        if A_fit.ndim != 2 or A_eval.ndim != 2:
+            return None
+        npar = int(A_fit.shape[1])
+        if npar <= 0 or int(A_fit.shape[0]) <= npar:
+            return None
+        w = 1.0 / np.clip(sigma_fit, 1.0, None)
+        Aw = A_fit * w[:, None]
+        yw = y_fit * w
+        beta, *_ = np.linalg.lstsq(Aw, yw, rcond=None)
+        pred = A_eval @ beta
+        return pred.astype(np.float64, copy=False), npar
+    except Exception:
+        return None
+
+
+def fit_sideband_background_models(
+    centers: np.ndarray,
+    h_data: np.ndarray,
+    v_data: np.ndarray,
+    args: argparse.Namespace,
+) -> Tuple[np.ndarray, str, float, Dict[str, Tuple[float, int]]]:
+    fit_mask = (centers < args.blind_min) | (centers > args.blind_max)
+    x_fit = centers[fit_mask]
+    y_fit = h_data[fit_mask]
+    sigma_fit = np.sqrt(np.maximum(v_data[fit_mask], 1.0))
+
+    stats: Dict[str, Tuple[float, int]] = {}
+    if x_fit.size < 4 or np.sum(y_fit) <= 0:
+        return h_data.copy(), "fallback_data", float("inf"), stats
+
+    x_min = float(args.mass_min)
+    x_max = float(args.mass_max)
+    x_span = max(x_max - x_min, 1.0)
+    t_fit = np.clip((x_fit - x_min) / x_span, 0.0, 1.0)
+    t_eval = np.clip((centers - x_min) / x_span, 0.0, 1.0)
+    mz = 91.1876
+    gamma = 2.4952
+    bw_fit = 1.0 / (((x_fit - mz) ** 2) + (0.5 * gamma) ** 2)
+    bw_eval = 1.0 / (((centers - mz) ** 2) + (0.5 * gamma) ** 2)
+
+    fit_results: Dict[str, Tuple[np.ndarray, int]] = {}
+
+    def _register_linear(name: str, basis_fit, basis_eval) -> None:
+        out = _weighted_linear_prediction(
+            basis_fit,
+            y_fit,
+            sigma_fit,
+            basis_eval,
+        )
+        if out is not None:
+            fit_results[name] = out
+
+    _register_linear(
+        "BWZ",
+        np.column_stack([bw_fit, np.ones_like(x_fit), t_fit]),
+        np.column_stack([bw_eval, np.ones_like(centers), t_eval]),
+    )
+    _register_linear(
+        "BWZRedux",
+        np.column_stack([bw_fit, np.ones_like(x_fit), t_fit, t_fit * t_fit]),
+        np.column_stack([bw_eval, np.ones_like(centers), t_eval, t_eval * t_eval]),
+    )
+    _register_linear(
+        "BWZGamma",
+        np.column_stack([bw_fit, 1.0 / np.clip(x_fit, 1.0, None), np.ones_like(x_fit)]),
+        np.column_stack([bw_eval, 1.0 / np.clip(centers, 1.0, None), np.ones_like(centers)]),
+    )
+    _register_linear(
+        "Bernstein",
+        np.column_stack([
+            (1.0 - t_fit) ** 3,
+            3.0 * t_fit * (1.0 - t_fit) ** 2,
+            3.0 * (t_fit ** 2) * (1.0 - t_fit),
+            t_fit ** 3,
+        ]),
+        np.column_stack([
+            (1.0 - t_eval) ** 3,
+            3.0 * t_eval * (1.0 - t_eval) ** 2,
+            3.0 * (t_eval ** 2) * (1.0 - t_eval),
+            t_eval ** 3,
+        ]),
+    )
+    _register_linear(
+        "Power Series",
+        np.column_stack([np.ones_like(t_fit), t_fit, t_fit * t_fit, t_fit * t_fit * t_fit]),
+        np.column_stack([np.ones_like(t_eval), t_eval, t_eval * t_eval, t_eval * t_eval * t_eval]),
+    )
+
+    y_pos = np.clip(y_fit, 1e-6, None)
+    sigma_log = np.clip(sigma_fit / y_pos, 1e-3, None)
+    exp_out = _weighted_linear_prediction(
+        np.column_stack([
+            np.ones_like(x_fit),
+            np.clip((x_fit - x_min) / x_span, 0.0, 1.0),
+            np.clip((x_fit - x_min) / x_span, 0.0, 1.0) ** 2,
+        ]),
+        np.log(y_pos),
+        sigma_log,
+        np.column_stack([
+            np.ones_like(centers),
+            np.clip((centers - x_min) / x_span, 0.0, 1.0),
+            np.clip((centers - x_min) / x_span, 0.0, 1.0) ** 2,
+        ]),
+    )
+    if exp_out is not None:
+        pred_log, npar_exp = exp_out
+        fit_results["Exponential Series"] = (np.exp(np.clip(pred_log, -50.0, 50.0)), npar_exp)
+
+    best_name = "fallback_data"
+    best_chi2ndf = float("inf")
+    best_pred = h_data.copy()
+
+    for name, (pred_raw, npar) in fit_results.items():
+        pred = np.clip(pred_raw.astype(np.float64, copy=False), 0.0, None)
+        resid = y_fit - pred[fit_mask]
+        chi2 = float(np.sum(np.square(resid) / np.maximum(v_data[fit_mask], 1.0)))
+        ndf = int(max(x_fit.size - npar, 1))
+        chi2ndf = chi2 / float(ndf)
+        stats[name] = (chi2, ndf)
+        if np.isfinite(chi2ndf) and chi2ndf < best_chi2ndf:
+            best_chi2ndf = chi2ndf
+            best_name = name
+            best_pred = pred
+
+    return best_pred, best_name, best_chi2ndf, stats
+
+
 def compute_group_hists(
     groups: Sequence[Tuple[str, np.ndarray, np.ndarray]],
     bins: np.ndarray,
@@ -1044,7 +1178,7 @@ def build_category_mass_grid(
     args: argparse.Namespace,
     mass_bins: np.ndarray,
     mc_weight_scale: float = 1.0,
-) -> plt.Figure:
+) -> Tuple[plt.Figure, List[str], List[List[str]]]:
     ncat = len(edges) - 1
     ncols = 2 if ncat > 1 else 1
     nrows = int(math.ceil(ncat / float(ncols)))
@@ -1061,6 +1195,19 @@ def build_category_mass_grid(
     residual_axes = []
 
     centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
+    fit_columns = [
+        "Category",
+        "BDT range",
+        "Best model",
+        "Best chi2/ndf",
+        "BWZ",
+        "BWZRedux",
+        "BWZGamma",
+        "Bernstein",
+        "Exponential Series",
+        "Power Series",
+    ]
+    fit_rows: List[List[str]] = []
 
     for i in range(ncat):
         row = i // ncols
@@ -1117,20 +1264,12 @@ def build_category_mass_grid(
         h_bkg, _ = weighted_hist_and_var(bkg_mass, mass_bins, bkg_w if bkg_w.size > 0 else None)
         h_sig, _ = weighted_hist_and_var(sig_mass, mass_bins, sig_w if sig_w.size > 0 else None)
 
-        # Sideband-only polynomial fit to data for the background curve.
-        fit_mask = (centers < args.blind_min) | (centers > args.blind_max)
-        fit_x = centers[fit_mask]
-        fit_y = h_data[fit_mask]
-        fit_w = 1.0 / np.sqrt(np.maximum(v_data[fit_mask], 1.0))
-        if fit_x.size >= 4 and np.sum(fit_y) > 0:
-            try:
-                coeffs = np.polyfit(fit_x, fit_y, deg=2, w=fit_w)
-                h_bkg_fit = np.polyval(coeffs, centers)
-                h_bkg_fit = np.clip(h_bkg_fit, 0.0, None)
-            except Exception:
-                h_bkg_fit = h_bkg.copy()
-        else:
-            h_bkg_fit = h_bkg.copy()
+        h_bkg_fit, best_model, best_chi2ndf, model_stats = fit_sideband_background_models(
+            centers,
+            h_data,
+            v_data,
+            args,
+        )
 
         # S+B model: background fit + expected signal template
         h_sb_fit = h_bkg_fit + h_sig
@@ -1151,6 +1290,7 @@ def build_category_mass_grid(
             where="mid",
             color="#1f77b4",
             linewidth=2.2,
+            label=(f"Best bkg fit: {best_model}" if i == 0 else None),
             zorder=3,
         )
         ax.step(
@@ -1182,6 +1322,26 @@ def build_category_mass_grid(
         ax.set_ylabel("Events / bin")
         ax.grid(alpha=0.25)
         ax.tick_params(labelbottom=False)
+        ax.text(
+            0.02,
+            0.96,
+            f"Best: {best_model}\nchi2/ndf={best_chi2ndf:.3f}",
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=8.5,
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+        )
+
+        model_order = ["BWZ", "BWZRedux", "BWZGamma", "Bernstein", "Exponential Series", "Power Series"]
+        row = [str(i), f"[{lo:.3f}, {hi:.3f})", best_model, f"{best_chi2ndf:.3f}"]
+        for model_name in model_order:
+            if model_name in model_stats:
+                chi2, ndf = model_stats[model_name]
+                row.append(f"{chi2/float(max(ndf,1)):.3f} ({int(ndf)})")
+            else:
+                row.append("n/a")
+        fit_rows.append(row)
 
         residual = h_data - h_bkg_fit
         residual_err = np.sqrt(np.maximum(v_data, 1.0))
@@ -1224,12 +1384,12 @@ def build_category_mass_grid(
         top_axes[0].legend(loc="upper right", ncol=2)
 
     fig.suptitle(
-        "Per-category dimuon mass: Data (blinded), Bkg fit, and S+B fit",
+        "Per-category dimuon mass: Data (blinded), best sideband Bkg fit, and S+B fit",
         fontsize=15,
         y=0.995,
     )
     fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.972])
-    return fig
+    return fig, fit_columns, fit_rows
 
 
 def parse_category_edges_arg(text: str) -> Optional[np.ndarray]:
@@ -1520,7 +1680,7 @@ def main() -> None:
         show_mc_unc_band=False,
     )
 
-    fig_cat_mass = build_category_mass_grid(
+    fig_cat_mass, fit_cols, fit_rows = build_category_mass_grid(
         era_payloads=era_payloads,
         edges=edges,
         args=args,
@@ -1552,6 +1712,7 @@ def main() -> None:
         add_table_pages(pdf, "BDT bin summary: signal, background, and sensitivity", bdt_cols, bdt_rows, max_rows=20)
         pdf.savefig(fig_mass)
         pdf.savefig(fig_cat_mass)
+        add_table_pages(pdf, "Per-category sideband-fit comparison (chi2/ndf, ndf)", fit_cols, fit_rows, max_rows=20)
         add_table_pages(pdf, "Optimized category summary", cat_cols, cat_rows, max_rows=20)
         add_table_pages(pdf, "Category composition by process (full mass window)", cat_proc_cols, cat_proc_rows, max_rows=20)
 
