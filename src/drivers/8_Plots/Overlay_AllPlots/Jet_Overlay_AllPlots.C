@@ -314,8 +314,8 @@ for (const auto& var : vars) {
         h_ratio->GetYaxis()->SetNdivisions(505);
         h_ratio->GetXaxis()->SetLabelSize(0.12);
         h_ratio->GetXaxis()->SetTitleSize(0.12);
-        h_ratio->SetMinimum(0.0);
-        h_ratio->SetMaximum(2.0);
+        h_ratio->SetMinimum(0.5);
+        h_ratio->SetMaximum(1.5);
         h_ratio->SetMarkerStyle(20);
         h_ratio->SetLineColor(kBlack);
         h_ratio->Draw("E1");

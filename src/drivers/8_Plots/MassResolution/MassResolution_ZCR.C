@@ -1,4 +1,5 @@
 // MassResolution_ZCR_Voigt.C
+// Example:  MassResolution_ZCR("/eos/user/d/dblend/Analyzed_SkimmedFiles/12022/KIT/noJERC_noJetVeto_noBtagSF_noZPtRW/", "12022");
 #include "TFile.h"
 #include "TKey.h"
 #include "TClass.h"
@@ -11,6 +12,8 @@
 #include "TObjString.h"
 #include "TObjArray.h"
 #include "TString.h"
+#include "TPad.h"
+#include "TLine.h"
 
 #include "RooGlobalFunc.h"
 #include "RooRealVar.h"
@@ -20,6 +23,7 @@
 #include "RooAbsPdf.h"
 #include "RooAbsReal.h"
 #include "RooVoigtian.h"
+#include "RooCrystalBall.h"
 
 #include <iostream>
 #include <memory>
@@ -222,135 +226,254 @@ if (paths.empty()) {
   const double xmin = 75.0;
   const double xmax = 105.0;
 
-  // ---- helper that fits & saves
-  auto fitAndPlot = [&](TH1* hIn, const std::string& histPathTag) {
-    if (!hIn) {
-      std::cerr << "[WARN] Missing hist for tag '" << histPathTag << "'\n";
-      return;
-    }
+auto fitAndPlot = [&](TH1* hDataIn, TH1* hMcIn, const std::string& histPathTag) {
+  if (!hDataIn || !hMcIn) {
+    std::cerr << "[WARN] Missing Data/MC hist for tag '" << histPathTag << "'\n";
+    return;
+  }
 
-    std::unique_ptr<TH1D> hWin(makeWindowedHist(hIn, xmin, xmax));
-    if (!hWin) {
-      std::cerr << "[ERROR] Failed windowing for tag '" << histPathTag << "'\n";
-      return;
-    }
+  std::unique_ptr<TH1D> hDataWin(makeWindowedHist(hDataIn, xmin, xmax));
+  std::unique_ptr<TH1D> hMcWin  (makeWindowedHist(hMcIn,   xmin, xmax));
+  if (!hDataWin || !hMcWin) {
+    std::cerr << "[ERROR] Failed windowing for tag '" << histPathTag << "'\n";
+    return;
+  }
 
-    // Optional light rebin if extremely fine
-    if (hWin->GetNbinsX() > 600) hWin->Rebin(2);
+  if (hDataWin->GetNbinsX() > 600) { hDataWin->Rebin(2); hMcWin->Rebin(2); }
 
-    const double xlo = hWin->GetXaxis()->GetXmin();
-    const double xhi = hWin->GetXaxis()->GetXmax();
+  // ---- RooFit on DATA (so your “MassResolution” reflects data Z peak)
+  // ---- RooFit with DCB on DATA and MC
+const double xlo = hDataWin->GetXaxis()->GetXmin();
+const double xhi = hDataWin->GetXaxis()->GetXmax();
 
-    // (optional) print once for sanity
-    std::cout << "[ZCR] Using RooFit range [" << xlo << "," << xhi << "]\n";
+RooRealVar m("m", "m_{#mu#mu} [GeV]", xlo, xhi);
 
-    RooRealVar m("m", "m_{#mu#mu} [GeV]", xlo, xhi);
-    RooDataHist data("data", "data", RooArgList(m), Import(*hWin));
+// Datasets
+RooDataHist dataDH("dataDH", "dataDH", RooArgList(m), Import(*hDataWin));
+RooDataHist mcDH  ("mcDH",   "mcDH",   RooArgList(m), Import(*hMcWin));
 
-    // --- Voigtian: BW (Gamma) ⊗ Gaussian (sigma)
-    // mean around Z pole
-    RooRealVar mean("mean", "mean", 91.1876, 90.5, 91.9);
+// --------------------
+// DATA DCB parameters
+// --------------------
+RooRealVar meanD ("meanD",  "meanD",  91.1876, 90.5, 91.9);
+RooRealVar sigmaD("sigmaD", "sigmaD",  1.3,     0.2,  5.0);
 
-    // Natural Z width ~2.4952 GeV.
-    // If you want to *float* it, widen the range and remove setConstant(true).
-    RooRealVar gamma("gamma", "gamma", 2.4952);
-    gamma.setConstant(true);
+RooRealVar alphaLD("alphaLD","alphaLD", 1.2, 0.05, 10.0);
+RooRealVar nLD    ("nLD",    "nLD",     3.0, 0.5,  200.0);
+RooRealVar alphaRD("alphaRD","alphaRD", 1.2, 0.05, 10.0);
+RooRealVar nRD    ("nRD",    "nRD",     3.0, 0.5,  200.0);
 
-    // Detector resolution proxy
-    RooRealVar sigma("sigma", "sigma", 1.3, 0.2, 5.0);
+RooCrystalBall dcbData("dcbData", "DCB(Data)", m, meanD, sigmaD, alphaLD, nLD, alphaRD, nRD);
 
-    RooVoigtian voigt("voigt", "Z lineshape (Voigtian)", m, mean, gamma, sigma);
+std::unique_ptr<RooFitResult> frD(dcbData.fitTo(
+  dataDH, Save(true), PrintLevel(-1), SumW2Error(true),
+  Minimizer("Minuit2","migrad"), Strategy(1)
+));
 
-    std::unique_ptr<RooFitResult> fr(voigt.fitTo(
-      data, Save(true), PrintLevel(-1), SumW2Error(true),
-      Minimizer("Minuit2","migrad"), Strategy(1)
-    ));
+// --------------------
+// MC DCB parameters
+// (separate params so you can print both sets like you want)
+// --------------------
+RooRealVar meanM ("meanM",  "meanM",  91.1876, 90.5, 91.9);
+RooRealVar sigmaM("sigmaM", "sigmaM",  1.1,     0.2,  5.0);
 
-    auto* frame = m.frame(Title(("Z control region fit (Voigtian): " + histPathTag).c_str()));
-    data.plotOn(frame, Name("data"));
-    voigt.plotOn(frame, LineWidth(2), Name("voigt"));
+RooRealVar alphaLM("alphaLM","alphaLM", 1.2, 0.05, 10.0);
+RooRealVar nLM    ("nLM",    "nLM",     3.0, 0.5,  200.0);
+RooRealVar alphaRM("alphaRM","alphaRM", 1.2, 0.05, 10.0);
+RooRealVar nRM    ("nRM",    "nRM",     3.0, 0.5,  200.0);
 
-    // chi2/ndf (nParams = mean + sigma; gamma fixed)
-    const int nParams = 2;
-    const double chi2ndf = frame->chiSquare("voigt", "data", nParams);
+RooCrystalBall dcbMC("dcbMC", "DCB(MC)", m, meanM, sigmaM, alphaLM, nLM, alphaRM, nRM);
 
-    // sigma68 and FWHM from fitted pdf
-    std::unique_ptr<RooAbsReal> cdf(voigt.createCdf(m));
-    const double q16 = quantileFromCdf(*cdf, m, 0.16, xlo, xhi);
-    const double q84 = quantileFromCdf(*cdf, m, 0.84, xlo, xhi);
-    const double fwhm = fwhmFromPdf(voigt, m, xlo, xhi);
-    
-    const double sigma68 = 0.5 * (q84 - q16);
+std::unique_ptr<RooFitResult> frM(dcbMC.fitTo(
+  mcDH, Save(true), PrintLevel(-1), SumW2Error(true),
+  Minimizer("Minuit2","migrad"), Strategy(1)
+));
 
-    const double sigmaFromFwhm = (fwhm > 0 ? fwhm / 2.354820045 : 0.0);
+// Frames
+auto* frame = m.frame(Title(("Z control region fit (DCB): " + histPathTag).c_str()));
+dataDH.plotOn(frame, Name("data"));
+dcbData.plotOn(frame, LineWidth(2), Name("dcbData"));
 
-    auto* pt = new TPaveText(0.58, 0.60, 0.90, 0.88, "NDC");
-    pt->SetFillStyle(0);
-    pt->SetBorderSize(0);
-    pt->AddText(("Era: " + eraStr).c_str());
-    pt->AddText(Form("Lumi: %.3f fb^{-1}", lumi_fb));
-    pt->AddText(histPathTag.c_str());
-    pt->AddText(Form("mean = %.4f GeV", mean.getVal()));
-    pt->AddText(Form("gamma (fixed) = %.4f GeV", gamma.getVal()));
-    pt->AddText(Form("sigma (Gauss) = %.4f GeV", sigma.getVal()));
-    pt->AddText(Form("sigma_{68} (q84-q16)/2 = %.4f GeV", sigma68));
-    pt->AddText(Form("FWHM = %.4f GeV  (#sigma=%.4f)", fwhm, sigmaFromFwhm));
-    pt->AddText(Form("#chi^{2}/ndf = %.3f", chi2ndf));
+// Optional: overlay MC fit curve too
+dcbMC.plotOn(frame, LineWidth(2), LineStyle(kDashed), Name("dcbMC"));
 
-    auto* c = new TCanvas(("c_"+sanitize(histPathTag)).c_str(), "c", 900, 700);
-    c->SetLeftMargin(0.12);
-    c->SetBottomMargin(0.12);
-    frame->GetYaxis()->SetTitleOffset(1.35);
-    frame->Draw();
-    pt->Draw("same");
+// chi2/ndf (count params: mean,sigma,alphaL,nL,alphaR,nR = 6)
+const double chi2ndfD = frame->chiSquare("dcbData", "data", 6);
 
-    const std::string tag = sanitize(histPathTag);
-    const TString baseName = "MassResolution_ZCR_" + TString(tag.c_str());
-    c->SaveAs(outdir + baseName + ".pdf");
-    c->SaveAs(outdir + baseName + ".png");
+// For DATA resolution metrics
+std::unique_ptr<RooAbsReal> cdfD(dcbData.createCdf(m));
+const double q16D = quantileFromCdf(*cdfD, m, 0.16, xlo, xhi);
+const double q84D = quantileFromCdf(*cdfD, m, 0.84, xlo, xhi);
+const double fwhmD = fwhmFromPdf(dcbData, m, xlo, xhi);
+const double sigma68D = 0.5 * (q84D - q16D);
+const double sigmaFromFwhmD = (fwhmD > 0 ? fwhmD / 2.354820045 : 0.0);
 
-    delete c;
-  };
+// For MC resolution metrics
+std::unique_ptr<RooAbsReal> cdfM(dcbMC.createCdf(m));
+const double q16M = quantileFromCdf(*cdfM, m, 0.16, xlo, xhi);
+const double q84M = quantileFromCdf(*cdfM, m, 0.84, xlo, xhi);
+const double fwhmM = fwhmFromPdf(dcbMC, m, xlo, xhi);
+const double sigma68M = 0.5 * (q84M - q16M);
+const double sigmaFromFwhmM = (fwhmM > 0 ? fwhmM / 2.354820045 : 0.0);
+  
+  // ---- 2-pad canvas (pattern copied from overlay) :contentReference[oaicite:4]{index=4}
+  auto* c = new TCanvas(("c_"+sanitize(histPathTag)).c_str(), "c", 900, 800);
 
-// ---- Build summed background histogram from all files
+  TPad* pad1 = new TPad(("pad1_"+sanitize(histPathTag)).c_str(), "Top",    0, 0.32, 1, 1);
+  TPad* pad2 = new TPad(("pad2_"+sanitize(histPathTag)).c_str(), "Bottom", 0, 0.02, 1, 0.32);
+  pad1->SetBottomMargin(0.03);
+  pad2->SetTopMargin(0.03);
+  pad2->SetBottomMargin(0.30);
+  pad1->Draw(); pad2->Draw();
+
+  // ---- TOP: RooPlot + also draw MC shape behind (optional)
+  pad1->cd();
+  pad1->SetLeftMargin(0.12);
+  pad1->SetRightMargin(0.05);
+
+  // Draw MC as a histogram in the same pad, scaled to Data integral in the window
+  TH1D* hMcDraw = (TH1D*)hMcWin->Clone("hMcDraw");
+  hMcDraw->SetDirectory(nullptr);
+  const double iData = hDataWin->Integral(1, hDataWin->GetNbinsX());
+  const double iMc   = hMcWin->Integral(1, hMcWin->GetNbinsX());
+  if (iMc > 0) hMcDraw->Scale(iData / iMc);
+
+  hMcDraw->SetFillStyle(3004);
+  hMcDraw->SetLineWidth(2);
+  hMcDraw->SetTitle("");
+  hMcDraw->GetYaxis()->SetTitle("Events");
+  hMcDraw->GetXaxis()->SetTitle("m_{#mu#mu} [GeV]");
+  hMcDraw->GetYaxis()->SetTitleOffset(1.35);
+  hMcDraw->Draw("HIST");
+
+  frame->Draw("SAME"); // Data points + Voigt curve on top
+
+  auto* pt = new TPaveText(0.58, 0.60, 0.90, 0.88, "NDC");
+  pt->SetFillStyle(0);
+  pt->SetBorderSize(0);
+  pt->AddText("=== DATA (DCB) ===");
+pt->AddText(Form("mean = %.4f", meanD.getVal()));
+pt->AddText(Form("sigma = %.4f", sigmaD.getVal()));
+pt->AddText(Form("aL=%.3f nL=%.2f  aR=%.3f nR=%.2f",
+                 alphaLD.getVal(), nLD.getVal(), alphaRD.getVal(), nRD.getVal()));
+pt->AddText(Form("sigma_{68} = %.4f", sigma68D));
+pt->AddText(Form("FWHM = %.4f (#sigma=%.4f)", fwhmD, sigmaFromFwhmD));
+pt->AddText(Form("#chi^{2}/ndf = %.3f", chi2ndfD));
+
+pt->AddText("=== MC (DCB) ===");
+pt->AddText(Form("mean = %.4f", meanM.getVal()));
+pt->AddText(Form("sigma = %.4f", sigmaM.getVal()));
+pt->AddText(Form("aL=%.3f nL=%.2f  aR=%.3f nR=%.2f",
+                 alphaLM.getVal(), nLM.getVal(), alphaRM.getVal(), nRM.getVal()));
+pt->AddText(Form("sigma_{68} = %.4f", sigma68M));
+pt->AddText(Form("FWHM = %.4f (#sigma=%.4f)", fwhmM, sigmaFromFwhmM));
+  pt->Draw("same");
+
+  TLegend leg(0.15, 0.75, 0.45, 0.88);
+  leg.AddEntry(frame->findObject("data"), "Data", "lep");
+leg.AddEntry(hMcDraw, "MC (sum, norm. to Data)", "f");
+leg.AddEntry(frame->findObject("dcbData"), "DCB fit (Data)", "l");
+leg.AddEntry(frame->findObject("dcbMC"), "DCB fit (MC)", "l");
+  leg.Draw();
+
+  // ---- BOTTOM: Data/MC ratio using the *same binning window*
+  pad2->cd();
+  pad2->SetLeftMargin(0.12);
+  pad2->SetRightMargin(0.05);
+
+  TH1D* hRatio = (TH1D*)hDataWin->Clone("hRatio");
+  hRatio->SetDirectory(nullptr);
+
+  // Use unscaled MC for ratio (ratio is independent of overall normalization choice)
+  for (int i=1; i<=hRatio->GetNbinsX(); ++i) {
+    if (hMcWin->GetBinContent(i) <= 0) { hRatio->SetBinContent(i, 0); hRatio->SetBinError(i, 0); }
+  }
+  hRatio->Divide(hMcWin.get());
+
+  hRatio->SetTitle("");
+  hRatio->GetYaxis()->SetTitle("Data/MC");
+  hRatio->GetYaxis()->SetTitleSize(0.12);
+  hRatio->GetYaxis()->SetTitleOffset(0.40);
+  hRatio->GetYaxis()->SetLabelSize(0.10);
+  hRatio->GetYaxis()->SetNdivisions(505);
+
+  hRatio->GetXaxis()->SetTitle("m_{#mu#mu} [GeV]");
+  hRatio->GetXaxis()->SetTitleSize(0.12);
+  hRatio->GetXaxis()->SetLabelSize(0.12);
+
+  hRatio->SetMinimum(0.9);
+  hRatio->SetMaximum(1.1);
+  hRatio->SetMarkerStyle(20);
+  hRatio->Draw("E1");
+
+  pad2->Update();
+  double rxmin = gPad->GetUxmin();
+  double rxmax = gPad->GetUxmax();
+  TLine* one = new TLine(rxmin, 1.0, rxmax, 1.0);
+  one->SetLineStyle(2);
+  one->SetLineWidth(2);
+  one->Draw("SAME");
+
+  const std::string tag = sanitize(histPathTag);
+  const TString baseName = "MassResolution_ZCR_" + TString(tag.c_str());
+  c->SaveAs(outdir + baseName + ".pdf");
+  c->SaveAs(outdir + baseName + ".png");
+
+  delete one;
+  delete hRatio;
+  delete hMcDraw;
+  delete pt;
+  delete c;
+};
 
 const char* histName = "corr_DM_Pre-Selection/DiMuonMass_Z";
 
-std::unique_ptr<TH1> h_sum;  // total background
+std::unique_ptr<TH1> h_mc;    // total MC background
+std::unique_ptr<TH1> h_data;  // data
+
+auto isDataFile = [](const std::string& p){
+  // directory mode produces .../DATA/DATA_all.root; this is robust enough
+  return (p.find("/DATA/") != std::string::npos) || (p.find("DATA_all.root") != std::string::npos);
+};
 
 for (const auto& p : paths) {
 
-    std::unique_ptr<TFile> f(TFile::Open(p.c_str(), "READ"));
-    if (!f || f->IsZombie()) {
-        std::cerr << "[WARN] Skipping unreadable file: " << p << "\n";
-        continue;
-    }
+  std::unique_ptr<TFile> f(TFile::Open(p.c_str(), "READ"));
+  if (!f || f->IsZombie()) {
+    std::cerr << "[WARN] Skipping unreadable file: " << p << "\n";
+    continue;
+  }
 
-    TH1* h = dynamic_cast<TH1*>(f->Get(histName));
-    if (!h) {
-        std::cerr << "[WARN] Missing " << histName
-                  << " in: " << p << "\n";
-        continue;
-    }
+  TH1* h = dynamic_cast<TH1*>(f->Get(histName));
+  if (!h) {
+    std::cerr << "[WARN] Missing " << histName << " in: " << p << "\n";
+    continue;
+  }
 
-    // Clone so histogram survives after file closes
-    TH1* hc = dynamic_cast<TH1*>(h->Clone());
-    hc->SetDirectory(nullptr);
+  TH1* hc = dynamic_cast<TH1*>(h->Clone());
+  hc->SetDirectory(nullptr);
 
-    if (!h_sum) {
-        h_sum.reset(dynamic_cast<TH1*>(hc->Clone("h_bkg_sum")));
-        h_sum->SetDirectory(nullptr);
+  if (isDataFile(p)) {
+    if (!h_data) {
+      h_data.reset(dynamic_cast<TH1*>(hc->Clone("h_data_sum")));
+      h_data->SetDirectory(nullptr);
     } else {
-        h_sum->Add(hc);
+      h_data->Add(hc);
     }
+  } else {
+    if (!h_mc) {
+      h_mc.reset(dynamic_cast<TH1*>(hc->Clone("h_mc_sum")));
+      h_mc->SetDirectory(nullptr);
+    } else {
+      h_mc->Add(hc);
+    }
+  }
+
+  delete hc;
 }
 
-// Safety check
-if (!h_sum) {
-    std::cerr << "[ERROR] No histograms were loaded.\n";
-    return;
-}
+if (!h_mc)   { std::cerr << "[ERROR] No MC histograms were loaded.\n"; return; }
+if (!h_data) { std::cerr << "[ERROR] No DATA histogram was loaded. Make sure DATA/DATA_all.root is included.\n"; return; }
 
-// Fit the TOTAL stacked background
-fitAndPlot(h_sum.get(), "BKG_SUM_corr_DM_Pre-Selection_DiMuonMass_Z");
+fitAndPlot(h_data.get(), h_mc.get(), "ZCR_corr_DM_Pre-Selection_DiMuonMass_Z");
 }

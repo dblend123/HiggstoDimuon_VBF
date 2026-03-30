@@ -35,11 +35,16 @@ noFSR="${15:-false}"
 noBtagSF="${16:-false}"
 noJetCriteria="${17:-false}"
 
+noZPtRW="${18:-true}"
+zptRWFile_remote="${19:-None}"
+zptRWFile="$(basename -- "$zptRWFile_remote")"
+noBeamConstraint="${20:-false}"
+
 echo "=== Job $(date) ==="
 echo "tag=$tag  sample=$sample  maxEvents=$maxEvents"
 echo "inputList (remote) = $inputList_remote"
 echo "weights (remote)   = $weights_remote"
-echo "Toggles: noPU=$noPU noScaleSmear=$noScaleSmear noMuonSF=$noMuonSF noJERC=$noJERC noJetVeto=$noJetVeto noGolden=$noGolden noFlags=$noFlags noFSR=$noFSR noBtagSF=$noBtagSF noJetCriteria=$noJetCriteria"
+echo "Toggles: noPU=$noPU noScaleSmear=$noScaleSmear noMuonSF=$noMuonSF noJERC=$noJERC noJetVeto=$noJetVeto noGolden=$noGolden noFlags=$noFlags noFSR=$noFSR noBtagSF=$noBtagSF noJetCriteria=$noJetCriteria noBeamConstraint=$noBeamConstraint"
 
 # Resolve to local filenames (Condor puts transferred files in CWD under their basename)
 inputList="$(basename -- "$inputList_remote")"
@@ -80,6 +85,9 @@ extra_args=()
 [[ "$noFSR"        == "true" ]] && extra_args+=( --noFSR )
 [[ "$noBtagSF"     == "true" ]] && extra_args+=( --noBtagSF )
 [[ "$noJetCriteria" == "true" ]] && extra_args+=( --noJetCriteria )
+[[ "$noZPtRW"       == "true" ]] && extra_args+=( --noZPtRW )
+[[ "$noZPtRW"       != "true" ]] && extra_args+=( --zptRWFile "$zptRWFile" )
+[[ "$noBeamConstraint" == "true" ]] && extra_args+=( --disableBeamConstraint )
 
 # Build args; use the full (already-edited) list as-is
 bin="./process_HiggsAnalysis_wCutsExtended_NoPairing_v0"
@@ -109,7 +117,11 @@ echo "Running:"
 printf '%q ' "$bin" "${args[@]}"; echo
 echo
 
+set +e
 "$bin" "${args[@]}"
+rc=$?
+set -e
+echo "[WRAPPER] binary exit code = $rc"
 
 echo
 echo "Produced files:"
@@ -125,16 +137,25 @@ esac
 
 # Build a label of which corrections are OFF for directory naming
 cfg_parts=()
-[[ "$noPU"         == "true" ]] && cfg_parts+=(noPU)
-[[ "$noScaleSmear" == "true" ]] && cfg_parts+=(noScaleSmear)
-[[ "$noMuonSF"     == "true" ]] && cfg_parts+=(noMuonSF)
-[[ "$noJERC"       == "true" ]] && cfg_parts+=(noJERC)
-[[ "$noJetVeto"    == "true" ]] && cfg_parts+=(noJetVeto)
-[[ "$noGolden"     == "true" ]] && cfg_parts+=(noGolden)
-[[ "$noFlags"      == "true" ]] && cfg_parts+=(noFlags)
-[[ "$noFSR"        == "true" ]] && cfg_parts+=(noFSR)
-[[ "$noBtagSF"     == "true" ]] && cfg_parts+=(noBtagSF)
+
+[[ "$noPU"          == "true" ]] && cfg_parts+=(noPU)
+[[ "$noScaleSmear"  == "true" ]] && cfg_parts+=(noScaleSmear)
+[[ "$noMuonSF"      == "true" ]] && cfg_parts+=(noMuonSF)
+[[ "$noJERC"        == "true" ]] && cfg_parts+=(noJERC)
+[[ "$noJetVeto"     == "true" ]] && cfg_parts+=(noJetVeto)
+[[ "$noGolden"      == "true" ]] && cfg_parts+=(noGolden)
+[[ "$noFlags"       == "true" ]] && cfg_parts+=(noFlags)
+[[ "$noFSR"         == "true" ]] && cfg_parts+=(noFSR)
+[[ "$noBtagSF"      == "true" ]] && cfg_parts+=(noBtagSF)
 [[ "$noJetCriteria" == "true" ]] && cfg_parts+=(noJetCriteria)
+[[ "$noBeamConstraint" == "true" ]] && cfg_parts+=(noBeamConstraint)
+
+# --- ZPt Reweighting flag (NEW) ---
+if [[ "$noZPtRW" == "true" ]]; then
+  cfg_parts+=(noZPtRW)
+else
+  cfg_parts+=(ZPtRW)
+fi
 
 if (( ${#cfg_parts[@]} == 0 )); then
   CFG_DIR="AllCorrOn"

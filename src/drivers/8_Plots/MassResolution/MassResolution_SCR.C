@@ -205,7 +205,7 @@ void MassResolution_SCR(const char* inputPath,
   // output directory
   TString outdir =
     "/eos/user/d/dblend/StackedPlots/" + TString(eraStr.c_str()) +
-    "/Mass_Resolutions/" + corrType + "/" + corrections + "/";
+    "/Mass_Resolutions/SCR/" + corrType + "/" + corrections + "/";
 
   gSystem->Exec("mkdir -p " + outdir);
 

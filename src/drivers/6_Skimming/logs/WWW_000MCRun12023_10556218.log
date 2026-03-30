@@ -1,0 +1,45 @@
+040 (10556218.000.000) 03/06 03:43:41 Started transferring input files
+	Transferring to host: <188.185.212.186:9618?addrs=188.185.212.186-9618+[2001-1458-303-19--100-36]-9618&alias=b9p26p8164.cern.ch&noUDP&sock=slot1_15_3715_4db0_181354>
+...
+040 (10556218.000.000) 03/06 03:43:41 Finished transferring input files
+...
+001 (10556218.000.000) 03/06 03:43:41 Job executing on host: <188.185.212.186:9618?addrs=188.185.212.186-9618+[2001-1458-303-19--100-36]-9618&alias=b9p26p8164.cern.ch&noUDP&sock=startd_3004_1296>
+	SlotName: slot1_15@b9p26p8164.cern.ch
+	CondorScratchDir = "/pool/condor/dir_3983399"
+	Cpus = 1
+	Disk = 6847
+	GPUs = 0
+	Memory = 3000
+...
+006 (10556218.000.000) 03/06 03:43:55 Image size of job updated: 97824
+	96  -  MemoryUsage of job (MB)
+	97824  -  ResidentSetSize of job (KB)
+...
+006 (10556218.000.000) 03/06 03:48:17 Image size of job updated: 163740
+	96  -  MemoryUsage of job (MB)
+	97824  -  ResidentSetSize of job (KB)
+...
+040 (10556218.000.000) 03/06 03:48:17 Started transferring output files
+...
+040 (10556218.000.000) 03/06 03:48:17 Finished transferring output files
+...
+005 (10556218.000.000) 03/06 03:48:17 Job terminated.
+	(1) Normal termination (return value 0)
+		Usr 0 00:01:32, Sys 0 00:00:03  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+		Usr 0 00:01:32, Sys 0 00:00:03  -  Total Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Total Local Usage
+	3743  -  Run Bytes Sent By Job
+	190966  -  Run Bytes Received By Job
+	3743  -  Total Bytes Sent By Job
+	190966  -  Total Bytes Received By Job
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :        0        1         1 
+	   Disk (KB)            :      420     4000      6847 
+	   GPUs                 :                           0 
+	   Memory (MB)          :       96     3000      3000 
+	   TimeExecute (s)      :      276                    
+	   TimeSlotBusy (s)     :      277                    
+
+	Job terminated of its own accord at 2026-03-06T02:48:17Z with exit-code 0.
+...

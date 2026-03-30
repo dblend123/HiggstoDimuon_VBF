@@ -72,7 +72,9 @@ namespace analysis
 				    
                     _pfRelIso04_all = 0;
                     _nTrackerLayers = 0;
-                    _bsConstrainedPt = 0; 
+                    _bsConstrainedPt = 0;
+                    _bsConstrainedChi2 = 0;
+                    _bsConstrainedPtErr = 0;
                 }
 				virtual ~Muon() {}
 
@@ -133,6 +135,8 @@ namespace analysis
                 float _pfRelIso04_all;
                 char _nTrackerLayers;
                 float _bsConstrainedPt;
+                float _bsConstrainedChi2;
+                float _bsConstrainedPtErr;
 		};
 
 		typedef std::vector<analysis::core::Muon> Muons;

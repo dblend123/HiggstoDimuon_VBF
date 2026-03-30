@@ -378,7 +378,7 @@ void Muon_Overlay_DiMuonpt(TString basePath, TString era = "12022") {
   }
 
   // output directory (same structure as original)
-  TString outdir = "/eos/user/d/dblend/StackedPlots/" + era + "/Muons/" + corrType + "/" + configName + "/";
+  TString outdir = "/eos/user/d/dblend/StackedPlots/" + era + "/ZPt_Corrections/" + corrType + "/" + configName + "/";
   gSystem->Exec("mkdir -p " + outdir);
   std::ofstream summary((outdir + "OverlayRatios_DiMuonpt_AllDirs.txt").Data());
 

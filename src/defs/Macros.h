@@ -25,8 +25,8 @@
     static_assert(true, "")
 
 #define SET_BRANCH_INT_ARRAY(NAME) \
-    Int_t NAME[100]; \
-    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    Int_t NAME[512]; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
     static_assert(true, "")
 
 #define SET_BRANCH_FLOAT(NAME) \
@@ -35,13 +35,13 @@
     static_assert(true, "")
 
 #define SET_BRANCH_FLOAT_ARRAY(NAME) \
-    Float_t NAME[100]; \
-    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    Float_t NAME[512]; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
     static_assert(true, "")
 
 #define SET_BRANCH_BOOL_ARRAY(NAME) \
-    Bool_t NAME[100]; \
-    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    Bool_t NAME[512]; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
     static_assert(true, "")
 
 #define SET_BRANCH_BOOL(NAME) \
@@ -50,11 +50,11 @@
     static_assert(true, "")
 
 #define SET_BRANCH_UCHAR_ARRAY(NAME) \
-    UChar_t NAME[100]; \
-    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    UChar_t NAME[512]; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
     static_assert(true, "")
 
 #define SET_BRANCH_USHORT_ARRAY(NAME) \
-    UShort_t NAME[100]; \
-    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    UShort_t NAME[512]; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
     static_assert(true, "")

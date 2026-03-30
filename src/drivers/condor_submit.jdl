@@ -1,5 +1,5 @@
 # Args: $1=inputList $2=tag $3=sample $4=weights $5=maxEvents $6=era $7=muCorr 
-arguments  = $(inputList) $(tag) $(sample) $(weights) $(maxEvents) $(era) $(muCorr) $(noPU) $(noScaleSmear) $(noMuonSF) $(noJERC)  $(noJetVeto)  $(noGolden)  $(noFlags)  $(noFSR)  $(noBtagSF) $(noJetCriteria)
+arguments  = $(inputList) $(tag) $(sample) $(weights) $(maxEvents) $(era) $(muCorr) $(noPU) $(noScaleSmear) $(noMuonSF) $(noJERC) $(noJetVeto) $(noGolden) $(noFlags) $(noFSR) $(noBtagSF) $(noJetCriteria) $(noZPtRW) $(zptRWFile) $(noBeamConstraint)
 
 executable              = run_job.sh
 output                  = HTCondor/outs/$(tag)_$(ClusterId).out
@@ -16,11 +16,12 @@ should_transfer_files   = YES
 when_to_transfer_output = ON_EXIT
 transfer_output_files  = ""
 
-# Fixed path to your weights file
+# Fixed path to your additional files
 weights                 = weights.ini
+zptRWFile               = ZPtSF_Fits_12022_KIT_noJERC_noJetVeto_noBtagSF_noZPtRW.root 
 
 # Transfer everything needed
-transfer_input_files    = process_HiggsAnalysis_wCutsExtended_NoPairing_v0, run_job.sh, $(inputList), x509up.cert, $(weights)
+transfer_input_files    = process_HiggsAnalysis_wCutsExtended_NoPairing_v0, run_job.sh, $(inputList), x509up.cert, $(weights), $(zptRWFile)
 
 # IMPORTANT: outputs are xrdcp'ed to EOS inside the job
 # (leave these commented to avoid HOLDs)
@@ -52,20 +53,21 @@ request_disk            = 4000
 
 maxEvents   	    = -1
 # muCorr options: kit, roch, none
-muCorr      	    = none  
+muCorr      	    = kit  
 # true --> Will not run corrections 
 noJERC  			= true
-noJetCriteria       = true
+noJetCriteria       = false
 noJetVeto  			= true
-noBtagSF			= true
+noBtagSF			= true 
 noScaleSmear  	    = true
-noMuonSF  			= true
-noFSR  				= true
-noZPtRW             = true
-noPU		        = true
-noGolden  			= true
-noFlags  			= true
-era         	    = 22023
+noBeamConstraint    = false
+noZPtRW             = false
+noMuonSF  			= false
+noFSR  				= false
+noPU		        = false
+noGolden  			= false
+noFlags  			= false
+era          = 12022
 
 # Base path to listfiles
 path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/Condor_listfiles/Skimmed_input_lists/
@@ -74,15 +76,15 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # ===== Background =====
 
 # # DY
-#sample    = DY
-#queue inputList, tag from $(path)/DY_input_lists.txt
+# sample = DY
+# queue inputList, tag from $(path)/DY_input_lists.txt
 
 # # EWK
 #sample    = EWK
 #queue inputList, tag from $(path)/EWK_input_lists.txt
  
 # # TT
-#sample = TT
+#sample    = TT
 #queue inputList, tag from $(path)/TT_input_lists.txt
  
 # # WWW
@@ -127,36 +129,9 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 #sample    = VBF
 #queue inputList, tag from $(path)/VBF_input_lists.txt
 
-# ===== 12022 DATA queue =====
+# ===== DATA queue =====
 
 # # C/D
-# sample    = DATA
-# queue inputList, tag from $(path)/DATA_input_lists.txt
-
-# ===== 22022 DATA queue =====
-
-# # E/F/G
-# sample    = DATA
-# queue inputList, tag from $(path)/DATA_input_lists.txt
-
-# ===== 12023 DATA queue =====
-
-# # B/C
-# # Muon0/1
-# sample    = DATA
-# queue inputList, tag from $(path)/DATA_input_lists.txt
-
-# ===== 22023 DATA queue =====
-
-# # D
-# # Muon0/1
-#sample    = DATA
-#queue inputList, tag from $(path)/DATA_input_lists.txt
-
-# ===== 2024 DATA queue =====
-
-# # BCDEFGHI
-# # Muon0/1
 #sample    = DATA
 #queue inputList, tag from $(path)/DATA_input_lists.txt
 

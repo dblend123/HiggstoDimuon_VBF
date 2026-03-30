@@ -1,0 +1,45 @@
+== Job started: Fri Mar  6 03:43:34 AM CET 2026
+Host: b9p25p1476.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Background_listfiles/ZZto4L/ZZto4L_part005.list'  tag='ZZ4L_005MCRun22022'  sample='ZZto4L'
+ERA (4th arg): '22022'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1989286
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/22022/Background_listfiles/ZZto4L/ZZto4L_part005.list' -> using local: '/pool/condor/dir_1989286/ZZto4L_part005.list'
+Using Condor proxy: /pool/condor/dir_1989286/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1989286/ZZto4L_part005.list
+Input list has 8 lines
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22EENanoAODv12/ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_postEE_v6-v2/30000/ea585f92-5fe5-426b-a362-6afc7e666c25.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22EENanoAODv12/ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_postEE_v6-v2/30000/3524014b-dd9b-4353-8de5-d830d1625c49.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer22EENanoAODv12/ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2022_realistic_postEE_v6-v2/30000/a7ca93ad-30bd-4f19-9639-5781c324c660.root ...
+Using skimmer: my_skim
+91ad8d4583956d4672e18e350d422635  ./my_skim
+ 0x000000000000001d (RUNPATH)            Library runpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: ZZ4L_005MCRun22022
+Running: ./my_skim '/pool/condor/dir_1989286/ZZto4L_part005.list' '-1'
+---- last 50 lines of skim.stdout.log ----
+Requested ALL events
+Writing: ./skims/Skimmed_ea585f92-5fe5-426b-a362-6afc7e666c25.root
+Writing: ./skims/Skimmed_3524014b-dd9b-4353-8de5-d830d1625c49.root
+Writing: ./skims/Skimmed_a7ca93ad-30bd-4f19-9639-5781c324c660.root
+Writing: ./skims/Skimmed_11a81b1a-a11c-469a-8f60-a2037236bff0.root
+Writing: ./skims/Skimmed_111252f2-e3b5-4c1f-a93c-dbef3be93fb9.root
+Writing: ./skims/Skimmed_9fbbe3a3-841f-41a7-83be-bfdcd8f7e424.root
+Writing: ./skims/Skimmed_e2f22d23-d89f-4f7d-ba1c-b43520579921.root
+Writing: ./skims/Skimmed_bc0ed015-fa8d-417a-a51e-3a7f6a1ebba6.root
+
+Done. Files skimmed: 8  |  Events kept: 263286
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022
+Found 8 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_111252f2-e3b5-4c1f-a93c-dbef3be93fb9.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_11a81b1a-a11c-469a-8f60-a2037236bff0.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_3524014b-dd9b-4353-8de5-d830d1625c49.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_9fbbe3a3-841f-41a7-83be-bfdcd8f7e424.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_a7ca93ad-30bd-4f19-9639-5781c324c660.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_bc0ed015-fa8d-417a-a51e-3a7f6a1ebba6.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_e2f22d23-d89f-4f7d-ba1c-b43520579921.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/22022/ZZto4L/ZZ4L_005MCRun22022/Skimmed_ea585f92-5fe5-426b-a362-6afc7e666c25.root
+Done staging.
+== Job finished: Fri Mar  6 03:45:48 AM CET 2026
