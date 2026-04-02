@@ -13,6 +13,7 @@ Mass sidebands default to:
 """
 
 import argparse
+from array import array
 import glob
 import logging
 import math
@@ -20,6 +21,7 @@ import os
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 try:
@@ -423,10 +425,10 @@ def load_era_payload(
     }
 
 
-def combine_data_side_scores(era_payloads: Dict[str, Dict[str, object]]) -> np.ndarray:
+def combine_data_full_scores(era_payloads: Dict[str, Dict[str, object]]) -> np.ndarray:
     chunks: List[np.ndarray] = []
     for payload in era_payloads.values():
-        chunks.append(np.asarray(payload["data_side_scores"], dtype=np.float64))  # type: ignore[index]
+        chunks.append(np.asarray(payload["data_full_scores"], dtype=np.float64))  # type: ignore[index]
     return concat_chunks(chunks)
 
 
@@ -589,20 +591,21 @@ def _weighted_linear_prediction(
         return None
 
 
-def fit_sideband_background_models(
+def fit_background_models_full(
     centers: np.ndarray,
     h_data: np.ndarray,
     v_data: np.ndarray,
     args: argparse.Namespace,
-) -> Tuple[np.ndarray, str, float, Dict[str, Tuple[float, int]]]:
-    fit_mask = (centers < args.blind_min) | (centers > args.blind_max)
+) -> Tuple[np.ndarray, str, float, Dict[str, Tuple[float, int]], Dict[str, np.ndarray]]:
+    fit_mask = np.ones_like(centers, dtype=bool)
     x_fit = centers[fit_mask]
     y_fit = h_data[fit_mask]
     sigma_fit = np.sqrt(np.maximum(v_data[fit_mask], 1.0))
 
     stats: Dict[str, Tuple[float, int]] = {}
+    preds: Dict[str, np.ndarray] = {}
     if x_fit.size < 4 or np.sum(y_fit) <= 0:
-        return h_data.copy(), "fallback_data", float("inf"), stats
+        return h_data.copy(), "fallback_data", float("inf"), stats, preds
 
     x_min = float(args.mass_min)
     x_max = float(args.mass_max)
@@ -688,6 +691,7 @@ def fit_sideband_background_models(
 
     for name, (pred_raw, npar) in fit_results.items():
         pred = np.clip(pred_raw.astype(np.float64, copy=False), 0.0, None)
+        preds[name] = pred
         resid = y_fit - pred[fit_mask]
         chi2 = float(np.sum(np.square(resid) / np.maximum(v_data[fit_mask], 1.0)))
         ndf = int(max(x_fit.size - npar, 1))
@@ -698,7 +702,66 @@ def fit_sideband_background_models(
             best_name = name
             best_pred = pred
 
-    return best_pred, best_name, best_chi2ndf, stats
+    return best_pred, best_name, best_chi2ndf, stats, preds
+
+
+def fit_signal_dcb_template(
+    centers: np.ndarray,
+    mass_bins: np.ndarray,
+    h_signal: np.ndarray,
+    args: argparse.Namespace,
+) -> np.ndarray:
+    if h_signal.size == 0 or float(np.sum(h_signal)) <= 0.0:
+        return np.zeros_like(centers, dtype=np.float64)
+
+    try:
+        edges = array("d", [float(x) for x in mass_bins])
+        htmp = ROOT.TH1D("htmp_sig_dcb", "htmp_sig_dcb", len(mass_bins) - 1, edges)
+        htmp.Sumw2()
+        for ibin, y in enumerate(h_signal, start=1):
+            htmp.SetBinContent(ibin, float(max(y, 0.0)))
+            htmp.SetBinError(ibin, math.sqrt(max(float(y), 0.0)))
+
+        m = ROOT.RooRealVar("m_sig_dcb", "m_sig_dcb", float(args.mass_min), float(args.mass_max))
+        data = ROOT.RooDataHist("data_sig_dcb", "data_sig_dcb", ROOT.RooArgList(m), htmp)
+
+        mean = ROOT.RooRealVar("mean_sig_dcb", "mean_sig_dcb", 125.0, 123.0, 127.0)
+        sigma = ROOT.RooRealVar("sigma_sig_dcb", "sigma_sig_dcb", 1.6, 0.2, 6.0)
+        alpha_l = ROOT.RooRealVar("alphaL_sig_dcb", "alphaL_sig_dcb", 1.5, 0.2, 6.0)
+        n_l = ROOT.RooRealVar("nL_sig_dcb", "nL_sig_dcb", 5.0, 0.5, 80.0)
+        alpha_r = ROOT.RooRealVar("alphaR_sig_dcb", "alphaR_sig_dcb", 2.0, 0.2, 6.0)
+        n_r = ROOT.RooRealVar("nR_sig_dcb", "nR_sig_dcb", 8.0, 0.5, 80.0)
+        dcb = ROOT.RooCrystalBall(
+            "dcb_sig",
+            "dcb_sig",
+            m,
+            mean,
+            sigma,
+            alpha_l,
+            n_l,
+            alpha_r,
+            n_r,
+        )
+        dcb.fitTo(
+            data,
+            ROOT.RooFit.PrintLevel(-1),
+            ROOT.RooFit.SumW2Error(True),
+            ROOT.RooFit.Minimizer("Minuit2", "migrad"),
+            ROOT.RooFit.Strategy(1),
+        )
+
+        norm_set = ROOT.RooArgSet(m)
+        pred = np.zeros_like(centers, dtype=np.float64)
+        for i, x in enumerate(centers):
+            m.setVal(float(x))
+            pred[i] = max(float(dcb.getVal(norm_set)), 0.0)
+
+        total_sig = float(np.sum(h_signal))
+        if np.sum(pred) > 0.0:
+            pred *= total_sig / float(np.sum(pred))
+        return pred
+    except Exception:
+        return h_signal.astype(np.float64, copy=True)
 
 
 def compute_group_hists(
@@ -1109,6 +1172,19 @@ def summarize_categories(
                     summary[i]["mc_side_total"] = summary[i].get("mc_side_total", 0.0) + y_sb
                     summary[i]["mc_side_total_err2"] = summary[i].get("mc_side_total_err2", 0.0) + e2_sb
 
+        s_sc = np.asarray(payload["sig_full_scores"], dtype=np.float64)  # type: ignore[index]
+        s_w = np.asarray(payload["sig_full_weight"], dtype=np.float64)  # type: ignore[index]
+        if s_sc.size > 0 and s_w.size > 0:
+            s_idx = category_index(s_sc, edges)
+            s_w_scaled = s_w * float(mc_weight_scale)
+            for i in range(ncat):
+                m_sig = (s_idx == i)
+                if np.any(m_sig):
+                    s_full = float(np.sum(s_w_scaled[m_sig]))
+                    s_e2_full = float(np.sum(np.square(s_w_scaled[m_sig])))
+                    summary[i]["sig_full_total"] = summary[i].get("sig_full_total", 0.0) + s_full
+                    summary[i]["sig_full_total_err2"] = summary[i].get("sig_full_total_err2", 0.0) + s_e2_full
+
     return summary
 
 
@@ -1120,29 +1196,30 @@ def build_category_summary_table(
         "Category",
         "BDT range",
         "Data sidebands",
-        "Data full",
         "MC sidebands ± stat",
         "Data/MC (sidebands)",
         "MC full (110-150) ± stat",
+        "Expected signif. (S/sqrt(B))",
     ]
     rows: List[List[str]] = []
     for i in range(len(edges) - 1):
         vals = summary.get(i, {})
         d_side = float(vals.get("data_side_count", 0.0))
-        d_full = float(vals.get("data_full_count", 0.0))
         m_side = float(vals.get("mc_side_total", 0.0))
         me_side = math.sqrt(max(float(vals.get("mc_side_total_err2", 0.0)), 0.0))
         m_full = float(vals.get("mc_full_total", 0.0))
         me_full = math.sqrt(max(float(vals.get("mc_full_total_err2", 0.0)), 0.0))
+        s_full = float(vals.get("sig_full_total", 0.0))
         ratio = d_side / m_side if m_side > 0 else 0.0
+        signif = (s_full / math.sqrt(m_full)) if m_full > 0.0 else 0.0
         rows.append([
             str(i),
             f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
             f"{d_side:.0f}",
-            f"{d_full:.0f}",
             f"{m_side:.2f} ± {me_side:.2f}",
             f"{ratio:.3f}",
             f"{m_full:.2f} ± {me_full:.2f}",
+            f"{signif:.3f}",
         ])
     return columns, rows
 
@@ -1200,6 +1277,7 @@ def build_category_mass_grid(
         "BDT range",
         "Best model",
         "Best chi2/ndf",
+        "S/sqrt(B)",
         "BWZ",
         "BWZRedux",
         "BWZGamma",
@@ -1231,8 +1309,7 @@ def build_category_mass_grid(
             d_m = np.asarray(payload["data_full_mass"], dtype=np.float64)  # type: ignore[index]
             if d_sc.size > 0 and d_m.size > 0:
                 d_cat = (d_sc >= lo) & (d_sc < hi)
-                d_sb = sideband_mass_mask(d_m, args)
-                dsel = d_cat & d_sb
+                dsel = d_cat
                 if np.any(dsel):
                     data_mass_chunks.append(d_m[dsel])
 
@@ -1264,46 +1341,63 @@ def build_category_mass_grid(
         h_bkg, _ = weighted_hist_and_var(bkg_mass, mass_bins, bkg_w if bkg_w.size > 0 else None)
         h_sig, _ = weighted_hist_and_var(sig_mass, mass_bins, sig_w if sig_w.size > 0 else None)
 
-        h_bkg_fit, best_model, best_chi2ndf, model_stats = fit_sideband_background_models(
+        h_bkg_fit, best_model, best_chi2ndf, model_stats, model_preds = fit_background_models_full(
             centers,
             h_data,
             v_data,
             args,
         )
 
-        # S+B model: background fit + expected signal template
-        h_sb_fit = h_bkg_fit + h_sig
+        h_sig_dcb = fit_signal_dcb_template(centers, mass_bins, h_sig, args)
 
-        ax.fill_between(
-            centers,
-            0.0,
-            h_bkg_fit,
-            step="mid",
-            color="#4f79a7",
-            alpha=0.28,
-            label="Bkg component (fit)" if i == 0 else None,
-            zorder=1,
-        )
-        ax.step(
-            centers,
-            h_bkg_fit,
-            where="mid",
-            color="#1f77b4",
-            linewidth=2.2,
-            label=(f"Best bkg fit: {best_model}" if i == 0 else None),
-            zorder=3,
-        )
+        # S+B model: best background fit + DSCB signal fit.
+        h_sb_fit = h_bkg_fit + h_sig_dcb
+
+        dmask = (centers < args.blind_min) | (centers > args.blind_max)
+        signif = (float(np.sum(h_sig_dcb)) / math.sqrt(float(np.sum(h_bkg_fit)))) if float(np.sum(h_bkg_fit)) > 0.0 else 0.0
+
+        model_styles = {
+            "BWZ": ("#1f77b4", "-"),
+            "BWZRedux": ("#d62728", "-"),
+            "BWZGamma": ("#2ca02c", "-"),
+            "Bernstein": ("#9467bd", "--"),
+            "Exponential Series": ("#ff7f0e", "--"),
+            "Power Series": ("#8c564b", ":"),
+        }
+
+        # Draw all background models with strong styling and white stroke to avoid overlap loss.
+        for model_name in ["BWZ", "BWZRedux", "BWZGamma", "Bernstein", "Exponential Series", "Power Series"]:
+            if model_name not in model_preds:
+                continue
+            pred = model_preds[model_name]
+            color, ls = model_styles.get(model_name, ("#4d4d4d", "-"))
+            lw = 2.8 if model_name == best_model else 1.9
+            alpha = 1.0 if model_name == best_model else 0.92
+            label = f"{model_name} ({'best' if model_name == best_model else 'alt'})"
+            line = ax.step(
+                centers,
+                pred,
+                where="mid",
+                color=color,
+                linewidth=lw,
+                linestyle=ls,
+                alpha=alpha,
+                label=label,
+                zorder=3 if model_name == best_model else 2,
+            )[0]
+            line.set_path_effects([pe.Stroke(linewidth=lw + 1.2, foreground="white"), pe.Normal()])
+
         ax.step(
             centers,
             h_sb_fit,
             where="mid",
-            color="#d62728",
-            linewidth=2.2,
-            label="S+B fit" if i == 0 else None,
+            color="#111111",
+            linewidth=2.1,
+            linestyle="-.",
+            label="Best B + DSCB(S)",
             zorder=4,
         )
 
-        dmask = (centers < args.blind_min) | (centers > args.blind_max)
         if np.any(dmask):
             ax.errorbar(
                 centers[dmask],
@@ -1325,7 +1419,7 @@ def build_category_mass_grid(
         ax.text(
             0.02,
             0.96,
-            f"Best: {best_model}\nchi2/ndf={best_chi2ndf:.3f}",
+            f"Best: {best_model}\nchi2/ndf={best_chi2ndf:.3f}\nS/sqrt(B)={signif:.3f}",
             transform=ax.transAxes,
             va="top",
             ha="left",
@@ -1333,8 +1427,10 @@ def build_category_mass_grid(
             bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
         )
 
+        ax.legend(loc="upper right", fontsize=7.0, ncol=2, frameon=False)
+
         model_order = ["BWZ", "BWZRedux", "BWZGamma", "Bernstein", "Exponential Series", "Power Series"]
-        row = [str(i), f"[{lo:.3f}, {hi:.3f})", best_model, f"{best_chi2ndf:.3f}"]
+        row = [str(i), f"[{lo:.3f}, {hi:.3f})", best_model, f"{best_chi2ndf:.3f}", f"{signif:.3f}"]
         for model_name in model_order:
             if model_name in model_stats:
                 chi2, ndf = model_stats[model_name]
@@ -1343,31 +1439,46 @@ def build_category_mass_grid(
                 row.append("n/a")
         fit_rows.append(row)
 
-        residual = h_data - h_bkg_fit
-        residual_err = np.sqrt(np.maximum(v_data, 1.0))
-
-        ax_res.axhline(0.0, color="#4d4d4d", linestyle="--", linewidth=1.0)
-        if np.any(dmask):
-            ax_res.errorbar(
-                centers[dmask],
-                residual[dmask],
-                yerr=residual_err[dmask],
-                fmt="o",
-                color="black",
-                markersize=3.2,
-                linewidth=0.9,
-                zorder=4,
-            )
+        ax_res.axhline(1.0, color="#4d4d4d", linestyle="--", linewidth=1.0)
+        for model_name in model_order:
+            if model_name not in model_preds:
+                continue
+            pred = model_preds[model_name]
+            ratio = np.divide(pred, h_bkg_fit, out=np.ones_like(pred), where=h_bkg_fit > 0)
+            color, ls = model_styles.get(model_name, ("#4d4d4d", "-"))
+            lw = 1.9 if model_name == best_model else 1.4
+            line = ax_res.step(
+                centers,
+                ratio,
+                where="mid",
+                color=color,
+                linewidth=lw,
+                linestyle=ls,
+                alpha=0.95,
+                zorder=3 if model_name == best_model else 2,
+            )[0]
+            line.set_path_effects([pe.Stroke(linewidth=lw + 1.0, foreground="white"), pe.Normal()])
 
         ax_res.axvspan(args.blind_min, args.blind_max, color="#bdbdbd", alpha=0.18, zorder=0)
-        ax_res.set_ylabel("Data-Bkg")
+        ax_res.set_ylabel("PDF / Best")
         ax_res.grid(alpha=0.25)
-
-        residual_span = 1.0
-        if np.any(dmask):
-            residual_span = float(np.max(np.abs(residual[dmask]) + residual_err[dmask]))
-        residual_span = max(residual_span, 1.0)
-        ax_res.set_ylim(-1.25 * residual_span, 1.25 * residual_span)
+        model_ratios = []
+        for model_name in model_order:
+            if model_name in model_preds:
+                rr = np.divide(model_preds[model_name], h_bkg_fit, out=np.ones_like(h_bkg_fit), where=h_bkg_fit > 0)
+                model_ratios.append(rr)
+        if model_ratios:
+            all_ratio = np.concatenate(model_ratios)
+            finite_ratio = all_ratio[np.isfinite(all_ratio)]
+            if finite_ratio.size > 0:
+                rmin = float(np.min(finite_ratio))
+                rmax = float(np.max(finite_ratio))
+                pad = max(0.01, 0.18 * max(abs(rmin - 1.0), abs(rmax - 1.0)))
+                ax_res.set_ylim(max(0.94, rmin - pad), min(1.06, rmax + pad))
+            else:
+                ax_res.set_ylim(0.97, 1.03)
+        else:
+            ax_res.set_ylim(0.97, 1.03)
 
     for j in range(ncat, nrows * ncols):
         row = j // ncols
@@ -1384,7 +1495,7 @@ def build_category_mass_grid(
         top_axes[0].legend(loc="upper right", ncol=2)
 
     fig.suptitle(
-        "Per-category dimuon mass: Data (blinded), best sideband Bkg fit, and S+B fit",
+        "Per-category dimuon mass: full-range background model comparison and ratio-to-best",
         fontsize=15,
         y=0.995,
     )
@@ -1633,32 +1744,35 @@ def main() -> None:
     if interior.size >= 1:
         category_band = (float(np.min(interior)), float(np.max(interior)))
 
-    run3_data_side_scores = combine_data_side_scores(era_payloads)
+    run3_data_full_scores = combine_data_full_scores(era_payloads)
     run3_data_side_mass = combine_data_side_masses(era_payloads, args)
 
     run3_mc_score_side = combine_mc_score_groups(era_payloads, region="side")
+    run3_mc_score_full = combine_mc_score_groups(era_payloads, region="full")
     run3_mc_mass_full = combine_mc_mass_groups(era_payloads, args, region="full")
 
-    if run3_data_side_scores.size == 0:
-        raise SystemExit("[error] No data events found in sidebands for the selected eras.")
-    if not run3_mc_score_side:
-        raise SystemExit("[error] No sideband MC events found for BDT plotting.")
+    if run3_data_full_scores.size == 0:
+        raise SystemExit("[error] No data events found in full mass window for the selected eras.")
+    if not run3_mc_score_full:
+        raise SystemExit("[error] No full-window MC events found for BDT plotting.")
 
     mc_scale = 1.0
     if args.mc_normalization == "sidebands":
-        mc_scale = compute_sideband_mc_scale(run3_data_side_scores, run3_mc_score_side)
+        if not run3_mc_score_side:
+            raise SystemExit("[error] No sideband MC events found for sideband normalization.")
+        mc_scale = compute_sideband_mc_scale(run3_data_side_mass, run3_mc_score_side)
         logger.info("MC normalization (sidebands): scale factor = %.6f", mc_scale)
 
-    run3_mc_score_side = scale_mc_groups(run3_mc_score_side, mc_scale)
+    run3_mc_score_full = scale_mc_groups(run3_mc_score_full, mc_scale)
     run3_mc_mass_full = scale_mc_groups(run3_mc_mass_full, mc_scale)
-    run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_side)
+    run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_full)
 
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
     fig_score, data_hist, _data_var, _score_hists, _score_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
-        title="BDT score in sidebands: Data vs stacked MC",
+        title="BDT score in full 110-150 GeV window: Data vs stacked MC",
         xlabel="BDT score",
         bins=score_bins,
-        data_values=run3_data_side_scores,
+        data_values=run3_data_full_scores,
         mc_groups=run3_mc_score_display,
         logy=args.score_logy,
         category_band=category_band,
@@ -1667,7 +1781,7 @@ def main() -> None:
         ratio_ylabel="Data/Bkg",
         annotation_lines=[
             f"Eras: {', '.join(sorted(era_payloads.keys()))}",
-            f"BDT uses sidebands: ({args.sb1_min:.0f}, {args.sb1_max:.0f}) U ({args.sb2_min:.0f}, {args.sb2_max:.0f}) GeV",
+            f"BDT uses full mass window: {args.mass_min:.0f} to {args.mass_max:.0f} GeV",
             f"Boundary range: {category_band[0]:.3f} to {category_band[1]:.3f}" if category_band else "Boundary range: N/A",
         ],
     )
@@ -1736,7 +1850,7 @@ def main() -> None:
         add_table_pages(pdf, "BDT bin summary: signal, background, and sensitivity", bdt_cols, bdt_rows, max_rows=20)
         pdf.savefig(fig_mass)
         pdf.savefig(fig_cat_mass)
-        add_table_pages(pdf, "Per-category sideband-fit comparison (chi2/ndf, ndf)", fit_cols, fit_rows, max_rows=20)
+        add_table_pages(pdf, "Per-category full-range fit comparison (chi2/ndf, ndf)", fit_cols, fit_rows, max_rows=20)
         add_table_pages(pdf, "Optimized category summary", cat_cols, cat_rows, max_rows=20)
         add_table_pages(pdf, "Category composition by process (full mass window)", cat_proc_cols, cat_proc_rows, max_rows=20)
 
