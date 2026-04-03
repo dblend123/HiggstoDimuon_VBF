@@ -1696,6 +1696,8 @@ def iterative_greedy_category_scan(
     bkg_weights: np.ndarray,
     max_n: int = 6,
     min_improvement: float = 0.01,
+    min_sig: float = 1e-6,
+    min_bkg: float = 1e-6,
     logger: logging.Logger = None,
 ) -> np.ndarray:
     """Greedy iterative category boundary optimisation on atanh-transformed BDT.
@@ -1709,7 +1711,10 @@ def iterative_greedy_category_scan(
     4. At each step try inserting each unused candidate; retain the one that
        maximises the combined Asimov significance
            Z = sqrt(sum_i 2 [(s_i+b_i) log(1 + s_i/b_i) - s_i]).
-    5. Add that boundary only when the relative improvement in Z is >=
+    5. A candidate is only considered if every resulting bin has at least
+       *min_sig* weighted signal yield AND *min_bkg* weighted background yield
+       (rejects degenerate/empty bins before they can affect the scan).
+    6. Add that boundary only when the relative improvement in Z is >=
        *min_improvement* (default 1 %).  Stop otherwise or when n == max_n.
 
     Returns
@@ -1764,10 +1769,12 @@ def iterative_greedy_category_scan(
         for ct in remaining:
             trial_interior = sorted(current_interior + [ct])
             trial_edges = np.array([t_lo] + trial_interior + [t_hi])
-            z = _combined_asimov_z(
-                _bin_yields_t(t_sig, sig_weights, trial_edges),
-                _bin_yields_t(t_bkg, bkg_weights, trial_edges),
-            )
+            s_yields = _bin_yields_t(t_sig, sig_weights, trial_edges)
+            b_yields = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
+            # Reject configurations where any bin is degenerate (no realistic data)
+            if np.any(s_yields < min_sig) or np.any(b_yields < min_bkg):
+                continue
+            z = _combined_asimov_z(s_yields, b_yields)
             if z > best_z:
                 best_z = z
                 best_cand_t = ct
@@ -1870,13 +1877,31 @@ def optimize_category_edges(
     bkg_scores = concat_chunks(bkg_scores_chunks)
     bkg_weights = concat_chunks(bkg_weight_chunks)
 
+    total_sig_yield = float(np.sum(sig_weights))
+    total_bkg_yield = float(np.sum(bkg_weights))
+
+    # Adaptive per-bin minimums: each bin must hold at least 5 % of the total
+    # weighted yield.  This prevents the scan from accepting degenerate bins
+    # (zero data, near-zero MC) that would never be useful in the analysis.
+    # For low-lumi single-era runs the absolute yields are small, so we also
+    # enforce a hard floor of 1e-6 to avoid dividing by zero.
+    adaptive_min_sig = min(args.multibin_min_sig,
+                           max(1e-6, total_sig_yield * 0.05))
+    adaptive_min_bkg = min(args.multibin_min_bkg,
+                           max(1e-6, total_bkg_yield * 0.05))
+
     logger.info(
         "Category optimization eras: %s | S events=%d (yield=%.3f), B events=%d (yield=%.3f)",
         ", ".join(used_eras),
         sig_scores.size,
-        float(np.sum(sig_weights)),
+        total_sig_yield,
         bkg_scores.size,
-        float(np.sum(bkg_weights)),
+        total_bkg_yield,
+    )
+    logger.info(
+        "Per-bin minimums: min_sig=%.4f (user=%.4f), min_bkg=%.4f (user=%.4f)",
+        adaptive_min_sig, args.multibin_min_sig,
+        adaptive_min_bkg, args.multibin_min_bkg,
     )
 
     edges = iterative_greedy_category_scan(
@@ -1886,6 +1911,8 @@ def optimize_category_edges(
         bkg_weights,
         max_n=args.multibin_max_n,
         min_improvement=args.multibin_improvement,
+        min_sig=adaptive_min_sig,
+        min_bkg=adaptive_min_bkg,
         logger=logger,
     )
 
