@@ -226,12 +226,20 @@ def infer_eras_from_outputs(outputs_dir: str, requested: Optional[Sequence[str]]
 
 
 def discover_datamc_for_era(outputs_dir: str, era: str) -> Tuple[List[str], List[Tuple[str, List[str]]]]:
+    _MIN_ROOT_BYTES = 1024  # files smaller than this are stub / corrupt outputs
+
+    def _valid_size(path: str) -> bool:
+        try:
+            return os.path.getsize(path) >= _MIN_ROOT_BYTES
+        except OSError:
+            return False
+
     data_files = []
     for p in [
         os.path.join(outputs_dir, f"{era}_data_scored.root"),
         os.path.join(outputs_dir, era, f"{era}_data_scored.root"),
     ]:
-        if os.path.isfile(p):
+        if os.path.isfile(p) and _valid_size(p):
             data_files.append(p)
 
     proc_files: Dict[str, List[str]] = {}
@@ -240,6 +248,8 @@ def discover_datamc_for_era(outputs_dir: str, era: str) -> Tuple[List[str], List
         os.path.join(outputs_dir, era, f"{era}_scored_*.root"),
     ]:
         for path in glob.glob(pat):
+            if not _valid_size(path):
+                continue
             base = os.path.basename(path)
             suffix = base.replace(f"{era}_scored_", "").replace(".root", "")
             if suffix.lower() in {"signal", "background", "all", "test", "data"}:
@@ -259,7 +269,7 @@ def discover_datamc_for_era(outputs_dir: str, era: str) -> Tuple[List[str], List
             os.path.join(outputs_dir, f"{era}_scored_background.root"),
             os.path.join(outputs_dir, era, f"{era}_scored_background.root"),
         ]
-        found = [p for p in fallback if os.path.isfile(p)]
+        found = [p for p in fallback if os.path.isfile(p) and _valid_size(p)]
         if found:
             mc_entries.append(("Background", found))
 
@@ -1564,7 +1574,10 @@ def build_category_mass_grid(
 
     # Reserve ~7% at the top for the suptitle so it does not overlap
     # with the first row of subplots.
-    fig.tight_layout(rect=[0.02, 0.02, 0.98, 0.932])
+    # tight_layout does not play well with sharex axes in multi-row GridSpecs,
+    # so we use subplots_adjust with explicit margins instead.
+    fig.subplots_adjust(left=0.07, right=0.97, top=0.930, bottom=0.055,
+                        hspace=0.35, wspace=0.28)
     fig.suptitle(
         "Per-category dimuon mass: background model comparison and ratio-to-best",
         fontsize=13,
@@ -1734,6 +1747,43 @@ def optimize_category_edges(
     )
 
     best = scan.get("best", None)
+
+    # --- Automatic non-monotonic retry ----------------------------------
+    # For single-era runs (small datasets) the monotonicity constraint
+    # (S/B must increase with each successive BDT bin) often eliminates
+    # every candidate configuration due to statistical fluctuations in the
+    # per-era BDT score distribution.  Before falling back to uninformative
+    # quantile edges, retry the scan with enforce_monotonic=False so the
+    # optimizer can still find signal-sensitive boundaries.
+    if best is None and not args.multibin_no_monotonic:
+        logger.info(
+            "Monotonic scan found no valid configuration for eras [%s]; "
+            "retrying without monotonicity constraint.",
+            ", ".join(used_eras),
+        )
+        scan_relaxed = optimize_multibin_boundaries(
+            sig_scores,
+            sig_weights,
+            bkg_scores,
+            bkg_weights,
+            min_n=args.multibin_min_n,
+            max_n=args.multibin_max_n,
+            n_candidates=args.multibin_candidates,
+            min_sig=args.multibin_min_sig,
+            min_bkg=args.multibin_min_bkg,
+            enforce_monotonic=False,
+            objective=args.multibin_objective,
+            sig_mass=sig_mass if args.multibin_objective == "likelihood" else None,
+            bkg_mass=bkg_mass if args.multibin_objective == "likelihood" else None,
+            mass_min=args.mass_min,
+            mass_max=args.mass_max,
+            mass_nbins=args.mass_nbins,
+            likelihood_topk=args.multibin_likelihood_topk,
+        )
+        best = scan_relaxed.get("best", None)
+        if best is not None:
+            logger.info("Non-monotonic retry succeeded.")
+
     if best is None:
         # Fallback for low-stat / non-monotonic eras: derive robust quantile edges
         # so the report can still be produced per era.

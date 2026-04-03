@@ -244,6 +244,16 @@ def discover_eras(outputs_dir, requested):
 
 
 def find_scored_files(outputs_dir, era):
+    _MIN_ROOT_BYTES = 1024
+
+    def _ok(p):
+        if not os.path.isfile(p):
+            return False
+        try:
+            return os.path.getsize(p) >= _MIN_ROOT_BYTES
+        except OSError:
+            return False
+
     candidates = [
         os.path.join(outputs_dir, f"{era}_scored_signal.root"),
         os.path.join(outputs_dir, f"{era}_scored_background.root"),
@@ -254,7 +264,7 @@ def find_scored_files(outputs_dir, era):
     ]
     out = {"signal": None, "background": None, "all": None}
     for p in candidates:
-        if os.path.isfile(p):
+        if _ok(p):
             if p.endswith("_scored_signal.root"):
                 out["signal"] = p
             elif p.endswith("_scored_background.root"):
