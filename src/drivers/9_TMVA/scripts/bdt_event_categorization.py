@@ -1719,11 +1719,32 @@ def optimize_category_edges(
     bkg_weights = concat_chunks(bkg_weight_chunks)
     bkg_mass = concat_chunks(bkg_mass_chunks)
 
+    total_sig_yield = float(np.sum(sig_weights))
+    total_bkg_yield = float(np.sum(bkg_weights))
+
+    # Adaptive per-bin minimums: require at least 5 % of the total weighted
+    # yield per bin.  For high-luminosity combined runs this evaluates to the
+    # user-specified defaults (e.g. min_sig=1.0 when yield ≥20).  For
+    # low-luminosity single-era runs (yield ~1-3 events) it scales down
+    # proportionally so the optimizer can still find signal-sensitive
+    # boundaries instead of falling back to uninformative quantile edges.
+    adaptive_min_sig = min(args.multibin_min_sig,
+                           max(1e-6, total_sig_yield * 0.05))
+    adaptive_min_bkg = min(args.multibin_min_bkg,
+                           max(1e-6, total_bkg_yield * 0.05))
+
     logger.info(
-        "Category optimization eras: %s | S events=%d, B events=%d",
+        "Category optimization eras: %s | S events=%d (yield=%.3f), B events=%d (yield=%.3f)",
         ", ".join(used_eras),
         sig_scores.size,
+        total_sig_yield,
         bkg_scores.size,
+        total_bkg_yield,
+    )
+    logger.info(
+        "Per-bin minimums: min_sig=%.4f (requested=%.4f), min_bkg=%.4f (requested=%.4f)",
+        adaptive_min_sig, args.multibin_min_sig,
+        adaptive_min_bkg, args.multibin_min_bkg,
     )
 
     scan = optimize_multibin_boundaries(
@@ -1734,8 +1755,8 @@ def optimize_category_edges(
         min_n=args.multibin_min_n,
         max_n=args.multibin_max_n,
         n_candidates=args.multibin_candidates,
-        min_sig=args.multibin_min_sig,
-        min_bkg=args.multibin_min_bkg,
+        min_sig=adaptive_min_sig,
+        min_bkg=adaptive_min_bkg,
         enforce_monotonic=(not args.multibin_no_monotonic),
         objective=args.multibin_objective,
         sig_mass=sig_mass if args.multibin_objective == "likelihood" else None,
@@ -1769,8 +1790,8 @@ def optimize_category_edges(
             min_n=args.multibin_min_n,
             max_n=args.multibin_max_n,
             n_candidates=args.multibin_candidates,
-            min_sig=args.multibin_min_sig,
-            min_bkg=args.multibin_min_bkg,
+            min_sig=adaptive_min_sig,
+            min_bkg=adaptive_min_bkg,
             enforce_monotonic=False,
             objective=args.multibin_objective,
             sig_mass=sig_mass if args.multibin_objective == "likelihood" else None,
