@@ -58,7 +58,6 @@ from bdt_analysis import (
     canonical_proc,
     find_scored_files,
     load_arrays,
-    optimize_multibin_boundaries,
     parse_group_map,
     proc_color,
     proc_sort_key,
@@ -71,7 +70,7 @@ ROOT.gROOT.SetBatch(True)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TMVA_DIR = os.path.dirname(SCRIPT_DIR)
 DEFAULT_OUTPUTS_DIR = os.path.normpath(os.path.join(TMVA_DIR, "Outputs"))
-DEFAULT_OUTDIR = os.path.normpath(os.path.join(DEFAULT_OUTPUTS_DIR, "SidebandValidation"))
+DEFAULT_OUTDIR = os.path.normpath(os.path.join(DEFAULT_OUTPUTS_DIR, "Validation"))
 
 
 def resolve_input_dir(path: str, reference_dir: str) -> str:
@@ -123,7 +122,7 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--outputs-dir", default=DEFAULT_OUTPUTS_DIR)
     p.add_argument("--outdir", default=DEFAULT_OUTDIR)
-    p.add_argument("--output-prefix", default="bdt_sideband_validation")
+    p.add_argument("--output-prefix", default="bdt_validation")
     p.add_argument("--report-name", default="",
                    help="Optional PDF file name (overrides output-prefix report name)")
 
@@ -182,6 +181,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--multibin-no-monotonic", action="store_true")
     p.add_argument("--multibin-objective", choices=["asimov", "likelihood"], default="asimov")
     p.add_argument("--multibin-likelihood-topk", type=int, default=13)
+    p.add_argument("--multibin-improvement", type=float, default=0.01,
+                   help="Minimum relative gain in combined significance to add a new category (default 0.01 = 1%%)"
+                   )
 
     p.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
 
@@ -1636,6 +1638,173 @@ def parse_category_edges_arg(text: str) -> Optional[np.ndarray]:
     return out
 
 
+# ---------------------------------------------------------------------------
+# Greedy iterative category boundary scan
+# ---------------------------------------------------------------------------
+
+_ATANH_EPS = 1e-7
+
+
+def _bdt_transform(scores: np.ndarray) -> np.ndarray:
+    """BDT' = atanh((BDT + 1) / 2), clipped to avoid ±inf.
+
+    Works for BDT scores in either [-1, 1] or [0, 1].  Scores close to the
+    boundary of [-1,1] map to atanh values near ±inf; clipping keeps things
+    numerically stable.
+    """
+    x = np.clip(
+        (np.asarray(scores, dtype=np.float64) + 1.0) / 2.0,
+        _ATANH_EPS,
+        1.0 - _ATANH_EPS,
+    )
+    return np.arctanh(x)
+
+
+def _bdt_inverse(t: np.ndarray) -> np.ndarray:
+    """Inverse of _bdt_transform: s = 2 * tanh(t) - 1."""
+    return 2.0 * np.tanh(np.asarray(t, dtype=np.float64)) - 1.0
+
+
+def _bin_yields_t(
+    t_scores: np.ndarray,
+    weights: np.ndarray,
+    edges_t: np.ndarray,
+) -> np.ndarray:
+    """Weighted yields per bin, defined by *edges_t* in transformed BDT space."""
+    bin_idx = np.clip(
+        np.digitize(t_scores, edges_t) - 1,
+        0,
+        len(edges_t) - 2,
+    )
+    return np.bincount(bin_idx, weights=weights, minlength=len(edges_t) - 1).astype(np.float64)
+
+
+def _combined_asimov_z(s_yields: np.ndarray, b_yields: np.ndarray) -> float:
+    """Combined Asimov significance Z = sqrt(sum_i 2[(s+b)log(1+s/b) - s])."""
+    total = 0.0
+    for s, b in zip(s_yields, b_yields):
+        if b < 1e-12 or s <= 0.0:
+            continue
+        total += 2.0 * ((s + b) * float(np.log1p(s / b)) - s)
+    return float(np.sqrt(max(total, 0.0)))
+
+
+def iterative_greedy_category_scan(
+    sig_scores: np.ndarray,
+    sig_weights: np.ndarray,
+    bkg_scores: np.ndarray,
+    bkg_weights: np.ndarray,
+    max_n: int = 6,
+    min_improvement: float = 0.01,
+    logger: logging.Logger = None,
+) -> np.ndarray:
+    """Greedy iterative category boundary optimisation on atanh-transformed BDT.
+
+    Algorithm
+    ---------
+    1. Transform BDT -> BDT' = atanh((BDT + 1) / 2).
+    2. Generate 99 candidate boundary positions at every 1 % signal-efficiency
+       quantile of the transformed signal distribution.
+    3. Begin with n = 1 category (no interior boundaries).
+    4. At each step try inserting each unused candidate; retain the one that
+       maximises the combined Asimov significance
+           Z = sqrt(sum_i 2 [(s_i+b_i) log(1 + s_i/b_i) - s_i]).
+    5. Add that boundary only when the relative improvement in Z is >=
+       *min_improvement* (default 1 %).  Stop otherwise or when n == max_n.
+
+    Returns
+    -------
+    edges : np.ndarray
+        Interior edges back-transformed to the original BDT score space,
+        bookended by 0.0 and 1.0 (the outer edge convention used by the rest
+        of the pipeline).
+    """
+    sig_scores = np.asarray(sig_scores, dtype=np.float64)
+    bkg_scores = np.asarray(bkg_scores, dtype=np.float64)
+    sig_weights = np.asarray(sig_weights, dtype=np.float64)
+    bkg_weights = np.asarray(bkg_weights, dtype=np.float64)
+
+    t_sig = _bdt_transform(sig_scores)
+    t_bkg = _bdt_transform(bkg_scores)
+
+    t_lo = float(np.min(t_sig))
+    t_hi = float(np.max(t_sig))
+
+    # Candidate boundaries: every 1 % signal-efficiency quantile in
+    # transformed score space.
+    q_levels = np.linspace(0.01, 0.99, 99)
+    cands = np.unique(np.quantile(t_sig, q_levels))
+    cands = cands[(cands > t_lo) & (cands < t_hi)]
+
+    if logger:
+        logger.info(
+            "Greedy scan (atanh BDT): %d S events (yield=%.3f), %d B events (yield=%.3f), "
+            "max_n=%d, min_improvement=%.1f%%",
+            sig_scores.size, float(np.sum(sig_weights)),
+            bkg_scores.size, float(np.sum(bkg_weights)),
+            max_n, min_improvement * 100.0,
+        )
+
+    # Baseline significance with 1 category
+    baseline_edges = np.array([t_lo, t_hi])
+    prev_z = _combined_asimov_z(
+        _bin_yields_t(t_sig, sig_weights, baseline_edges),
+        _bin_yields_t(t_bkg, bkg_weights, baseline_edges),
+    )
+
+    current_interior: List[float] = []
+
+    for step in range(max_n - 1):
+        remaining = set(cands.tolist()) - set(current_interior)
+        if not remaining:
+            break
+
+        best_cand_t: float | None = None
+        best_z = -1.0
+        for ct in remaining:
+            trial_interior = sorted(current_interior + [ct])
+            trial_edges = np.array([t_lo] + trial_interior + [t_hi])
+            z = _combined_asimov_z(
+                _bin_yields_t(t_sig, sig_weights, trial_edges),
+                _bin_yields_t(t_bkg, bkg_weights, trial_edges),
+            )
+            if z > best_z:
+                best_z = z
+                best_cand_t = ct
+
+        if best_cand_t is None:
+            break
+
+        rel_gain = (best_z - prev_z) / (max(prev_z, 1e-12))
+        if rel_gain < min_improvement:
+            if logger:
+                logger.info(
+                    "  Step %d: best gain %.2f%% < threshold %.1f%%; "
+                    "stopping at n=%d categories.",
+                    step + 1, rel_gain * 100.0, min_improvement * 100.0,
+                    len(current_interior) + 1,
+                )
+            break
+
+        current_interior.append(best_cand_t)
+        prev_z = best_z
+        if logger:
+            logger.info(
+                "  Step %d: added t'=%.4f  -> n=%d cats, Z=%.4f (gain +%.2f%%)",
+                step + 1, best_cand_t,
+                len(current_interior) + 1, best_z, rel_gain * 100.0,
+            )
+
+    if not current_interior:
+        # 1-category result: return full-range edges
+        return np.array([0.0, 1.0], dtype=np.float64)
+
+    interior_orig = _bdt_inverse(np.array(current_interior))
+    edges_orig = np.concatenate([[0.0], np.sort(interior_orig), [1.0]])
+    edges_orig = np.unique(np.clip(edges_orig, 0.0, 1.0))
+    return edges_orig
+
+
 def optimize_category_edges(
     args: argparse.Namespace,
     fallback_eras: Sequence[str],
@@ -1652,11 +1821,9 @@ def optimize_category_edges(
 
     sig_scores_chunks: List[np.ndarray] = []
     sig_weight_chunks: List[np.ndarray] = []
-    sig_mass_chunks: List[np.ndarray] = []
 
     bkg_scores_chunks: List[np.ndarray] = []
     bkg_weight_chunks: List[np.ndarray] = []
-    bkg_mass_chunks: List[np.ndarray] = []
 
     used_eras: List[str] = []
     for era in opt_eras:
@@ -1666,43 +1833,29 @@ def optimize_category_edges(
         if not sig_file or not bkg_file:
             continue
 
-        mass_branch = resolve_mass_branch(sig_file, args.treename, args.mass_branch)
-        if mass_branch is None:
-            mass_branch = resolve_mass_branch(bkg_file, args.treename, args.mass_branch)
-        if mass_branch is None:
-            logger.warning("%s: could not resolve mass branch for optimization; skipping", era)
-            continue
-
-        sel = (
-            f"TMath::Finite({args.bdt_branch}) && TMath::Finite({mass_branch})"
-            f" && ({mass_branch}>={args.mass_min} && {mass_branch}<={args.mass_max})"
-        )
+        sel = f"TMath::Finite({args.bdt_branch})"
 
         try:
-            s_arr = load_arrays(sig_file, args.treename, [args.bdt_branch, args.weight_branch, mass_branch], sel)
-            b_arr = load_arrays(bkg_file, args.treename, [args.bdt_branch, args.weight_branch, mass_branch], sel)
+            s_arr = load_arrays(sig_file, args.treename, [args.bdt_branch, args.weight_branch], sel)
+            b_arr = load_arrays(bkg_file, args.treename, [args.bdt_branch, args.weight_branch], sel)
         except Exception as exc:
             logger.warning("%s: failed loading optimization arrays: %s", era, exc)
             continue
 
         s_sc = s_arr[args.bdt_branch]
         s_w = sanitize_weights(s_arr[args.weight_branch], args.abs_weights)
-        s_m = s_arr[mass_branch]
 
         b_sc = b_arr[args.bdt_branch]
         b_w = sanitize_weights(b_arr[args.weight_branch], args.abs_weights)
-        b_m = b_arr[mass_branch]
 
         if s_sc.size == 0 or b_sc.size == 0:
             continue
 
         sig_scores_chunks.append(s_sc)
         sig_weight_chunks.append(s_w)
-        sig_mass_chunks.append(s_m)
 
         bkg_scores_chunks.append(b_sc)
         bkg_weight_chunks.append(b_w)
-        bkg_mass_chunks.append(b_m)
         used_eras.append(era)
 
     if not used_eras:
@@ -1713,135 +1866,33 @@ def optimize_category_edges(
 
     sig_scores = concat_chunks(sig_scores_chunks)
     sig_weights = concat_chunks(sig_weight_chunks)
-    sig_mass = concat_chunks(sig_mass_chunks)
 
     bkg_scores = concat_chunks(bkg_scores_chunks)
     bkg_weights = concat_chunks(bkg_weight_chunks)
-    bkg_mass = concat_chunks(bkg_mass_chunks)
-
-    total_sig_yield = float(np.sum(sig_weights))
-    total_bkg_yield = float(np.sum(bkg_weights))
-
-    # Adaptive per-bin minimums: require at least 5 % of the total weighted
-    # yield per bin.  For high-luminosity combined runs this evaluates to the
-    # user-specified defaults (e.g. min_sig=1.0 when yield ≥20).  For
-    # low-luminosity single-era runs (yield ~1-3 events) it scales down
-    # proportionally so the optimizer can still find signal-sensitive
-    # boundaries instead of falling back to uninformative quantile edges.
-    adaptive_min_sig = min(args.multibin_min_sig,
-                           max(1e-6, total_sig_yield * 0.05))
-    adaptive_min_bkg = min(args.multibin_min_bkg,
-                           max(1e-6, total_bkg_yield * 0.05))
 
     logger.info(
         "Category optimization eras: %s | S events=%d (yield=%.3f), B events=%d (yield=%.3f)",
         ", ".join(used_eras),
         sig_scores.size,
-        total_sig_yield,
+        float(np.sum(sig_weights)),
         bkg_scores.size,
-        total_bkg_yield,
-    )
-    logger.info(
-        "Per-bin minimums: min_sig=%.4f (requested=%.4f), min_bkg=%.4f (requested=%.4f)",
-        adaptive_min_sig, args.multibin_min_sig,
-        adaptive_min_bkg, args.multibin_min_bkg,
+        float(np.sum(bkg_weights)),
     )
 
-    scan = optimize_multibin_boundaries(
+    edges = iterative_greedy_category_scan(
         sig_scores,
         sig_weights,
         bkg_scores,
         bkg_weights,
-        min_n=args.multibin_min_n,
         max_n=args.multibin_max_n,
-        n_candidates=args.multibin_candidates,
-        min_sig=adaptive_min_sig,
-        min_bkg=adaptive_min_bkg,
-        enforce_monotonic=(not args.multibin_no_monotonic),
-        objective=args.multibin_objective,
-        sig_mass=sig_mass if args.multibin_objective == "likelihood" else None,
-        bkg_mass=bkg_mass if args.multibin_objective == "likelihood" else None,
-        mass_min=args.mass_min,
-        mass_max=args.mass_max,
-        mass_nbins=args.mass_nbins,
-        likelihood_topk=args.multibin_likelihood_topk,
+        min_improvement=args.multibin_improvement,
+        logger=logger,
     )
 
-    best = scan.get("best", None)
-
-    # --- Automatic non-monotonic retry ----------------------------------
-    # For single-era runs (small datasets) the monotonicity constraint
-    # (S/B must increase with each successive BDT bin) often eliminates
-    # every candidate configuration due to statistical fluctuations in the
-    # per-era BDT score distribution.  Before falling back to uninformative
-    # quantile edges, retry the scan with enforce_monotonic=False so the
-    # optimizer can still find signal-sensitive boundaries.
-    if best is None and not args.multibin_no_monotonic:
-        logger.info(
-            "Monotonic scan found no valid configuration for eras [%s]; "
-            "retrying without monotonicity constraint.",
-            ", ".join(used_eras),
-        )
-        scan_relaxed = optimize_multibin_boundaries(
-            sig_scores,
-            sig_weights,
-            bkg_scores,
-            bkg_weights,
-            min_n=args.multibin_min_n,
-            max_n=args.multibin_max_n,
-            n_candidates=args.multibin_candidates,
-            min_sig=adaptive_min_sig,
-            min_bkg=adaptive_min_bkg,
-            enforce_monotonic=False,
-            objective=args.multibin_objective,
-            sig_mass=sig_mass if args.multibin_objective == "likelihood" else None,
-            bkg_mass=bkg_mass if args.multibin_objective == "likelihood" else None,
-            mass_min=args.mass_min,
-            mass_max=args.mass_max,
-            mass_nbins=args.mass_nbins,
-            likelihood_topk=args.multibin_likelihood_topk,
-        )
-        best = scan_relaxed.get("best", None)
-        if best is not None:
-            logger.info("Non-monotonic retry succeeded.")
-
-    if best is None:
-        # Fallback for low-stat / non-monotonic eras: derive robust quantile edges
-        # so the report can still be produced per era.
-        target_n = int(max(args.multibin_min_n, min(args.multibin_max_n, 6)))
-        q = np.linspace(0.0, 1.0, target_n + 1)
-        try:
-            q_edges = np.quantile(sig_scores, q)
-            q_edges = np.asarray(q_edges, dtype=np.float64)
-            q_edges[0] = 0.0
-            q_edges[-1] = 1.0
-            q_edges = np.clip(q_edges, 0.0, 1.0)
-            q_edges = np.unique(q_edges)
-            if q_edges.size < 3:
-                raise ValueError("degenerate quantile edges")
-            logger.warning(
-                "Category optimization found no valid set; using quantile fallback edges: %s",
-                ", ".join([f"{x:.6f}" for x in q_edges]),
-            )
-            return q_edges
-        except Exception:
-            uni_edges = np.linspace(0.0, 1.0, target_n + 1, dtype=np.float64)
-            logger.warning(
-                "Category optimization found no valid set; using uniform fallback edges: %s",
-                ", ".join([f"{x:.6f}" for x in uni_edges]),
-            )
-            return uni_edges
-
-    edges = np.asarray(best["edges"], dtype=np.float64)
-    metric_label = best.get("metric_label", "ZA(total)")
-    metric_val = float(best.get("opt_metric", best.get("za_total", 0.0)))
-
     logger.info(
-        "Best category boundaries (n=%d): %s | %s=%.4f",
+        "Greedy scan result: n=%d categories, edges: %s",
         len(edges) - 1,
         ", ".join([f"{x:.6f}" for x in edges]),
-        metric_label,
-        metric_val,
     )
     return edges
 
@@ -1972,7 +2023,10 @@ def main() -> None:
     cat_cols, cat_rows = build_category_summary_table(edges, cat_summary)
     cat_proc_cols, cat_proc_rows = build_category_process_table(edges, cat_summary)
 
-    report_name = args.report_name.strip() if args.report_name else f"{args.output_prefix}_report.pdf"
+    report_name = args.report_name.strip() if args.report_name else None
+    if not report_name:
+        era_label = "_".join(sorted(era_payloads.keys())) if era_payloads else "run3"
+        report_name = f"{args.output_prefix}_report_{era_label}.pdf"
     report_path = report_name if os.path.isabs(report_name) else os.path.join(args.outdir, report_name)
 
     with PdfPages(report_path) as pdf:
