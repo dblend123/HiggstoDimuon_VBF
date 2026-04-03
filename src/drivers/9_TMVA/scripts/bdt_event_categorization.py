@@ -1,15 +1,37 @@
 #!/usr/bin/env python3
 """
-Standalone BDT sideband validation workflow.
+Run-3 VBF BDT categorisation & blinded sideband validation — MAIN script.
 
-This script performs three analysis tasks:
-1) Build a Run-3 blinded Data/MC BDT-score validation plot with ratio and MC stat uncertainty.
-2) Use multi-bin category optimization.
-3) Produce a single professional PDF report with blinded mass control plot and category tables.
+PURPOSE
+-------
+This is the primary analysis script.  It ingests scored ROOT ntuples produced
+by the TMVA training step, runs multibin category optimisation, performs a
+blinded sideband Data/MC comparison, fits background models in each category,
+and writes a 9-page PDF report.
 
-Mass sidebands default to:
-- left sideband:  110 < m_mumu < 115 GeV
-- right sideband: 135 < m_mumu < 150 GeV
+REPORT PAGES
+------------
+  1.  Cover page  — paths, eras, blinding window, optimised edges
+  2.  BDT score   — full 110-150 GeV window, Data vs stacked MC + ratio
+  3.  BDT bin table — per-bin signal/background/sensitivity summary
+  4.  Blinded mass — sideband data points overlaid on normalised MC stack
+  5.  Per-category mass grid — background model fits + ratio-to-best
+  6.  Fit comparison table  — chi2/ndf for all models per category
+  7.  Category summary table — data/MC yields + expected significance
+  8.  Process composition table — per-process MC yields per category
+
+MASS SIDEBANDS (defaults)
+--------------------------
+  Left  sideband : 110 < m_µµ < 115 GeV
+  Right sideband : 135 < m_µµ < 150 GeV
+  Blind window   : 115 < m_µµ < 135 GeV
+
+RELATED SCRIPTS
+---------------
+  bdt_analysis.py             — shared utility library (import only)
+  vbf_bdt_validation.py       — single-era diagnostic PDF (KS, ROC, features)
+  bdt_publishable_figures.py  — thin wrapper emitting a figure-only PDF
+  significance_inference.py   — post-categorisation significance scan
 """
 
 import argparse
@@ -69,15 +91,30 @@ def resolve_input_dir(path: str, reference_dir: str) -> str:
 def configure_plot_style() -> None:
     plt.rcParams.update({
         "figure.facecolor": "white",
-        "axes.facecolor": "white",
+        "axes.facecolor": "#fafafa",
+        "font.family": "sans-serif",
         "font.size": 11,
-        "axes.titlesize": 14,
-        "axes.labelsize": 12,
+        "axes.titlesize": 12,
+        "axes.titlepad": 6,
+        "axes.labelsize": 11,
         "axes.grid": True,
-        "grid.alpha": 0.25,
-        "legend.frameon": False,
+        "grid.alpha": 0.30,
+        "grid.linestyle": ":",
+        "grid.color": "#a0a0a0",
+        # Ticks drawn inward on all four sides (CMS style)
+        "xtick.direction": "in",
+        "ytick.direction": "in",
+        "xtick.top": True,
+        "ytick.right": True,
+        "xtick.minor.visible": True,
+        "ytick.minor.visible": True,
+        # Legend with subtle frame
+        "legend.frameon": True,
+        "legend.framealpha": 0.88,
+        "legend.edgecolor": "#c8c8c8",
         "legend.fontsize": 9,
         "savefig.bbox": "tight",
+        "savefig.dpi": 150,
     })
 
 
@@ -429,6 +466,14 @@ def combine_data_full_scores(era_payloads: Dict[str, Dict[str, object]]) -> np.n
     chunks: List[np.ndarray] = []
     for payload in era_payloads.values():
         chunks.append(np.asarray(payload["data_full_scores"], dtype=np.float64))  # type: ignore[index]
+    return concat_chunks(chunks)
+
+
+def combine_data_side_scores(era_payloads: Dict[str, Dict[str, object]]) -> np.ndarray:
+    """Return BDT scores for data events in the mass sidebands across all eras."""
+    chunks: List[np.ndarray] = []
+    for payload in era_payloads.values():
+        chunks.append(np.asarray(payload["data_side_scores"], dtype=np.float64))  # type: ignore[index]
     return concat_chunks(chunks)
 
 
@@ -822,10 +867,6 @@ def make_stacked_ratio_figure(
     mc_hists, mc_vars, mc_sum, mc_var_sum = compute_group_hists(mc_groups, bins)
     centers = 0.5 * (bins[:-1] + bins[1:])
 
-    hist_vals: List[np.ndarray] = []
-    hist_weights: List[np.ndarray] = []
-    colors: List[str] = []
-    labels: List[str] = []
     def _stack_sort_key(item: Tuple[str, np.ndarray, np.ndarray]) -> Tuple[int, float, int]:
         proc = item[0]
         cproc = canonical_proc(proc)
@@ -837,45 +878,31 @@ def make_stacked_ratio_figure(
 
     plot_groups = sorted(list(mc_groups), key=_stack_sort_key)
 
-    for proc, vals, weights in plot_groups:
-        h = mc_hists.get(proc, None)
-        if h is None or np.sum(h) <= 0:
-            continue
-        hist_vals.append(vals)
-        hist_weights.append(weights)
-        colors.append(proc_color(proc))
-        labels.append(proc)
-
-    if hist_vals:
-        ax_top.hist(
-            hist_vals,
-            bins=bins,
-            weights=hist_weights,
-            stacked=True,
-            color=colors,
-            label=labels,
-            histtype="stepfilled",
-            alpha=0.9,
-            linewidth=0.5,
-            edgecolor="#2e2e2e",
-        )
-
-    cumulative = np.zeros(len(bins) - 1, dtype=np.float64)
+    # Per-process hatch patterns so small contributions (EWK, VV, VVV) remain
+    # visually distinguishable even when their contribution is narrow on the
+    # y-axis scale relative to DY.
+    _HATCH_MAP: Dict[str, str] = {
+        "EWK": "///",
+        "VVV": "xxx",
+        "VV": "...",
+        "DYVBF": "\\\\\\",
+    }
+    bin_widths = bins[1:] - bins[:-1]
+    base = np.zeros(len(bins) - 1, dtype=np.float64)
     for proc, _vals, _weights in plot_groups:
         hh = mc_hists.get(proc, None)
         if hh is None or np.sum(hh) <= 0:
             continue
-        cumulative += hh
-        # Draw each stacked layer boundary to make buried components visible.
-        ax_top.step(
-            centers,
-            cumulative,
-            where="mid",
-            color=proc_color(proc),
-            linewidth=1.0,
-            alpha=0.95,
-            zorder=2,
+        color = proc_color(proc)
+        hatch = _HATCH_MAP.get(canonical_proc(proc), "")
+        ax_top.bar(
+            bins[:-1], hh, bottom=base, width=bin_widths,
+            align="edge", color=color, hatch=hatch,
+            edgecolor="#222222" if hatch else "#2e2e2e",
+            linewidth=0.55 if not hatch else 0.8,
+            alpha=0.87, label=proc, zorder=1,
         )
+        base = base + hh
 
     if np.any(mc_sum > 0):
         ax_top.step(
@@ -998,7 +1025,14 @@ def make_stacked_ratio_figure(
         ax_frac.tick_params(axis="y", labelsize=7)
         ax_frac.grid(alpha=0.2)
 
-    ax_top.legend(loc="upper right", ncol=2)
+    handles, leg_labels = ax_top.get_legend_handles_labels()
+    if handles:
+        ax_top.legend(
+            handles, leg_labels,
+            loc="upper right", ncol=2,
+            frameon=True, framealpha=0.90,
+            edgecolor="#c0c0c0", fontsize=8.5,
+        )
 
     ratio = np.divide(data_hist, mc_sum, out=np.zeros_like(data_hist), where=mc_sum > 0)
     ratio_err = np.divide(data_err, mc_sum, out=np.zeros_like(data_err), where=mc_sum > 0)
@@ -1036,11 +1070,19 @@ def make_stacked_ratio_figure(
 
 
 def add_text_page(pdf: PdfPages, title: str, lines: List[str]) -> None:
-    fig, ax = plt.subplots(figsize=(11.5, 8.2))
-    ax.axis("off")
-    ax.set_title(title, loc="left", fontsize=16, fontweight="bold", pad=14)
-    ax.text(0.02, 0.95, "\n".join(lines), va="top", ha="left", fontsize=11, family="monospace")
-    pdf.savefig(fig)
+    fig = plt.figure(figsize=(11.5, 8.2))
+    fig.patch.set_facecolor("white")
+    # Title
+    fig.text(0.06, 0.93, title, ha="left", va="top",
+             fontsize=15, fontweight="bold", color="#1a1a1a")
+    # Separator rule under the title
+    sep = plt.Line2D([0.05, 0.95], [0.895, 0.895],
+                     transform=fig.transFigure, color="#4a4a4a", linewidth=1.2)
+    fig.add_artist(sep)
+    # Content in monospace for alignment
+    fig.text(0.06, 0.87, "\n".join(lines), ha="left", va="top",
+             fontsize=10.5, family="monospace", color="#2a2a2a")
+    pdf.savefig(fig, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1049,19 +1091,30 @@ def add_table_pages(
     title: str,
     columns: List[str],
     rows: List[List[str]],
-    max_rows: int = 24,
+    max_rows: int = 18,
 ) -> None:
+    """Render *rows* as a styled table, paginating when necessary.
+
+    Each cell is auto-sized to its content.  Wide tables (many columns)
+    get a proportionally wider figure so text does not overflow.
+    """
     if not rows:
         add_text_page(pdf, title, ["No rows available."])
         return
 
+    ncols = len(columns)
+    # Scale figure width with column count; cap at ~24 inches for readability.
+    fig_w = max(13.0, min(ncols * 1.65, 24.0))
+    # Reduce font to fit very wide tables without creating tiny text.
+    fontsize = 8.5 if ncols <= 9 else (7.5 if ncols <= 12 else 7.0)
+
     n_pages = int(math.ceil(len(rows) / float(max_rows)))
     for page in range(n_pages):
         chunk = rows[page * max_rows : (page + 1) * max_rows]
-        fig, ax = plt.subplots(figsize=(14.0, 8.4))
+        fig, ax = plt.subplots(figsize=(fig_w, 8.4))
         ax.axis("off")
-        page_title = title if n_pages == 1 else f"{title} (page {page+1}/{n_pages})"
-        ax.set_title(page_title, loc="left", fontsize=15, fontweight="bold", pad=14)
+        page_title = title if n_pages == 1 else f"{title}  (page {page + 1} / {n_pages})"
+        ax.set_title(page_title, loc="left", fontsize=13, fontweight="bold", pad=12)
         table = ax.table(
             cellText=chunk,
             colLabels=columns,
@@ -1069,15 +1122,23 @@ def add_table_pages(
             cellLoc="center",
         )
         table.auto_set_font_size(False)
-        table.set_fontsize(8.5)
-        table.scale(1.0, 1.25)
-        for (r, _c), cell in table.get_celld().items():
+        table.set_fontsize(fontsize)
+        table.scale(1.0, 1.35)
+        # Auto-size column widths to content so text does not overflow cells.
+        table.auto_set_column_width(col=list(range(ncols)))
+        for (r, c), cell in table.get_celld().items():
             if r == 0:
-                cell.set_facecolor("#e6e6e6")
-                cell.set_text_props(weight="bold")
-            elif r % 2 == 0:
-                cell.set_facecolor("#f7f7f7")
-        pdf.savefig(fig)
+                # Distinct header: steel-blue background, white bold text.
+                cell.set_facecolor("#2c5f8a")
+                cell.set_text_props(weight="bold", color="white")
+                cell.set_edgecolor("#1a3f60")
+            elif r % 2 == 1:
+                cell.set_facecolor("#ffffff")
+                cell.set_edgecolor("#d0d0d0")
+            else:
+                cell.set_facecolor("#eef3f8")
+                cell.set_edgecolor("#d0d0d0")
+        pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
 
@@ -1259,13 +1320,14 @@ def build_category_mass_grid(
     ncat = len(edges) - 1
     ncols = 2 if ncat > 1 else 1
     nrows = int(math.ceil(ncat / float(ncols)))
-    fig = plt.figure(figsize=(14.0, 5.8 * nrows))
+    # Extra vertical space per row (6.2 in) + 0.5 in padding for suptitle
+    fig = plt.figure(figsize=(14.0, 6.2 * nrows + 0.5))
     gs = fig.add_gridspec(
         nrows * 2,
         ncols,
         height_ratios=[3.0, 1.0] * nrows,
-        hspace=0.12,
-        wspace=0.24,
+        hspace=0.35,
+        wspace=0.28,
     )
 
     top_axes = []
@@ -1412,22 +1474,27 @@ def build_category_mass_grid(
             )
 
         ax.axvspan(args.blind_min, args.blind_max, color="#bdbdbd", alpha=0.18, zorder=0)
-        ax.set_title(f"Cat {i}: [{lo:.3f}, {hi:.3f})")
+        ax.set_title(f"Cat {i}:  BDT [{lo:.3f}, {hi:.3f})", fontsize=11, pad=4)
         ax.set_ylabel("Events / bin")
         ax.grid(alpha=0.25)
         ax.tick_params(labelbottom=False)
+        # Stats box in lower-left to avoid overlapping with legend (upper-right)
+        # and subplot title (top edge).
         ax.text(
             0.02,
-            0.96,
-            f"Best: {best_model}\nchi2/ndf={best_chi2ndf:.3f}\nS/sqrt(B)={signif:.3f}",
+            0.38,
+            f"Best: {best_model}\n$\\chi^2$/ndf = {best_chi2ndf:.3f}\nS/$\\sqrt{{B}}$ = {signif:.3f}",
             transform=ax.transAxes,
             va="top",
             ha="left",
-            fontsize=8.5,
-            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+            fontsize=8.0,
+            bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.85, edgecolor="#b0b0b0"),
         )
 
-        ax.legend(loc="upper right", fontsize=7.0, ncol=2, frameon=False)
+        ax.legend(
+            loc="upper right", fontsize=7.0, ncol=2,
+            frameon=True, framealpha=0.88, edgecolor="#c0c0c0",
+        )
 
         model_order = ["BWZ", "BWZRedux", "BWZGamma", "Bernstein", "Exponential Series", "Power Series"]
         row = [str(i), f"[{lo:.3f}, {hi:.3f})", best_model, f"{best_chi2ndf:.3f}", f"{signif:.3f}"]
@@ -1489,17 +1556,21 @@ def build_category_mass_grid(
         ax_empty_res.axis("off")
 
     for ax in residual_axes:
-        ax.set_xlabel("m_mumu [GeV]")
+        ax.set_xlabel("$m_{\\mu\\mu}$ [GeV]", fontsize=10)
 
-    if ncat > 0:
-        top_axes[0].legend(loc="upper right", ncol=2)
+    # Each subplot already has its own legend drawn in the loop above.
+    # Do NOT call top_axes[0].legend() again — it would replace that
+    # subplot's legend with a differently-styled one.
 
+    # Reserve ~7% at the top for the suptitle so it does not overlap
+    # with the first row of subplots.
+    fig.tight_layout(rect=[0.02, 0.02, 0.98, 0.932])
     fig.suptitle(
-        "Per-category dimuon mass: full-range background model comparison and ratio-to-best",
-        fontsize=15,
-        y=0.995,
+        "Per-category dimuon mass: background model comparison and ratio-to-best",
+        fontsize=13,
+        fontweight="bold",
+        y=0.968,
     )
-    fig.tight_layout(rect=[0.0, 0.0, 1.0, 0.972])
     return fig, fit_columns, fit_rows
 
 

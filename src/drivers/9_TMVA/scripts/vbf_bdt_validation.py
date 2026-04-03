@@ -1,14 +1,31 @@
 #!/usr/bin/env python3
 """
-VBF-focused BDT validation script.
+VBF BDT per-era validation diagnostic script.
 
-Standalone analysis script that does:
-- tmva_ScanYields.py
-- tmva_PlotScored.py
-- tmva_MassSculpt.py
-- tmva_KS_perfold.py
-- tmva_DataMC_BDT.py
+PURPOSE
+-------
+Produces a detailed per-era diagnostic PDF for a *single* era label supplied
+via ``--era``.  It focuses on feature-level checks, fold-KS diagnostics,
+ROC curves, and simple-cut acceptance scans.
 
+ROLE IN THE WORKFLOW
+--------------------
+This script is complementary to ``bdt_event_categorization.py``, which is
+the primary multi-era categorization and sideband-validation report.
+
+  bdt_analysis.py               — shared utility library (import only)
+  bdt_event_categorization.py   — MAIN script: multi-era sideband validation,
+                                   category optimisation, 9-page blinded report
+  vbf_bdt_validation.py         — THIS script: single-era diagnostic report
+                                   (KS folds, ROC, feature cross-check, …)
+  bdt_publishable_figures.py    — Thin wrapper that calls bdt_event_categ
+                                   functions and emits a figure-only PDF
+  significance_inference.py     — Post-categorisation significance scan
+
+SHARED HELPERS
+--------------
+All weight-handling, file discovery, and histogram utilities are imported from
+``bdt_analysis``.  No duplicate implementations should exist here.
 """
 
 import argparse
@@ -459,12 +476,8 @@ def ks_profile_status(d_val: float, p_val: float, p_min: float, d_max: float) ->
     return "FAIL"
 
 
-def sanitize_weights(w: np.ndarray) -> np.ndarray:
-    ww = np.asarray(w, dtype=np.float64)
-    ww[~np.isfinite(ww)] = 0.0
-    ww = np.abs(ww)
-    ww[ww < 0.0] = 0.0
-    return ww
+# sanitize_weights is imported from bdt_analysis at the top of this file.
+# A re-definition here has been removed to avoid shadowing the shared version.
 
 
 def weighted_mean_std(values: np.ndarray, weights: np.ndarray) -> Tuple[float, float]:
