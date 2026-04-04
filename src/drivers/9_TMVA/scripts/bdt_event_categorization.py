@@ -1531,9 +1531,12 @@ def build_category_summary_table(
         "MC sidebands ± stat",
         "Data/MC (sidebands)",
         "MC full (110-150) ± stat",
-        "Expected signif. (S/sqrt(B))",
+        "S/sqrt(B)",
+        "Asimov Z (cat)",
     ]
     rows: List[List[str]] = []
+    # Accumulate terms for combined Z = sqrt(sum_i 2[(s+b)log(1+s/b) - s])
+    combined_z_sum = 0.0
     for i in range(len(edges) - 1):
         vals = summary.get(i, {})
         d_side = float(vals.get("data_side_count", 0.0))
@@ -1544,6 +1547,13 @@ def build_category_summary_table(
         s_full = float(vals.get("sig_full_total", 0.0))
         ratio = d_side / m_side if m_side > 0 else 0.0
         signif = (s_full / math.sqrt(m_full)) if m_full > 0.0 else 0.0
+        # Per-category Asimov Z term
+        if m_full > 1e-12 and s_full > 0.0:
+            term = 2.0 * ((s_full + m_full) * math.log1p(s_full / m_full) - s_full)
+            combined_z_sum += max(term, 0.0)
+            cat_z = math.sqrt(max(term, 0.0))
+        else:
+            cat_z = 0.0
         rows.append([
             str(i),
             f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
@@ -1551,8 +1561,16 @@ def build_category_summary_table(
             f"{m_side:.2f} ± {me_side:.2f}",
             f"{ratio:.3f}",
             f"{m_full:.2f} ± {me_full:.2f}",
-            f"{signif:.3f}",
+            f"{signif:.4f}",
+            f"{cat_z:.4f}",
         ])
+    # Footer: combined Z across all categories
+    combined_z = math.sqrt(max(combined_z_sum, 0.0))
+    rows.append([
+        "Combined", "all",
+        "", "", "", "",
+        "", f"{combined_z:.4f}",
+    ])
     return columns, rows
 
 
