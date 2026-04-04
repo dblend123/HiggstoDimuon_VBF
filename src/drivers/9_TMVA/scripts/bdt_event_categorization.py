@@ -1065,15 +1065,21 @@ def _fit_signal_dcb_full(
             "n_r":     float(nR.getVal()),
         }
 
-        # Pearson chi2/ndf (6 free parameters)
-        n_nonzero = int(np.sum(h_signal > 0.0))
-        ndf = max(n_nonzero - 6, 1)
-        residuals = np.where(
-            h_signal > 0.0,
-            (h_signal - pred) ** 2 / np.maximum(h_signal, 1e-12),
-            0.0,
-        )
-        chi2ndf = float(np.sum(residuals)) / float(ndf)
+        # Binned chi2 via RooChi2Var (Pearson, PDF integrated over each bin)
+        try:
+            chi2var = ROOT.RooChi2Var(
+                f"chi2var_{tag}", f"chi2var_{tag}",
+                dcb, data,
+                ROOT.RooFit.DataError(ROOT.RooAbsData.SumW2),
+            )
+            raw_chi2 = float(chi2var.getVal())
+            ndf = max(int(len(mass_bins)) - 1 - 6, 1)
+            chi2ndf = raw_chi2 / float(ndf)
+        except Exception:
+            # Fallback: Pearson chi2 with predicted denominator
+            ndf = max(int(len(mass_bins)) - 1 - 6, 1)
+            denom = np.maximum(pred, 1e-12)
+            chi2ndf = float(np.sum((h_signal - pred) ** 2 / denom)) / float(ndf)
         return pred, params, chi2ndf
 
     except Exception:
@@ -1856,6 +1862,7 @@ def build_vbf_signal_dcb_grid(
     args: argparse.Namespace,
     mass_bins: np.ndarray,
     mc_weight_scale: float = 1.0,
+    cat_summary: Optional[Dict[int, Dict[str, float]]] = None,
 ) -> Tuple[plt.Figure, List[str], List[List[str]]]:
     """Per-BDT-category VBF H(125)->mumu signal DCB extraction plots.
 
@@ -1874,6 +1881,7 @@ def build_vbf_signal_dcb_grid(
     )
 
     centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
+    bin_width = float(mass_bins[1] - mass_bins[0])  # GeV per bin
 
     dcb_cols: List[str] = [
         "Category",
@@ -1887,6 +1895,8 @@ def build_vbf_signal_dcb_grid(
         "n_R",
         "chi2/ndf",
         "FWHM [GeV]",
+        "S/sqrt(B)",
+        "Asimov Z",
     ]
     dcb_rows: List[List[str]] = []
 
@@ -1924,38 +1934,57 @@ def build_vbf_signal_dcb_grid(
 
         n_sig_total = float(np.sum(h_sig))
 
+        # Retrieve per-category S and B from pre-computed summary (full window MC)
+        _summary_i = (cat_summary or {}).get(i, {})
+        s_yield = float(_summary_i.get("sig_full_total", n_sig_total))
+        b_yield = float(_summary_i.get("mc_full_total", 0.0))
+        sbsqrtb = s_yield / math.sqrt(b_yield) if b_yield > 0.0 else 0.0
+        if b_yield > 0.0 and s_yield > 0.0:
+            asimov_z = math.sqrt(
+                max(0.0, 2.0 * ((s_yield + b_yield) * math.log1p(s_yield / b_yield) - s_yield))
+            )
+        else:
+            asimov_z = 0.0
+
+        # Normalize to Events / GeV
+        h_sig_gev   = h_sig / bin_width
+        pred_dcb_gev = pred_dcb / bin_width
+
         ax.step(
-            centers, h_sig, where="mid",
+            centers, h_sig_gev, where="mid",
             color="#4477CC", linewidth=1.4,
             label=f"VBF H(125) MC  (N = {n_sig_total:.1f})",
             zorder=2,
         )
         ax.fill_between(
-            centers, h_sig,
+            centers, h_sig_gev,
             step="mid", color="#4477CC", alpha=0.20, zorder=1,
         )
 
-        if np.sum(pred_dcb) > 0.0:
+        if np.sum(pred_dcb_gev) > 0.0:
             ax.step(
-                centers, pred_dcb, where="mid",
+                centers, pred_dcb_gev, where="mid",
                 color="#CC4444", linewidth=2.2,
                 label="DCB fit", zorder=3,
             )
 
         ax.set_title(f"Cat {i}:  BDT [{lo:.3f}, {hi:.3f})", fontsize=11, pad=4)
         ax.set_xlabel("$m_{\\mu\\mu}$ [GeV]", fontsize=10)
-        ax.set_ylabel("Signal events / bin")
+        ax.set_ylabel("Events / GeV")
         ax.grid(alpha=0.25)
 
         if params:
             fwhm = 2.355 * params["sigma"]
+            chi2_str = f"{chi2ndf:.4g}" if chi2ndf >= 0.0 else "n/a"
             stats_text = (
                 f"$\\mu$ = {params['mean']:.3f} GeV\n"
                 f"$\\sigma$ = {params['sigma']:.3f} GeV\n"
                 f"$\\alpha_L$ = {params['alpha_l']:.3f},  $n_L$ = {params['n_l']:.2f}\n"
                 f"$\\alpha_R$ = {params['alpha_r']:.3f},  $n_R$ = {params['n_r']:.2f}\n"
-                f"$\\chi^2$/ndf = {chi2ndf:.3f}\n"
-                f"FWHM $\\approx$ {fwhm:.3f} GeV"
+                f"$\\chi^2$/ndf = {chi2_str}\n"
+                f"FWHM $\\approx$ {fwhm:.3f} GeV\n"
+                f"S/$\\sqrt{{B}}$ = {sbsqrtb:.3f}\n"
+                f"Asimov Z = {asimov_z:.3f}"
             )
         else:
             fwhm = float("nan")
@@ -1974,6 +2003,7 @@ def build_vbf_signal_dcb_grid(
         )
         ax.legend(loc="upper left", fontsize=9)
 
+        chi2_str_row = f"{chi2ndf:.4g}" if chi2ndf >= 0.0 else "n/a"
         dcb_rows.append([
             str(i),
             f"[{lo:.3f}, {hi:.3f})",
@@ -1984,8 +2014,10 @@ def build_vbf_signal_dcb_grid(
             f"{params['n_l']:.3f}" if params else "n/a",
             f"{params['alpha_r']:.4f}" if params else "n/a",
             f"{params['n_r']:.3f}" if params else "n/a",
-            f"{chi2ndf:.3f}" if chi2ndf >= 0.0 else "n/a",
+            chi2_str_row,
             f"{fwhm:.3f}" if math.isfinite(fwhm) else "n/a",
+            f"{sbsqrtb:.3f}",
+            f"{asimov_z:.3f}",
         ])
 
     for j in range(ncat, nrows * ncols):
@@ -2584,15 +2616,16 @@ def main() -> None:
         mc_weight_scale=mc_scale,
     )
 
+    cat_summary = summarize_categories(era_payloads, edges, args, mc_weight_scale=mc_scale)
+
     fig_vbf_sig, dcb_cols, dcb_rows = build_vbf_signal_dcb_grid(
         era_payloads=era_payloads,
         edges=edges,
         args=args,
         mass_bins=mass_bins,
         mc_weight_scale=mc_scale,
+        cat_summary=cat_summary,
     )
-
-    cat_summary = summarize_categories(era_payloads, edges, args, mc_weight_scale=mc_scale)
     cat_cols, cat_rows = build_category_summary_table(edges, cat_summary)
     cat_proc_cols, cat_proc_rows = build_category_process_table(edges, cat_summary)
 
