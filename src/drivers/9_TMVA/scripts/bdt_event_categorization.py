@@ -1065,21 +1065,15 @@ def _fit_signal_dcb_full(
             "n_r":     float(nR.getVal()),
         }
 
-        # Binned chi2 via RooChi2Var (Pearson, PDF integrated over each bin)
-        try:
-            chi2var = ROOT.RooChi2Var(
-                f"chi2var_{tag}", f"chi2var_{tag}",
-                dcb, data,
-                ROOT.RooFit.DataError(ROOT.RooAbsData.SumW2),
-            )
-            raw_chi2 = float(chi2var.getVal())
-            ndf = max(int(len(mass_bins)) - 1 - 6, 1)
-            chi2ndf = raw_chi2 / float(ndf)
-        except Exception:
-            # Fallback: Pearson chi2 with predicted denominator
-            ndf = max(int(len(mass_bins)) - 1 - 6, 1)
-            denom = np.maximum(pred, 1e-12)
-            chi2ndf = float(np.sum((h_signal - pred) ** 2 / denom)) / float(ndf)
+        # Model-based Pearson chi2/ndf.
+        # RooChi2Var with SumW2 errors silently drops bins where the observed
+        # weight-error is zero (most bins in sparse weighted histograms), giving
+        # chi2 ~ 0.  Use sum((obs-pred)^2/pred) over bins where pred>0 instead;
+        # this is well-defined and gives ~1 for a good fit.
+        nbins = int(len(mass_bins)) - 1
+        ndf = max(nbins - 6, 1)  # 6 free DCB shape parameters
+        mask = pred > 1e-12
+        chi2ndf = float(np.sum(np.where(mask, (h_signal - pred) ** 2 / pred, 0.0))) / float(ndf)
         return pred, params, chi2ndf
 
     except Exception:
@@ -1982,9 +1976,7 @@ def build_vbf_signal_dcb_grid(
                 f"$\\alpha_L$ = {params['alpha_l']:.3f},  $n_L$ = {params['n_l']:.2f}\n"
                 f"$\\alpha_R$ = {params['alpha_r']:.3f},  $n_R$ = {params['n_r']:.2f}\n"
                 f"$\\chi^2$/ndf = {chi2_str}\n"
-                f"FWHM $\\approx$ {fwhm:.3f} GeV\n"
-                f"S/$\\sqrt{{B}}$ = {sbsqrtb:.3f}\n"
-                f"Asimov Z = {asimov_z:.3f}"
+                f"FWHM $\\approx$ {fwhm:.3f} GeV"
             )
         else:
             fwhm = float("nan")
