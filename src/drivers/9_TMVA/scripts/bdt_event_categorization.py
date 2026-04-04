@@ -999,6 +999,87 @@ def fit_signal_dcb_template(
         return h_signal.astype(np.float64, copy=True)
 
 
+def _fit_signal_dcb_full(
+    centers: np.ndarray,
+    mass_bins: np.ndarray,
+    h_signal: np.ndarray,
+    args: argparse.Namespace,
+    cat_idx: int = 0,
+) -> Tuple[np.ndarray, Dict[str, float], float]:
+    """Fit a double-sided Crystal Ball to a binned signal histogram.
+
+    Returns (pred_curve_at_centers, params_dict, chi2ndf).
+    params_dict keys: 'mean', 'sigma', 'alpha_l', 'n_l', 'alpha_r', 'n_r'.
+    chi2ndf is -1.0 on failure.
+    """
+    empty = np.zeros_like(centers, dtype=np.float64)
+    if h_signal.size == 0 or float(np.sum(h_signal)) <= 0.0:
+        return empty, {}, -1.0
+
+    tag = f"sdcb_{cat_idx}"
+    try:
+        edges_arr = array("d", [float(x) for x in mass_bins])
+        htmp = ROOT.TH1D(f"htmp_{tag}", f"htmp_{tag}", len(mass_bins) - 1, edges_arr)
+        htmp.Sumw2()
+        for ibin, y in enumerate(h_signal, start=1):
+            htmp.SetBinContent(ibin, float(max(y, 0.0)))
+            htmp.SetBinError(ibin, math.sqrt(max(float(y), 0.0)))
+
+        m = ROOT.RooRealVar(f"m_{tag}", f"m_{tag}", float(args.mass_min), float(args.mass_max))
+        data = ROOT.RooDataHist(f"data_{tag}", f"data_{tag}", ROOT.RooArgList(m), htmp)
+
+        mean  = ROOT.RooRealVar(f"mean_{tag}",   f"mean_{tag}",  125.0, 123.0, 127.0)
+        sigma = ROOT.RooRealVar(f"sigma_{tag}",  f"sigma_{tag}",   1.6,   0.2,   6.0)
+        aL    = ROOT.RooRealVar(f"alphaL_{tag}", f"alphaL_{tag}",  1.5,   0.2,   6.0)
+        nL    = ROOT.RooRealVar(f"nL_{tag}",     f"nL_{tag}",      5.0,   0.5,  80.0)
+        aR    = ROOT.RooRealVar(f"alphaR_{tag}", f"alphaR_{tag}",  2.0,   0.2,   6.0)
+        nR    = ROOT.RooRealVar(f"nR_{tag}",     f"nR_{tag}",      8.0,   0.5,  80.0)
+
+        dcb = ROOT.RooCrystalBall(
+            f"dcb_{tag}", f"dcb_{tag}", m, mean, sigma, aL, nL, aR, nR,
+        )
+        dcb.fitTo(
+            data,
+            ROOT.RooFit.PrintLevel(-1),
+            ROOT.RooFit.SumW2Error(True),
+            ROOT.RooFit.Minimizer("Minuit2", "migrad"),
+            ROOT.RooFit.Strategy(1),
+        )
+
+        norm_set = ROOT.RooArgSet(m)
+        pred = np.zeros_like(centers, dtype=np.float64)
+        for j, x in enumerate(centers):
+            m.setVal(float(x))
+            pred[j] = max(float(dcb.getVal(norm_set)), 0.0)
+
+        total_sig = float(np.sum(h_signal))
+        if np.sum(pred) > 0.0:
+            pred *= total_sig / float(np.sum(pred))
+
+        params: Dict[str, float] = {
+            "mean":    float(mean.getVal()),
+            "sigma":   float(sigma.getVal()),
+            "alpha_l": float(aL.getVal()),
+            "n_l":     float(nL.getVal()),
+            "alpha_r": float(aR.getVal()),
+            "n_r":     float(nR.getVal()),
+        }
+
+        # Pearson chi2/ndf (6 free parameters)
+        n_nonzero = int(np.sum(h_signal > 0.0))
+        ndf = max(n_nonzero - 6, 1)
+        residuals = np.where(
+            h_signal > 0.0,
+            (h_signal - pred) ** 2 / np.maximum(h_signal, 1e-12),
+            0.0,
+        )
+        chi2ndf = float(np.sum(residuals)) / float(ndf)
+        return pred, params, chi2ndf
+
+    except Exception:
+        return empty, {}, -1.0
+
+
 def compute_group_hists(
     groups: Sequence[Tuple[str, np.ndarray, np.ndarray]],
     bins: np.ndarray,
@@ -1769,6 +1850,158 @@ def build_category_mass_grid(
     return fig, fit_columns, fit_rows
 
 
+def build_vbf_signal_dcb_grid(
+    era_payloads: Dict[str, Dict[str, object]],
+    edges: np.ndarray,
+    args: argparse.Namespace,
+    mass_bins: np.ndarray,
+    mc_weight_scale: float = 1.0,
+) -> Tuple[plt.Figure, List[str], List[List[str]]]:
+    """Per-BDT-category VBF H(125)->mumu signal DCB extraction plots.
+
+    Histograms the VBF signal MC mass in each category summed across all eras,
+    fits a double-sided Crystal Ball (DCB), and draws the result.
+    Returns (figure, table_columns, table_rows).
+    """
+    ncat = len(edges) - 1
+    ncols = 2 if ncat > 1 else 1
+    nrows = int(math.ceil(ncat / float(ncols)))
+
+    fig, axes = plt.subplots(
+        nrows, ncols,
+        figsize=(14.0, 5.0 * nrows + 0.5),
+        squeeze=False,
+    )
+
+    centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
+
+    dcb_cols: List[str] = [
+        "Category",
+        "BDT range",
+        "N_sig",
+        "Mean [GeV]",
+        "Sigma [GeV]",
+        "alpha_L",
+        "n_L",
+        "alpha_R",
+        "n_R",
+        "chi2/ndf",
+        "FWHM [GeV]",
+    ]
+    dcb_rows: List[List[str]] = []
+
+    for i in range(ncat):
+        row_idx = i // ncols
+        col_idx = i % ncols
+        ax = axes[row_idx, col_idx]
+
+        lo, hi = float(edges[i]), float(edges[i + 1])
+
+        sig_mass_chunks: List[np.ndarray] = []
+        sig_weight_chunks: List[np.ndarray] = []
+
+        for payload in era_payloads.values():
+            s_sc   = np.asarray(payload["sig_full_scores"],  dtype=np.float64)
+            s_mass = np.asarray(payload["sig_full_mass"],    dtype=np.float64)
+            s_w    = np.asarray(payload["sig_full_weight"],  dtype=np.float64)
+            if s_sc.size == 0 or s_mass.size == 0 or s_w.size == 0:
+                continue
+            ssel = (s_sc >= lo) & (s_sc < hi)
+            if np.any(ssel):
+                sig_mass_chunks.append(s_mass[ssel])
+                sig_weight_chunks.append(s_w[ssel] * float(mc_weight_scale))
+
+        sig_mass = concat_chunks(sig_mass_chunks)
+        sig_w    = concat_chunks(sig_weight_chunks)
+
+        h_sig, _ = weighted_hist_and_var(
+            sig_mass, mass_bins, sig_w if sig_w.size > 0 else None,
+        )
+
+        pred_dcb, params, chi2ndf = _fit_signal_dcb_full(
+            centers, mass_bins, h_sig, args, cat_idx=i,
+        )
+
+        n_sig_total = float(np.sum(h_sig))
+
+        ax.step(
+            centers, h_sig, where="mid",
+            color="#4477CC", linewidth=1.4,
+            label=f"VBF H(125) MC  (N = {n_sig_total:.1f})",
+            zorder=2,
+        )
+        ax.fill_between(
+            centers, h_sig,
+            step="mid", color="#4477CC", alpha=0.20, zorder=1,
+        )
+
+        if np.sum(pred_dcb) > 0.0:
+            ax.step(
+                centers, pred_dcb, where="mid",
+                color="#CC4444", linewidth=2.2,
+                label="DCB fit", zorder=3,
+            )
+
+        ax.set_title(f"Cat {i}:  BDT [{lo:.3f}, {hi:.3f})", fontsize=11, pad=4)
+        ax.set_xlabel("$m_{\\mu\\mu}$ [GeV]", fontsize=10)
+        ax.set_ylabel("Signal events / bin")
+        ax.grid(alpha=0.25)
+
+        if params:
+            fwhm = 2.355 * params["sigma"]
+            stats_text = (
+                f"$\\mu$ = {params['mean']:.3f} GeV\n"
+                f"$\\sigma$ = {params['sigma']:.3f} GeV\n"
+                f"$\\alpha_L$ = {params['alpha_l']:.3f},  $n_L$ = {params['n_l']:.2f}\n"
+                f"$\\alpha_R$ = {params['alpha_r']:.3f},  $n_R$ = {params['n_r']:.2f}\n"
+                f"$\\chi^2$/ndf = {chi2ndf:.3f}\n"
+                f"FWHM $\\approx$ {fwhm:.3f} GeV"
+            )
+        else:
+            fwhm = float("nan")
+            stats_text = f"N = {n_sig_total:.1f}\n(DCB fit failed)"
+
+        ax.text(
+            0.97, 0.95,
+            stats_text,
+            transform=ax.transAxes,
+            va="top", ha="right",
+            fontsize=8.5,
+            bbox=dict(
+                boxstyle="round,pad=0.3",
+                facecolor="white", alpha=0.88, edgecolor="#b0b0b0",
+            ),
+        )
+        ax.legend(loc="upper left", fontsize=9)
+
+        dcb_rows.append([
+            str(i),
+            f"[{lo:.3f}, {hi:.3f})",
+            f"{n_sig_total:.2f}",
+            f"{params['mean']:.4f}" if params else "n/a",
+            f"{params['sigma']:.4f}" if params else "n/a",
+            f"{params['alpha_l']:.4f}" if params else "n/a",
+            f"{params['n_l']:.3f}" if params else "n/a",
+            f"{params['alpha_r']:.4f}" if params else "n/a",
+            f"{params['n_r']:.3f}" if params else "n/a",
+            f"{chi2ndf:.3f}" if chi2ndf >= 0.0 else "n/a",
+            f"{fwhm:.3f}" if math.isfinite(fwhm) else "n/a",
+        ])
+
+    for j in range(ncat, nrows * ncols):
+        axes[j // ncols, j % ncols].axis("off")
+
+    fig.subplots_adjust(
+        left=0.07, right=0.97, top=0.925, bottom=0.08,
+        hspace=0.42, wspace=0.28,
+    )
+    fig.suptitle(
+        "VBF H(125) signal DCB extraction per BDT category",
+        fontsize=13, fontweight="bold", y=0.965,
+    )
+    return fig, dcb_cols, dcb_rows
+
+
 def parse_category_edges_arg(text: str) -> Optional[np.ndarray]:
     s = str(text).strip()
     if not s:
@@ -2351,6 +2584,14 @@ def main() -> None:
         mc_weight_scale=mc_scale,
     )
 
+    fig_vbf_sig, dcb_cols, dcb_rows = build_vbf_signal_dcb_grid(
+        era_payloads=era_payloads,
+        edges=edges,
+        args=args,
+        mass_bins=mass_bins,
+        mc_weight_scale=mc_scale,
+    )
+
     cat_summary = summarize_categories(era_payloads, edges, args, mc_weight_scale=mc_scale)
     cat_cols, cat_rows = build_category_summary_table(edges, cat_summary)
     cat_proc_cols, cat_proc_rows = build_category_process_table(edges, cat_summary)
@@ -2378,6 +2619,8 @@ def main() -> None:
         add_table_pages(pdf, "BDT bin summary: signal, background, and sensitivity", bdt_cols, bdt_rows, max_rows=20)
         pdf.savefig(fig_mass)
         pdf.savefig(fig_cat_mass)
+        pdf.savefig(fig_vbf_sig)
+        add_table_pages(pdf, "VBF signal DCB fit parameters per category", dcb_cols, dcb_rows, max_rows=20)
         add_table_pages(pdf, "Per-category full-range fit comparison (chi2/ndf, ndf)", fit_cols, fit_rows, max_rows=20)
         add_table_pages(pdf, "Optimized category summary", cat_cols, cat_rows, max_rows=20)
         add_table_pages(pdf, "Category composition by process (full mass window)", cat_proc_cols, cat_proc_rows, max_rows=20)
@@ -2385,6 +2628,7 @@ def main() -> None:
     plt.close(fig_score)
     plt.close(fig_mass)
     plt.close(fig_cat_mass)
+    plt.close(fig_vbf_sig)
 
     logger.info("Wrote report PDF: %s", report_path)
     print(f"[done] Wrote report: {report_path}")
