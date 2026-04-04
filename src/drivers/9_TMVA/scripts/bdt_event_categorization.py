@@ -1458,6 +1458,15 @@ def summarize_categories(
     args: argparse.Namespace,
     mc_weight_scale: float = 1.0,
 ) -> Dict[int, Dict[str, float]]:
+    """Build per-category yield summary.
+
+    Full-window yields (mc_full_total, sig_full_total) are retained for
+    data/MC comparisons.  HWHM-windowed yields (sig_hwhm_total,
+    mc_hwhm_total) follow the analysis note convention: S and B are
+    integrated within the HWHM of the per-category DCB-fitted signal peak
+    (AN2019_090 Sec. 6.1, Fig. 34 caption).  These are the quantities used
+    for the expected significance S/sqrt(B) and Asimov Z in the summary table.
+    """
     ncat = len(edges) - 1
     summary: Dict[int, Dict[str, float]] = {i: {} for i in range(ncat)}
 
@@ -1519,6 +1528,63 @@ def summarize_categories(
                     summary[i]["sig_full_total"] = summary[i].get("sig_full_total", 0.0) + s_full
                     summary[i]["sig_full_total_err2"] = summary[i].get("sig_full_total_err2", 0.0) + s_e2_full
 
+    # ------------------------------------------------------------------
+    # HWHM-windowed S and B yields (AN2019_090 Sec. 6.1 convention).
+    # For each category fit a DCB to the signal mass histogram, extract
+    # sigma -> HWHM = 1.1774 * sigma, then integrate S and B within
+    # [mean - HWHM, mean + HWHM].  This matches how S/sqrt(B) and the
+    # combined Asimov Z are defined in the analysis note.
+    # ------------------------------------------------------------------
+    mass_bins_sum = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
+    centers_sum = 0.5 * (mass_bins_sum[:-1] + mass_bins_sum[1:])
+
+    for i in range(ncat):
+        lo_cat = float(edges[i])
+        hi_cat = float(edges[i + 1])
+
+        # Build signal mass histogram for this category (no mc_scale on signal)
+        sig_m_chunks: List[np.ndarray] = []
+        sig_w_chunks_hwhm: List[np.ndarray] = []
+        for payload in era_payloads.values():
+            s_sc   = np.asarray(payload["sig_full_scores"],  dtype=np.float64)  # type: ignore[index]
+            s_mass = np.asarray(payload["sig_full_mass"],    dtype=np.float64)  # type: ignore[index]
+            s_w    = np.asarray(payload["sig_full_weight"],  dtype=np.float64)  # type: ignore[index]
+            if s_sc.size == 0 or s_mass.size == 0 or s_w.size == 0:
+                continue
+            sel = (s_sc >= lo_cat) & (s_sc < hi_cat)
+            if np.any(sel):
+                sig_m_chunks.append(s_mass[sel])
+                sig_w_chunks_hwhm.append(s_w[sel])
+
+        sig_m_cat  = concat_chunks(sig_m_chunks)
+        sig_w_cat  = concat_chunks(sig_w_chunks_hwhm)
+
+        h_sig_cat, _ = weighted_hist_and_var(
+            sig_m_cat, mass_bins_sum,
+            sig_w_cat if sig_w_cat.size > 0 else None,
+        )
+
+        # Fit DCB to extract mean and sigma; fall back to global defaults
+        _pred_dcb, _params_dcb, _chi2_dcb = _fit_signal_dcb_full(
+            centers_sum, mass_bins_sum, h_sig_cat, args, cat_idx=i,
+        )
+        if _params_dcb:
+            sig_mean_i = _params_dcb["mean"]
+            sig_sigma_i = _params_dcb["sigma"]
+        else:
+            sig_mean_i = 125.09
+            sig_sigma_i = 2.0  # GeV fallback (wider window on fit failure)
+
+        mass_lo_i, mass_hi_i = _hwhm_window_from_sigma(sig_mean_i, sig_sigma_i)
+        summary[i]["hwhm_mass_lo"] = mass_lo_i
+        summary[i]["hwhm_mass_hi"] = mass_hi_i
+
+        s_hwhm, b_hwhm = _sig_bkg_in_hwhm(
+            era_payloads, lo_cat, hi_cat, mass_lo_i, mass_hi_i, mc_weight_scale,
+        )
+        summary[i]["sig_hwhm_total"] = s_hwhm
+        summary[i]["mc_hwhm_total"]  = b_hwhm
+
     return summary
 
 
@@ -1526,6 +1592,13 @@ def build_category_summary_table(
     edges: np.ndarray,
     summary: Dict[int, Dict[str, float]],
 ) -> Tuple[List[str], List[List[str]]]:
+    """Build the per-category summary table.
+
+    S/sqrt(B) and Asimov Z are computed using signal and background yields
+    integrated within the HWHM of the per-category signal peak, following
+    the analysis note convention (AN2019_090 Sec. 6.1, Fig. 34 caption).
+    The full-window MC yield is still shown for data/MC comparison.
+    """
     columns = [
         "Category",
         "BDT range",
@@ -1533,11 +1606,12 @@ def build_category_summary_table(
         "MC sidebands ± stat",
         "Data/MC (sidebands)",
         "MC full (110-150) ± stat",
-        "S/sqrt(B)",
-        "Asimov Z (cat)",
+        "S/sqrt(B) [HWHM]",
+        "Asimov Z (cat) [HWHM]",
     ]
     rows: List[List[str]] = []
     # Accumulate terms for combined Z = sqrt(sum_i 2[(s+b)log(1+s/b) - s])
+    # using HWHM-windowed yields per category (AN2019_090 convention)
     combined_z_sum = 0.0
     for i in range(len(edges) - 1):
         vals = summary.get(i, {})
@@ -1546,12 +1620,17 @@ def build_category_summary_table(
         me_side = math.sqrt(max(float(vals.get("mc_side_total_err2", 0.0)), 0.0))
         m_full = float(vals.get("mc_full_total", 0.0))
         me_full = math.sqrt(max(float(vals.get("mc_full_total_err2", 0.0)), 0.0))
-        s_full = float(vals.get("sig_full_total", 0.0))
         ratio = d_side / m_side if m_side > 0 else 0.0
-        signif = (s_full / math.sqrt(m_full)) if m_full > 0.0 else 0.0
-        # Per-category Asimov Z term
-        if m_full > 1e-12 and s_full > 0.0:
-            term = 2.0 * ((s_full + m_full) * math.log1p(s_full / m_full) - s_full)
+
+        # Use HWHM-windowed yields for sensitivity metrics (AN note convention)
+        s_hwhm = float(vals.get("sig_hwhm_total", 0.0))
+        b_hwhm = float(vals.get("mc_hwhm_total", 0.0))
+
+        signif = (s_hwhm / math.sqrt(b_hwhm)) if b_hwhm > 0.0 else 0.0
+
+        # Per-category Asimov Z term (HWHM window)
+        if b_hwhm > 1e-12 and s_hwhm > 0.0:
+            term = 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)
             combined_z_sum += max(term, 0.0)
             cat_z = math.sqrt(max(term, 0.0))
         else:
@@ -1948,10 +2027,16 @@ def build_vbf_signal_dcb_grid(
 
         n_sig_total = float(np.sum(h_sig))
 
-        # Retrieve per-category S and B from pre-computed summary (full window MC)
+        # Retrieve per-category S and B from pre-computed summary.
+        # Use HWHM-windowed yields (AN2019_090 Sec. 6.1 convention):
+        # S/sqrt(B) and Asimov Z are defined with S and B integrated
+        # within the HWHM of the signal peak, not the full mass window.
         _summary_i = (cat_summary or {}).get(i, {})
-        s_yield = float(_summary_i.get("sig_full_total", n_sig_total))
-        b_yield = float(_summary_i.get("mc_full_total", 0.0))
+        s_yield = float(_summary_i.get("sig_hwhm_total", 0.0))
+        b_yield = float(_summary_i.get("mc_hwhm_total", 0.0))
+        # Fall back to full-window sig yield if HWHM yields are unavailable
+        if s_yield == 0.0:
+            s_yield = float(_summary_i.get("sig_full_total", n_sig_total))
         sbsqrtb = s_yield / math.sqrt(b_yield) if b_yield > 0.0 else 0.0
         if b_yield > 0.0 and s_yield > 0.0:
             asimov_z = math.sqrt(
@@ -2301,6 +2386,34 @@ def _bin_yields_t(
     return np.bincount(bin_idx, weights=weights, minlength=len(edges_t) - 1).astype(np.float64)
 
 
+def _bin_yields_t_hwhm(
+    t_scores: np.ndarray,
+    weights: np.ndarray,
+    mass: np.ndarray,
+    mass_lo: float,
+    mass_hi: float,
+    edges_t: np.ndarray,
+) -> np.ndarray:
+    """Weighted yields per bin within the HWHM mass window.
+
+    Like _bin_yields_t but restricts to events with mass in [mass_lo, mass_hi].
+    This implements the AN2019_090 Sec. 6.1 convention where the figure of merit
+    for category optimization uses S and B integrated within the HWHM of the
+    expected signal peak.
+    """
+    in_window = (mass >= mass_lo) & (mass <= mass_hi)
+    if not np.any(in_window):
+        return np.zeros(len(edges_t) - 1, dtype=np.float64)
+    bin_idx = np.clip(
+        np.digitize(t_scores[in_window], edges_t) - 1,
+        0,
+        len(edges_t) - 2,
+    )
+    return np.bincount(
+        bin_idx, weights=weights[in_window], minlength=len(edges_t) - 1
+    ).astype(np.float64)
+
+
 def _combined_asimov_z(s_yields: np.ndarray, b_yields: np.ndarray) -> float:
     """Combined Asimov significance Z = sqrt(sum_i 2[(s+b)log(1+s/b) - s])."""
     total = 0.0
@@ -2320,6 +2433,10 @@ def iterative_greedy_category_scan(
     min_improvement: float = 0.01,
     min_sig: float = 1e-6,
     min_bkg: float = 1e-6,
+    sig_mass: Optional[np.ndarray] = None,
+    bkg_mass: Optional[np.ndarray] = None,
+    hwhm_mass_lo: float = 0.0,
+    hwhm_mass_hi: float = float("inf"),
     logger: logging.Logger = None,
 ) -> np.ndarray:
     """Greedy iterative category boundary optimisation on atanh-transformed BDT.
@@ -2333,11 +2450,23 @@ def iterative_greedy_category_scan(
     4. At each step try inserting each unused candidate; retain the one that
        maximises the combined Asimov significance
            Z = sqrt(sum_i 2 [(s_i+b_i) log(1 + s_i/b_i) - s_i]).
+       where s_i and b_i are the yields integrated within the HWHM of the
+       expected signal peak (AN2019_090 Sec. 6.1 convention).  If mass arrays
+       are not provided, falls back to the full-window yields.
     5. A candidate is only considered if every resulting bin has at least
        *min_sig* weighted signal yield AND *min_bkg* weighted background yield
        (rejects degenerate/empty bins before they can affect the scan).
     6. Add that boundary only when the relative improvement in Z is >=
        *min_improvement* (default 1 %).  Stop otherwise or when n == max_n.
+
+    Parameters
+    ----------
+    sig_mass, bkg_mass : array-like, optional
+        Dimuon mass arrays, parallel to sig_scores / bkg_scores.  When
+        provided the figure of merit is evaluated using only events within
+        [hwhm_mass_lo, hwhm_mass_hi] (AN note convention).
+    hwhm_mass_lo, hwhm_mass_hi : float
+        Mass window boundaries (GeV).  Ignored when mass arrays are absent.
 
     Returns
     -------
@@ -2350,6 +2479,20 @@ def iterative_greedy_category_scan(
     bkg_scores = np.asarray(bkg_scores, dtype=np.float64)
     sig_weights = np.asarray(sig_weights, dtype=np.float64)
     bkg_weights = np.asarray(bkg_weights, dtype=np.float64)
+
+    use_hwhm = (
+        sig_mass is not None
+        and bkg_mass is not None
+        and np.isfinite(hwhm_mass_lo)
+        and np.isfinite(hwhm_mass_hi)
+        and hwhm_mass_hi > hwhm_mass_lo
+    )
+    if use_hwhm:
+        sig_mass_arr = np.asarray(sig_mass, dtype=np.float64)
+        bkg_mass_arr = np.asarray(bkg_mass, dtype=np.float64)
+    else:
+        sig_mass_arr = None
+        bkg_mass_arr = None
 
     t_sig = _bdt_transform(sig_scores)
     t_bkg = _bdt_transform(bkg_scores)
@@ -2364,20 +2507,44 @@ def iterative_greedy_category_scan(
     cands = cands[(cands > t_lo) & (cands < t_hi)]
 
     if logger:
-        logger.info(
-            "Greedy scan (atanh BDT): %d S events (yield=%.3f), %d B events (yield=%.3f), "
-            "max_n=%d, min_improvement=%.1f%%",
-            sig_scores.size, float(np.sum(sig_weights)),
-            bkg_scores.size, float(np.sum(bkg_weights)),
-            max_n, min_improvement * 100.0,
-        )
+        if use_hwhm:
+            logger.info(
+                "Greedy scan (atanh BDT, HWHM window [%.2f, %.2f] GeV): "
+                "%d S events (yield=%.3f), %d B events (yield=%.3f), "
+                "max_n=%d, min_improvement=%.1f%%",
+                hwhm_mass_lo, hwhm_mass_hi,
+                sig_scores.size, float(np.sum(sig_weights)),
+                bkg_scores.size, float(np.sum(bkg_weights)),
+                max_n, min_improvement * 100.0,
+            )
+        else:
+            logger.info(
+                "Greedy scan (atanh BDT, full mass window): "
+                "%d S events (yield=%.3f), %d B events (yield=%.3f), "
+                "max_n=%d, min_improvement=%.1f%%",
+                sig_scores.size, float(np.sum(sig_weights)),
+                bkg_scores.size, float(np.sum(bkg_weights)),
+                max_n, min_improvement * 100.0,
+            )
+
+    def _get_yields(trial_edges):
+        if use_hwhm:
+            s_yields = _bin_yields_t_hwhm(
+                t_sig, sig_weights, sig_mass_arr,
+                hwhm_mass_lo, hwhm_mass_hi, trial_edges,
+            )
+            b_yields = _bin_yields_t_hwhm(
+                t_bkg, bkg_weights, bkg_mass_arr,
+                hwhm_mass_lo, hwhm_mass_hi, trial_edges,
+            )
+        else:
+            s_yields = _bin_yields_t(t_sig, sig_weights, trial_edges)
+            b_yields = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
+        return s_yields, b_yields
 
     # Baseline significance with 1 category
     baseline_edges = np.array([t_lo, t_hi])
-    prev_z = _combined_asimov_z(
-        _bin_yields_t(t_sig, sig_weights, baseline_edges),
-        _bin_yields_t(t_bkg, bkg_weights, baseline_edges),
-    )
+    prev_z = _combined_asimov_z(*_get_yields(baseline_edges))
 
     current_interior: List[float] = []
 
@@ -2391,10 +2558,12 @@ def iterative_greedy_category_scan(
         for ct in remaining:
             trial_interior = sorted(current_interior + [ct])
             trial_edges = np.array([t_lo] + trial_interior + [t_hi])
-            s_yields = _bin_yields_t(t_sig, sig_weights, trial_edges)
-            b_yields = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
-            # Reject configurations where any bin is degenerate (no realistic data)
-            if np.any(s_yields < min_sig) or np.any(b_yields < min_bkg):
+            s_yields, b_yields = _get_yields(trial_edges)
+            # Min-yield guard uses full-window yields to avoid rejecting valid
+            # bins that simply have few events inside the narrow HWHM window.
+            s_full = _bin_yields_t(t_sig, sig_weights, trial_edges)
+            b_full = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
+            if np.any(s_full < min_sig) or np.any(b_full < min_bkg):
                 continue
             z = _combined_asimov_z(s_yields, b_yields)
             if z > best_z:
@@ -2488,6 +2657,52 @@ def _gather_category_data(
     return h_data, v_data, h_bkg, h_sig
 
 
+def _hwhm_window_from_sigma(mean: float, sigma: float) -> Tuple[float, float]:
+    """Return (mass_lo, mass_hi) of the HWHM window for a Gaussian-core signal.
+
+    HWHM = 1.1774 * sigma  (exact half-width at half-maximum of a Gaussian).
+    The analysis note (Fig. 34 caption) defines S and B as the integrals of
+    signal and background within this window around the fitted signal mean.
+    """
+    hwhm = 1.1774 * sigma
+    return mean - hwhm, mean + hwhm
+
+
+def _sig_bkg_in_hwhm(
+    era_payloads: Dict[str, Dict[str, object]],
+    lo: float,
+    hi: float,
+    mass_lo: float,
+    mass_hi: float,
+    mc_weight_scale: float,
+) -> Tuple[float, float]:
+    """Return (s_yield, b_yield) for one BDT category integrated within a mass window.
+
+    Selects events with BDT score in [lo, hi) AND dimuon mass in [mass_lo, mass_hi].
+    Signal weights are *not* rescaled; background weights use mc_weight_scale.
+    """
+    s_total = 0.0
+    b_total = 0.0
+    for payload in era_payloads.values():
+        # Signal
+        s_sc   = np.asarray(payload["sig_full_scores"],  dtype=np.float64)  # type: ignore[index]
+        s_mass = np.asarray(payload["sig_full_mass"],    dtype=np.float64)  # type: ignore[index]
+        s_w    = np.asarray(payload["sig_full_weight"],  dtype=np.float64)  # type: ignore[index]
+        if s_sc.size > 0 and s_mass.size > 0 and s_w.size > 0:
+            sel = (s_sc >= lo) & (s_sc < hi) & (s_mass >= mass_lo) & (s_mass <= mass_hi)
+            s_total += float(np.sum(s_w[sel]))
+
+        # Background (all MC processes)
+        for _proc, m_sc, m_mass, m_w in payload["mc_full_groups"]:  # type: ignore[index]
+            m_sc   = np.asarray(m_sc,   dtype=np.float64)
+            m_mass = np.asarray(m_mass, dtype=np.float64)
+            m_w    = np.asarray(m_w,    dtype=np.float64) * float(mc_weight_scale)
+            sel = (m_sc >= lo) & (m_sc < hi) & (m_mass >= mass_lo) & (m_mass <= mass_hi)
+            b_total += float(np.sum(m_w[sel]))
+
+    return s_total, b_total
+
+
 def trim_degenerate_top_categories(
     edges: np.ndarray,
     era_payloads: Dict[str, Dict[str, object]],
@@ -2571,9 +2786,11 @@ def optimize_category_edges(
 
     sig_scores_chunks: List[np.ndarray] = []
     sig_weight_chunks: List[np.ndarray] = []
+    sig_mass_chunks:   List[np.ndarray] = []
 
     bkg_scores_chunks: List[np.ndarray] = []
     bkg_weight_chunks: List[np.ndarray] = []
+    bkg_mass_chunks:   List[np.ndarray] = []
 
     used_eras: List[str] = []
     for era in opt_eras:
@@ -2583,11 +2800,34 @@ def optimize_category_edges(
         if not sig_file or not bkg_file:
             continue
 
-        sel = f"TMath::Finite({args.bdt_branch})"
+        # Resolve mass branch from the signal file; require it for the HWHM window
+        mass_branch = resolve_mass_branch(sig_file, args.treename, args.mass_branch)
+        if mass_branch is None:
+            mass_branch = resolve_mass_branch(bkg_file, args.treename, args.mass_branch)
+
+        has_mass = mass_branch is not None
+
+        # Build selection: finite BDT score, and if available full mass window
+        sel_bdt = f"TMath::Finite({args.bdt_branch})"
+        if has_mass:
+            sel_full = (
+                f"({sel_bdt}) && ({mass_branch}>={args.mass_min}"
+                f" && {mass_branch}<={args.mass_max})"
+            )
+            if args.extra_cut:
+                sel_full = f"({sel_full}) && ({args.extra_cut})"
+            load_branches_s = [args.bdt_branch, args.weight_branch, mass_branch]
+            load_branches_b = [args.bdt_branch, args.weight_branch, mass_branch]
+        else:
+            sel_full = sel_bdt
+            if args.extra_cut:
+                sel_full = f"({sel_full}) && ({args.extra_cut})"
+            load_branches_s = [args.bdt_branch, args.weight_branch]
+            load_branches_b = [args.bdt_branch, args.weight_branch]
 
         try:
-            s_arr = load_arrays(sig_file, args.treename, [args.bdt_branch, args.weight_branch], sel)
-            b_arr = load_arrays(bkg_file, args.treename, [args.bdt_branch, args.weight_branch], sel)
+            s_arr = load_arrays(sig_file, args.treename, load_branches_s, sel_full)
+            b_arr = load_arrays(bkg_file, args.treename, load_branches_b, sel_full)
         except Exception as exc:
             logger.warning("%s: failed loading optimization arrays: %s", era, exc)
             continue
@@ -2606,6 +2846,11 @@ def optimize_category_edges(
 
         bkg_scores_chunks.append(b_sc)
         bkg_weight_chunks.append(b_w)
+
+        if has_mass:
+            sig_mass_chunks.append(np.asarray(s_arr[mass_branch], dtype=np.float64))
+            bkg_mass_chunks.append(np.asarray(b_arr[mass_branch], dtype=np.float64))
+
         used_eras.append(era)
 
     if not used_eras:
@@ -2622,6 +2867,51 @@ def optimize_category_edges(
 
     total_sig_yield = float(np.sum(sig_weights))
     total_bkg_yield = float(np.sum(bkg_weights))
+
+    # ------------------------------------------------------------------
+    # Determine HWHM window from an inclusive DCB fit of the signal mass
+    # distribution (AN2019_090 Sec. 6.1 convention).
+    # ------------------------------------------------------------------
+    hwhm_mass_lo = 0.0
+    hwhm_mass_hi = float("inf")
+    sig_mass_all: Optional[np.ndarray] = None
+    bkg_mass_all: Optional[np.ndarray] = None
+
+    if sig_mass_chunks and bkg_mass_chunks:
+        sig_mass_all = concat_chunks(sig_mass_chunks)
+        bkg_mass_all = concat_chunks(bkg_mass_chunks)
+
+        mass_bins_opt = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
+        centers_opt = 0.5 * (mass_bins_opt[:-1] + mass_bins_opt[1:])
+        h_sig_incl, _ = weighted_hist_and_var(
+            sig_mass_all, mass_bins_opt,
+            sig_weights if sig_weights.size > 0 else None,
+        )
+        _pred_opt, _par_opt, _chi2_opt = _fit_signal_dcb_full(
+            centers_opt, mass_bins_opt, h_sig_incl, args, cat_idx=9999,
+        )
+        if _par_opt:
+            hwhm_mass_lo, hwhm_mass_hi = _hwhm_window_from_sigma(
+                _par_opt["mean"], _par_opt["sigma"]
+            )
+            logger.info(
+                "Optimization HWHM window from inclusive DCB fit: "
+                "mean=%.3f GeV, sigma=%.3f GeV -> [%.3f, %.3f] GeV",
+                _par_opt["mean"], _par_opt["sigma"],
+                hwhm_mass_lo, hwhm_mass_hi,
+            )
+        else:
+            # Fallback: ±2 GeV window around nominal Higgs mass
+            hwhm_mass_lo, hwhm_mass_hi = 123.09, 127.09
+            logger.warning(
+                "Inclusive DCB fit failed; using fallback HWHM window [%.2f, %.2f] GeV",
+                hwhm_mass_lo, hwhm_mass_hi,
+            )
+    else:
+        logger.warning(
+            "Mass branch not available in scored files; category optimization "
+            "will use full-window yields instead of HWHM-windowed yields."
+        )
 
     # Adaptive per-bin minimums: each bin must hold at least 5 % of the total
     # weighted yield.  This prevents the scan from accepting degenerate bins
@@ -2656,6 +2946,10 @@ def optimize_category_edges(
         min_improvement=args.multibin_improvement,
         min_sig=adaptive_min_sig,
         min_bkg=adaptive_min_bkg,
+        sig_mass=sig_mass_all,
+        bkg_mass=bkg_mass_all,
+        hwhm_mass_lo=hwhm_mass_lo,
+        hwhm_mass_hi=hwhm_mass_hi,
         logger=logger,
     )
 
