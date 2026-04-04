@@ -46,6 +46,8 @@ import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
+from scipy.optimize import minimize as _sp_minimize
+from scipy.stats import chi2 as _sp_chi2, moyal as _sp_moyal
 try:
     import ROOT  # type: ignore[import-not-found]
 except Exception as exc:
@@ -626,26 +628,19 @@ def weighted_hist_and_var(
     return h.astype(np.float64, copy=False), h2.astype(np.float64, copy=False)
 
 
-def _weighted_linear_prediction(
-    A_fit: np.ndarray,
-    y_fit: np.ndarray,
-    sigma_fit: np.ndarray,
-    A_eval: np.ndarray,
-) -> Optional[Tuple[np.ndarray, int]]:
-    try:
-        if A_fit.ndim != 2 or A_eval.ndim != 2:
-            return None
-        npar = int(A_fit.shape[1])
-        if npar <= 0 or int(A_fit.shape[0]) <= npar:
-            return None
-        w = 1.0 / np.clip(sigma_fit, 1.0, None)
-        Aw = A_fit * w[:, None]
-        yw = y_fit * w
-        beta, *_ = np.linalg.lstsq(Aw, yw, rcond=None)
-        pred = A_eval @ beta
-        return pred.astype(np.float64, copy=False), npar
-    except Exception:
-        return None
+def _bwz_core(m: np.ndarray) -> np.ndarray:
+    """Unnormalized Breit-Wigner Z-peak shape: 1 / [(m - mZ)^2 + (ΓZ/2)^2]."""
+    _MZ, _GZ2 = 91.1876, (2.4952 * 0.5) ** 2
+    return 1.0 / ((m - _MZ) ** 2 + _GZ2)
+
+
+def _bernstein_matrix(t: np.ndarray, n: int) -> np.ndarray:
+    """Return (len(t), n+1) Bernstein polynomial design matrix.  t must be in [0, 1]."""
+    from math import comb as _comb
+    return np.column_stack([
+        float(_comb(n, k)) * (t ** k) * ((1.0 - t) ** (n - k))
+        for k in range(n + 1)
+    ])
 
 
 def fit_background_models_full(
@@ -654,110 +649,293 @@ def fit_background_models_full(
     v_data: np.ndarray,
     args: argparse.Namespace,
 ) -> Tuple[np.ndarray, str, float, Dict[str, Tuple[float, int]], Dict[str, np.ndarray]]:
-    fit_mask = np.ones_like(centers, dtype=bool)
-    x_fit = centers[fit_mask]
-    y_fit = h_data[fit_mask]
-    sigma_fit = np.sqrt(np.maximum(v_data[fit_mask], 1.0))
+    """Fit CMS background model families to the dimuon mass histogram.
 
-    stats: Dict[str, Tuple[float, int]] = {}
-    preds: Dict[str, np.ndarray] = {}
-    if x_fit.size < 4 or np.sum(y_fit) <= 0:
-        return h_data.copy(), "fallback_data", float("inf"), stats, preds
+    Physics-inspired models (from the CMS H->mumu analysis, equations 7-9, 14):
+      BWZRedux       exp(a1*t + a2*t^2) x BW(m)                        [Eq. 9]
+      BWZGamma       exp(a1*t) x BW(m) x (1 + f/m^2)                   [Eq. 8]
+      BWZxBern_n     exp(a*t) x BW(m) x Bern_n(t), LRT over n=1,2,3   [Eq. 7]
+      LandauxBern_n  Landau(m;mg,sg) x Bern_n(t),  LRT over n=0,1,2,3 [Eq. 14]
 
+    Agnostic models (equations 11-13):
+      Bernstein_n    sum_i ci*Bi,n(t),            LRT over n=3,4,5,6   [Eq. 11]
+      S-PowerLaw     sum_i ai*m^bi,               LRT over 1->2 terms  [Eq. 12]
+      S-Exponential  sum_i ai*exp(bi*m),           LRT over 1->2 terms  [Eq. 13]
+
+    Fitting: binned Poisson NLL via scipy.optimize.minimize (L-BFGS-B).
+    Normalization is profiled analytically at each optimizer step.
+    DOF selection: CMS likelihood ratio test at 5%: 2*DeltalogL ~ chi2(1).
+    Best model: lowest chi2/ndf across all LRT-selected models.
+    """
+    data = h_data.astype(np.float64, copy=True)
+    n_data = float(np.sum(data))
     x_min = float(args.mass_min)
     x_max = float(args.mass_max)
     x_span = max(x_max - x_min, 1.0)
-    t_fit = np.clip((x_fit - x_min) / x_span, 0.0, 1.0)
-    t_eval = np.clip((centers - x_min) / x_span, 0.0, 1.0)
-    mz = 91.1876
-    gamma = 2.4952
-    bw_fit = 1.0 / (((x_fit - mz) ** 2) + (0.5 * gamma) ** 2)
-    bw_eval = 1.0 / (((centers - mz) ** 2) + (0.5 * gamma) ** 2)
+    t = np.clip((centers - x_min) / x_span, 0.0, 1.0)
+    bw = _bwz_core(centers)
 
-    fit_results: Dict[str, Tuple[np.ndarray, int]] = {}
+    stats: Dict[str, Tuple[float, int]] = {}
+    preds: Dict[str, np.ndarray] = {}
 
-    def _register_linear(name: str, basis_fit, basis_eval) -> None:
-        out = _weighted_linear_prediction(
-            basis_fit,
-            y_fit,
-            sigma_fit,
-            basis_eval,
-        )
-        if out is not None:
-            fit_results[name] = out
+    if data.size < 6 or n_data <= 0.0:
+        return data.copy(), "fallback_data", float("inf"), stats, preds
 
-    _register_linear(
-        "BWZ",
-        np.column_stack([bw_fit, np.ones_like(x_fit), t_fit]),
-        np.column_stack([bw_eval, np.ones_like(centers), t_eval]),
-    )
-    _register_linear(
-        "BWZRedux",
-        np.column_stack([bw_fit, np.ones_like(x_fit), t_fit, t_fit * t_fit]),
-        np.column_stack([bw_eval, np.ones_like(centers), t_eval, t_eval * t_eval]),
-    )
-    _register_linear(
-        "BWZGamma",
-        np.column_stack([bw_fit, 1.0 / np.clip(x_fit, 1.0, None), np.ones_like(x_fit)]),
-        np.column_stack([bw_eval, 1.0 / np.clip(centers, 1.0, None), np.ones_like(centers)]),
-    )
-    _register_linear(
-        "Bernstein",
-        np.column_stack([
-            (1.0 - t_fit) ** 3,
-            3.0 * t_fit * (1.0 - t_fit) ** 2,
-            3.0 * (t_fit ** 2) * (1.0 - t_fit),
-            t_fit ** 3,
-        ]),
-        np.column_stack([
-            (1.0 - t_eval) ** 3,
-            3.0 * t_eval * (1.0 - t_eval) ** 2,
-            3.0 * (t_eval ** 2) * (1.0 - t_eval),
-            t_eval ** 3,
-        ]),
-    )
-    _register_linear(
-        "Power Series",
-        np.column_stack([np.ones_like(t_fit), t_fit, t_fit * t_fit, t_fit * t_fit * t_fit]),
-        np.column_stack([np.ones_like(t_eval), t_eval, t_eval * t_eval, t_eval * t_eval * t_eval]),
-    )
+    rng = np.random.default_rng(seed=42)
 
-    y_pos = np.clip(y_fit, 1e-6, None)
-    sigma_log = np.clip(sigma_fit / y_pos, 1e-3, None)
-    exp_out = _weighted_linear_prediction(
-        np.column_stack([
-            np.ones_like(x_fit),
-            np.clip((x_fit - x_min) / x_span, 0.0, 1.0),
-            np.clip((x_fit - x_min) / x_span, 0.0, 1.0) ** 2,
-        ]),
-        np.log(y_pos),
-        sigma_log,
-        np.column_stack([
-            np.ones_like(centers),
-            np.clip((centers - x_min) / x_span, 0.0, 1.0),
-            np.clip((centers - x_min) / x_span, 0.0, 1.0) ** 2,
-        ]),
-    )
-    if exp_out is not None:
-        pred_log, npar_exp = exp_out
-        fit_results["Exponential Series"] = (np.exp(np.clip(pred_log, -50.0, 50.0)), npar_exp)
+    def _fit_nll(f_shape, p0, bounds, n_restarts: int = 2):
+        """Minimize Poisson NLL with analytically-profiled normalization.
 
+        Returns (ok, logL, pred, npar) where npar = len(p0) + 1 (shape + N).
+        """
+        p0_arr = np.asarray(p0, dtype=np.float64)
+        best_fun = np.inf
+        best_x = None
+
+        for attempt in range(n_restarts):
+            if attempt == 0:
+                p_init = p0_arr.copy()
+            else:
+                p_init = p0_arr + 0.25 * rng.standard_normal(p0_arr.size) * (np.abs(p0_arr) + 1e-3)
+                for ii, (lo_b, hi_b) in enumerate(bounds):
+                    if lo_b is not None:
+                        p_init[ii] = max(p_init[ii], float(lo_b))
+                    if hi_b is not None:
+                        p_init[ii] = min(p_init[ii], float(hi_b))
+
+            def nll(params):
+                try:
+                    shape = f_shape(params)
+                    if not np.all(np.isfinite(shape)):
+                        return 1e30
+                    shape = np.clip(shape, 0.0, None)
+                    s = float(np.sum(shape))
+                    if s < 1e-12:
+                        return 1e30
+                    N = n_data / s
+                    pred_i = np.clip(N * shape, 1e-12, None)
+                    return float(-np.sum(data * np.log(pred_i) - pred_i))
+                except Exception:
+                    return 1e30
+
+            try:
+                res = _sp_minimize(
+                    nll, p_init, method="L-BFGS-B", bounds=bounds,
+                    options={"maxiter": 2000, "ftol": 1e-15, "gtol": 1e-9},
+                )
+                if np.isfinite(res.fun) and res.fun < best_fun:
+                    best_fun = res.fun
+                    best_x = res.x
+            except Exception:
+                continue
+
+        if best_x is None or not np.isfinite(best_fun):
+            return False, None, None, None
+
+        shape = np.clip(f_shape(best_x), 0.0, None)
+        s = float(np.sum(shape))
+        if s < 1e-12:
+            return False, None, None, None
+        N = n_data / s
+        pred_out = N * shape
+        logL = float(np.sum(data * np.log(np.clip(pred_out, 1e-12, None)) - pred_out))
+        npar = len(p0_arr) + 1
+        return True, logL, np.clip(pred_out, 0.0, None), npar
+
+    def _record(name: str, logL: float, pred: np.ndarray, npar: int) -> None:
+        preds[name] = np.clip(pred, 0.0, None)
+        resid = data - preds[name]
+        chi2 = float(np.sum(resid ** 2 / np.maximum(v_data, 1.0)))
+        ndf = max(int(data.size) - npar, 1)
+        stats[name] = (chi2, ndf)
+
+    def _lrt_scan(fit_func, orders):
+        """Sequential LRT: scan orders, accept n when 2·ΔlogL ~ χ²(1) p≥5%."""
+        prev_logL = prev_pred = prev_npar = None
+        for order in orders:
+            ok, logL, pred, npar = fit_func(order)
+            if not ok:
+                continue
+            if prev_logL is None:
+                prev_logL, prev_pred, prev_npar = logL, pred, npar
+                continue
+            stat = max(2.0 * (logL - prev_logL), 0.0)
+            pval = float(_sp_chi2.sf(stat, df=1))
+            if pval < 0.05:
+                prev_logL, prev_pred, prev_npar = logL, pred, npar
+            else:
+                break
+        return prev_logL, prev_pred, prev_npar
+
+    # ── 1. BWZRedux: exp(a₁·t + a₂·t²) × BW(m) ─────────────────────────────
+    try:
+        def _bwzredux(params):
+            a1, a2 = params
+            return np.exp(np.clip(a1 * t + a2 * t * t, -30, 30)) * bw
+
+        ok, logL, pred, npar = _fit_nll(_bwzredux, [0.0, 0.0], [(-20.0, 20.0), (-20.0, 20.0)])
+        if ok:
+            _record("BWZRedux", logL, pred, npar)
+    except Exception:
+        pass
+
+    # ── 2. BWZGamma: exp(a₁·t) × BW(m) × (1 + f/m²) ────────────────────────
+    try:
+        def _bwzgamma(params):
+            a1, ff = params
+            factor = np.clip(1.0 + ff / np.maximum(centers ** 2, 1.0), 1e-12, None)
+            return np.exp(np.clip(a1 * t, -30, 30)) * bw * factor
+
+        ok, logL, pred, npar = _fit_nll(_bwzgamma, [0.0, 0.0], [(-20.0, 20.0), (-1e4, 1e4)])
+        if ok:
+            _record("BWZGamma", logL, pred, npar)
+    except Exception:
+        pass
+
+    # ── 3. BWZ×Bern_n: exp(a·t) × BW(m) × Bern_n(t),  LRT n = 1,2,3 ────────
+    try:
+        def _bwzbern_fit(n_ord):
+            basis = _bernstein_matrix(t, n_ord)
+            n_bern = n_ord + 1
+            init_c = max(n_data / max(n_bern * float(np.sum(bw)), 1e-12), 1e-3)
+            p0 = np.array([0.0] + [init_c] * n_bern)
+            bnds = [(-10.0, 10.0)] + [(0.0, None)] * n_bern
+
+            def _shape(params):
+                a = params[0]
+                c = np.abs(params[1:])
+                return np.exp(np.clip(a * t, -30, 30)) * bw * (basis @ c)
+
+            return _fit_nll(_shape, p0, bnds)
+
+        logL, pred, npar = _lrt_scan(_bwzbern_fit, [1, 2, 3])
+        if pred is not None:
+            _record("BWZ\u00d7Bern", logL, pred, npar)
+    except Exception:
+        pass
+
+    # ── 4. Landau×Bern_n: Landau(m;mγ,σ) × Bern_n(t),  LRT n = 0,1,2,3 ────
+    try:
+        def _landaubern_fit(n_ord):
+            basis = _bernstein_matrix(t, n_ord)
+            n_bern = n_ord + 1
+            mg0 = x_min + 0.25 * x_span
+            sg0 = 0.15 * x_span
+            if n_ord == 0:
+                p0 = np.array([mg0, sg0])
+                bnds = [(x_min - x_span, x_max + x_span), (0.5, x_span)]
+
+                def _shape(params):
+                    mg, sg = params[0], max(params[1], 0.5)
+                    return np.clip(_sp_moyal.pdf(centers, loc=mg, scale=sg), 1e-30, None)
+            else:
+                init_c = max(n_data / max(n_bern, 1), 1e-3)
+                p0 = np.array([mg0, sg0] + [init_c] * n_bern)
+                bnds = [(x_min - x_span, x_max + x_span), (0.5, x_span)] + [(0.0, None)] * n_bern
+
+                def _shape(params):
+                    mg, sg = params[0], max(params[1], 0.5)
+                    c = np.abs(params[2:])
+                    landau = np.clip(_sp_moyal.pdf(centers, loc=mg, scale=sg), 1e-30, None)
+                    return landau * (basis @ c)
+
+            return _fit_nll(_shape, p0, bnds, n_restarts=3)
+
+        logL, pred, npar = _lrt_scan(_landaubern_fit, [0, 1, 2, 3])
+        if pred is not None:
+            _record("Landau\u00d7Bern", logL, pred, npar)
+    except Exception:
+        pass
+
+    # ── 5. Bernstein_n: Σ cᵢ·Bᵢ,ₙ(t),  LRT n = 3,4,5,6 ───────────────────
+    try:
+        def _bernstein_fit(n_ord):
+            basis = _bernstein_matrix(t, n_ord)
+            n_bern = n_ord + 1
+            p0 = np.full(n_bern, max(n_data / n_bern, 1e-3))
+            bnds = [(0.0, None)] * n_bern
+
+            def _shape(params):
+                return basis @ np.abs(params)
+
+            return _fit_nll(_shape, p0, bnds)
+
+        logL, pred, npar = _lrt_scan(_bernstein_fit, [3, 4, 5, 6])
+        if pred is not None:
+            _record("Bernstein", logL, pred, npar)
+    except Exception:
+        pass
+
+    # ── 6. S-PowerLaw: Σᵢ aᵢ·m^bᵢ,  LRT 1→2 terms ─────────────────────────
+    try:
+        def _powlaw_fit(n_terms):
+            p0 = []
+            for i in range(n_terms):
+                p0 += [max(n_data / n_terms, 1e-3), -4.0 - 0.5 * i]
+            p0 = np.array(p0)
+            bnds = [(0.0, None), (-30.0, 5.0)] * n_terms
+            m_safe = np.maximum(centers, 1.0)
+
+            def _shape(params):
+                result = np.zeros_like(centers)
+                params_clamped = params.copy()
+                for i in range(n_terms):
+                    a = max(params_clamped[2 * i], 0.0)
+                    b = params_clamped[2 * i + 1]
+                    result += a * np.power(m_safe, b)
+                return result
+
+            return _fit_nll(_shape, p0, bnds)
+
+        logL, pred, npar = _lrt_scan(_powlaw_fit, [1, 2])
+        if pred is not None:
+            _record("S-PowerLaw", logL, pred, npar)
+    except Exception:
+        pass
+
+    # ── 7. S-Exponential: Σᵢ aᵢ·exp(bᵢ·m),  LRT 1→2 terms ─────────────────
+    try:
+        def _sexp_fit(n_terms):
+            p0 = []
+            for i in range(n_terms):
+                p0 += [max(n_data / n_terms, 1e-3), -0.06 * (i + 1)]
+            p0 = np.array(p0)
+            bnds = [(0.0, None), (-2.0, 0.0)] * n_terms
+
+            def _shape(params):
+                result = np.zeros_like(centers)
+                for i in range(n_terms):
+                    a = max(params[2 * i], 0.0)
+                    b = params[2 * i + 1]
+                    result += a * np.exp(np.clip(b * centers, -30, 30))
+                return result
+
+            return _fit_nll(_shape, p0, bnds)
+
+        logL, pred, npar = _lrt_scan(_sexp_fit, [1, 2])
+        if pred is not None:
+            _record("S-Exponential", logL, pred, npar)
+    except Exception:
+        pass
+
+    # ── Select best model by χ²/ndf ──────────────────────────────────────────
+    _MODEL_NAMES = [
+        "BWZRedux", "BWZGamma", "BWZ\u00d7Bern", "Landau\u00d7Bern",
+        "Bernstein", "S-PowerLaw", "S-Exponential",
+    ]
     best_name = "fallback_data"
     best_chi2ndf = float("inf")
     best_pred = h_data.copy()
 
-    for name, (pred_raw, npar) in fit_results.items():
-        pred = np.clip(pred_raw.astype(np.float64, copy=False), 0.0, None)
-        preds[name] = pred
-        resid = y_fit - pred[fit_mask]
-        chi2 = float(np.sum(np.square(resid) / np.maximum(v_data[fit_mask], 1.0)))
-        ndf = int(max(x_fit.size - npar, 1))
-        chi2ndf = chi2 / float(ndf)
-        stats[name] = (chi2, ndf)
+    for name in _MODEL_NAMES:
+        if name not in stats:
+            continue
+        chi2, ndf = stats[name]
+        chi2ndf = chi2 / float(max(ndf, 1))
         if np.isfinite(chi2ndf) and chi2ndf < best_chi2ndf:
             best_chi2ndf = chi2ndf
             best_name = name
-            best_pred = pred
+            best_pred = preds[name]
 
     return best_pred, best_name, best_chi2ndf, stats, preds
 
@@ -1352,12 +1530,13 @@ def build_category_mass_grid(
         "Best model",
         "Best chi2/ndf",
         "S/sqrt(B)",
-        "BWZ",
         "BWZRedux",
         "BWZGamma",
+        "BWZ\u00d7Bern",
+        "Landau\u00d7Bern",
         "Bernstein",
-        "Exponential Series",
-        "Power Series",
+        "S-PowerLaw",
+        "S-Exponential",
     ]
     fit_rows: List[List[str]] = []
 
@@ -1431,16 +1610,17 @@ def build_category_mass_grid(
         signif = (float(np.sum(h_sig_dcb)) / math.sqrt(float(np.sum(h_bkg_fit)))) if float(np.sum(h_bkg_fit)) > 0.0 else 0.0
 
         model_styles = {
-            "BWZ": ("#1f77b4", "-"),
-            "BWZRedux": ("#d62728", "-"),
-            "BWZGamma": ("#2ca02c", "-"),
-            "Bernstein": ("#9467bd", "--"),
-            "Exponential Series": ("#ff7f0e", "--"),
-            "Power Series": ("#8c564b", ":"),
+            "BWZRedux":      ("#d62728", "-"),
+            "BWZGamma":      ("#2ca02c", "-"),
+            "BWZ\u00d7Bern":    ("#1f77b4", "-"),
+            "Landau\u00d7Bern": ("#ff7f0e", "-"),
+            "Bernstein":     ("#9467bd", "--"),
+            "S-PowerLaw":    ("#8c564b", ":"),
+            "S-Exponential": ("#e377c2", "-."),
         }
 
-        # Draw all background models with strong styling and white stroke to avoid overlap loss.
-        for model_name in ["BWZ", "BWZRedux", "BWZGamma", "Bernstein", "Exponential Series", "Power Series"]:
+        # Draw all background models
+        for model_name in ["BWZRedux", "BWZGamma", "BWZ\u00d7Bern", "Landau\u00d7Bern", "Bernstein", "S-PowerLaw", "S-Exponential"]:
             if model_name not in model_preds:
                 continue
             pred = model_preds[model_name]
@@ -1508,7 +1688,7 @@ def build_category_mass_grid(
             frameon=True, framealpha=0.88, edgecolor="#c0c0c0",
         )
 
-        model_order = ["BWZ", "BWZRedux", "BWZGamma", "Bernstein", "Exponential Series", "Power Series"]
+        model_order = ["BWZRedux", "BWZGamma", "BWZ\u00d7Bern", "Landau\u00d7Bern", "Bernstein", "S-PowerLaw", "S-Exponential"]
         row = [str(i), f"[{lo:.3f}, {hi:.3f})", best_model, f"{best_chi2ndf:.3f}", f"{signif:.3f}"]
         for model_name in model_order:
             if model_name in model_stats:
