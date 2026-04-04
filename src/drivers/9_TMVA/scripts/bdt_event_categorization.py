@@ -1992,6 +1992,127 @@ def iterative_greedy_category_scan(
     return edges_orig
 
 
+def _gather_category_data(
+    era_payloads: Dict[str, Dict[str, object]],
+    lo: float,
+    hi: float,
+    mass_bins: np.ndarray,
+    mc_weight_scale: float,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Return (h_data, v_data, h_bkg, h_sig) histograms for one BDT category."""
+    data_chunks: List[np.ndarray] = []
+    bkg_chunks: List[np.ndarray] = []
+    bkg_w_chunks: List[np.ndarray] = []
+    sig_chunks: List[np.ndarray] = []
+    sig_w_chunks: List[np.ndarray] = []
+
+    for payload in era_payloads.values():
+        d_sc = np.asarray(payload["data_full_scores"], dtype=np.float64)  # type: ignore[index]
+        d_m = np.asarray(payload["data_full_mass"], dtype=np.float64)  # type: ignore[index]
+        if d_sc.size > 0 and d_m.size > 0:
+            sel = (d_sc >= lo) & (d_sc < hi)
+            if np.any(sel):
+                data_chunks.append(d_m[sel])
+
+        for _proc, m_sc, m_mass, m_w in payload["mc_full_groups"]:  # type: ignore[index]
+            m_sc = np.asarray(m_sc, dtype=np.float64)
+            m_mass = np.asarray(m_mass, dtype=np.float64)
+            m_w = np.asarray(m_w, dtype=np.float64) * mc_weight_scale
+            sel = (m_sc >= lo) & (m_sc < hi)
+            if np.any(sel):
+                bkg_chunks.append(m_mass[sel])
+                bkg_w_chunks.append(m_w[sel])
+
+        s_sc = np.asarray(payload["sig_full_scores"], dtype=np.float64)  # type: ignore[index]
+        s_mass = np.asarray(payload["sig_full_mass"], dtype=np.float64)  # type: ignore[index]
+        s_w = np.asarray(payload["sig_full_weight"], dtype=np.float64)  # type: ignore[index]
+        if s_sc.size > 0 and s_mass.size > 0:
+            sel = (s_sc >= lo) & (s_sc < hi)
+            if np.any(sel):
+                sig_chunks.append(s_mass[sel])
+                sig_w_chunks.append(s_w[sel] * mc_weight_scale)
+
+    h_data, v_data = weighted_hist_and_var(
+        concat_chunks(data_chunks), mass_bins, None,
+    )
+    h_bkg, _ = weighted_hist_and_var(
+        concat_chunks(bkg_chunks), mass_bins,
+        concat_chunks(bkg_w_chunks) if bkg_w_chunks else None,
+    )
+    h_sig, _ = weighted_hist_and_var(
+        concat_chunks(sig_chunks), mass_bins,
+        concat_chunks(sig_w_chunks) if sig_w_chunks else None,
+    )
+    return h_data, v_data, h_bkg, h_sig
+
+
+def trim_degenerate_top_categories(
+    edges: np.ndarray,
+    era_payloads: Dict[str, Dict[str, object]],
+    args: argparse.Namespace,
+    mc_weight_scale: float,
+    logger: logging.Logger,
+) -> np.ndarray:
+    """Merge the top category into the one below if its fit is degenerate.
+
+    A category is considered degenerate when ANY of the following are true:
+      - The best background model is "fallback_data" (all fits failed)
+      - The best chi2/ndf is not finite (numerical failure)
+      - S/sqrt(B) is zero (no signal sensitivity — either S=0 or B=0)
+
+    The check is applied iteratively from the top category downward until
+    either the top category passes or only one category remains.
+    """
+    edges = np.asarray(edges, dtype=np.float64).copy()
+    mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
+    centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
+
+    while edges.size > 2:
+        lo = float(edges[-2])
+        hi = float(edges[-1])
+
+        h_data, v_data, h_bkg, h_sig = _gather_category_data(
+            era_payloads, lo, hi, mass_bins, mc_weight_scale,
+        )
+
+        if float(np.sum(h_data)) == 0.0 and float(np.sum(h_bkg)) == 0.0:
+            logger.info(
+                "Top category [%.3f, %.3f) is empty; merging with category below.",
+                lo, hi,
+            )
+            edges = np.concatenate([edges[:-2], [edges[-1]]])
+            continue
+
+        h_bkg_fit, best_model, best_chi2ndf, _, _ = fit_background_models_full(
+            centers, h_data, v_data, args,
+        )
+        h_sig_dcb = fit_signal_dcb_template(centers, mass_bins, h_sig, args)
+
+        b_total = float(np.sum(h_bkg_fit))
+        s_total = float(np.sum(h_sig_dcb))
+        signif = (s_total / math.sqrt(b_total)) if b_total > 0.0 else 0.0
+
+        is_degenerate = (
+            best_model == "fallback_data"
+            or not np.isfinite(best_chi2ndf)
+            or signif == 0.0
+        )
+
+        if is_degenerate:
+            logger.info(
+                "Top category [%.3f, %.3f) is degenerate "
+                "(model=%s, chi2/ndf=%s, S/sqrtB=%.4f); merging with category below.",
+                lo, hi, best_model,
+                f"{best_chi2ndf:.3f}" if np.isfinite(best_chi2ndf) else "inf",
+                signif,
+            )
+            edges = np.concatenate([edges[:-2], [edges[-1]]])
+        else:
+            break
+
+    return edges
+
+
 def optimize_category_edges(
     args: argparse.Namespace,
     fallback_eras: Sequence[str],
@@ -2139,10 +2260,6 @@ def main() -> None:
         raise SystemExit("[error] No valid era payloads were loaded.")
 
     edges = optimize_category_edges(args, eras, logger)
-    interior = np.asarray(edges[1:-1], dtype=np.float64)
-    category_band = None
-    if interior.size >= 1:
-        category_band = (float(np.min(interior)), float(np.max(interior)))
 
     run3_data_full_scores = combine_data_full_scores(era_payloads)
     run3_data_side_mass = combine_data_side_masses(era_payloads, args)
@@ -2162,6 +2279,14 @@ def main() -> None:
             raise SystemExit("[error] No sideband MC events found for sideband normalization.")
         mc_scale = compute_sideband_mc_scale(run3_data_side_mass, run3_mc_score_side)
         logger.info("MC normalization (sidebands): scale factor = %.6f", mc_scale)
+
+    # Trim degenerate top categories (empty bins, failed fits, zero signal sensitivity)
+    edges = trim_degenerate_top_categories(edges, era_payloads, args, mc_scale, logger)
+
+    interior = np.asarray(edges[1:-1], dtype=np.float64)
+    category_band = None
+    if interior.size >= 1:
+        category_band = (float(np.min(interior)), float(np.max(interior)))
 
     run3_mc_score_full = scale_mc_groups(run3_mc_score_full, mc_scale)
     run3_mc_mass_full = scale_mc_groups(run3_mc_mass_full, mc_scale)
