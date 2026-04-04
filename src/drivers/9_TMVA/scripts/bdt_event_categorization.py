@@ -1508,7 +1508,9 @@ def summarize_categories(
         s_w = np.asarray(payload["sig_full_weight"], dtype=np.float64)  # type: ignore[index]
         if s_sc.size > 0 and s_w.size > 0:
             s_idx = category_index(s_sc, edges)
-            s_w_scaled = s_w * float(mc_weight_scale)
+            # Signal normalization (xsec x lumi x BR x eff) is independent
+            # of the data-driven sideband MC scale; do NOT apply mc_weight_scale
+            s_w_scaled = s_w
             for i in range(ncat):
                 m_sig = (s_idx == i)
                 if np.any(m_sig):
@@ -1681,7 +1683,7 @@ def build_category_mass_grid(
                 ssel = (s_sc >= lo) & (s_sc < hi)
                 if np.any(ssel):
                     sig_mass_chunks.append(s_mass[ssel])
-                    sig_weight_chunks.append(s_w[ssel] * float(mc_weight_scale))
+                    sig_weight_chunks.append(s_w[ssel])  # no mc_scale for signal
 
         data_mass = concat_chunks(data_mass_chunks)
         bkg_mass = concat_chunks(bkg_mass_chunks)
@@ -1931,7 +1933,7 @@ def build_vbf_signal_dcb_grid(
             ssel = (s_sc >= lo) & (s_sc < hi)
             if np.any(ssel):
                 sig_mass_chunks.append(s_mass[ssel])
-                sig_weight_chunks.append(s_w[ssel] * float(mc_weight_scale))
+                sig_weight_chunks.append(s_w[ssel])  # no mc_scale for signal
 
         sig_mass = concat_chunks(sig_mass_chunks)
         sig_w    = concat_chunks(sig_weight_chunks)
@@ -2042,6 +2044,171 @@ def build_vbf_signal_dcb_grid(
         fontsize=13, fontweight="bold", y=0.965,
     )
     return fig, dcb_cols, dcb_rows
+
+
+def build_vbf_bdt_transformed_figure(
+    era_payloads: Dict[str, Dict[str, object]],
+    edges: np.ndarray,
+    args: argparse.Namespace,
+    mass_bins: np.ndarray,
+    mc_weight_scale: float = 1.0,
+    n_score_bins: int = 25,
+) -> plt.Figure:
+    """Reproduce CMS Figure 34 (right panel) for the VBF channel.
+
+    Top pad: signal (blue) and background (red) normalised histograms in
+    atanh-transformed BDT space with category boundary lines.
+    Bottom pad: S/sqrt(B) per BDT bin, where S and B are integrated
+    within the HWHM of the expected signal peak (CMS convention).
+    """
+    # ---- collect signal (unscaled) and background (scaled) ----
+    sig_score_chunks: List[np.ndarray] = []
+    sig_mass_chunks:  List[np.ndarray] = []
+    sig_w_chunks:     List[np.ndarray] = []
+    bkg_score_chunks: List[np.ndarray] = []
+    bkg_mass_chunks:  List[np.ndarray] = []
+    bkg_w_chunks:     List[np.ndarray] = []
+
+    for payload in era_payloads.values():
+        s_sc  = np.asarray(payload["sig_full_scores"],  dtype=np.float64)
+        s_m   = np.asarray(payload["sig_full_mass"],    dtype=np.float64)
+        s_w   = np.asarray(payload["sig_full_weight"],  dtype=np.float64)
+        if s_sc.size > 0 and s_m.size > 0 and s_w.size > 0:
+            sig_score_chunks.append(s_sc)
+            sig_mass_chunks.append(s_m)
+            sig_w_chunks.append(s_w)  # physics-normalised, no mc_scale
+
+        for _proc, b_sc, b_m, b_w in payload["mc_full_groups"]:
+            b_sc = np.asarray(b_sc, dtype=np.float64)
+            b_m  = np.asarray(b_m,  dtype=np.float64)
+            b_w  = np.asarray(b_w,  dtype=np.float64) * float(mc_weight_scale)
+            if b_sc.size > 0:
+                bkg_score_chunks.append(b_sc)
+                bkg_mass_chunks.append(b_m)
+                bkg_w_chunks.append(b_w)
+
+    sig_scores = concat_chunks(sig_score_chunks)
+    sig_mass   = concat_chunks(sig_mass_chunks)
+    sig_w      = concat_chunks(sig_w_chunks)
+    bkg_scores = concat_chunks(bkg_score_chunks)
+    bkg_mass   = concat_chunks(bkg_mass_chunks)
+    bkg_w      = concat_chunks(bkg_w_chunks)
+
+    if sig_scores.size == 0 or bkg_scores.size == 0:
+        fig, ax = plt.subplots(figsize=(7, 5))
+        ax.text(0.5, 0.5, "No signal/background data", ha="center", va="center",
+                transform=ax.transAxes)
+        return fig
+
+    # ---- transform to atanh space ----
+    t_sig = _bdt_transform(sig_scores)
+    t_bkg = _bdt_transform(bkg_scores)
+    t_edges = _bdt_transform(np.clip(edges[1:-1], 1e-6, 1.0 - 1e-6))
+
+    t_min = float(np.percentile(t_sig, 1.0))
+    t_max = float(np.percentile(t_sig, 99.5))
+    t_min = min(t_min, float(np.percentile(t_bkg, 1.0)))
+    t_max = max(t_max, float(np.percentile(t_bkg, 99.5)))
+    score_edges = np.linspace(t_min, t_max, n_score_bins + 1)
+
+    # ---- fit inclusive signal DCB to get mean and sigma -> HWHM ----
+    centers_mass = 0.5 * (mass_bins[:-1] + mass_bins[1:])
+    h_sig_incl, _ = weighted_hist_and_var(sig_mass, mass_bins, sig_w if sig_w.size > 0 else None)
+    _pred_incl, _par_incl, _chi2_incl = _fit_signal_dcb_full(
+        centers_mass, mass_bins, h_sig_incl, args, cat_idx=999,
+    )
+    if _par_incl:
+        sig_mean = _par_incl["mean"]
+        hwhm = 1.177 * _par_incl["sigma"]
+    else:
+        sig_mean = 125.09
+        hwhm = 2.0  # GeV fallback
+
+    # ---- S/sqrt(B) per score bin, integrated within HWHM mass window ----
+    mass_lo = sig_mean - hwhm
+    mass_hi = sig_mean + hwhm
+
+    sig_in_window = (sig_mass >= mass_lo) & (sig_mass <= mass_hi)
+    bkg_in_window = (bkg_mass >= mass_lo) & (bkg_mass <= mass_hi)
+
+    s_per_bin = np.zeros(n_score_bins, dtype=np.float64)
+    b_per_bin = np.zeros(n_score_bins, dtype=np.float64)
+
+    if np.any(sig_in_window):
+        s_idx = np.clip(np.digitize(t_sig[sig_in_window], score_edges) - 1, 0, n_score_bins - 1)
+        np.add.at(s_per_bin, s_idx, sig_w[sig_in_window])
+    if np.any(bkg_in_window):
+        b_idx = np.clip(np.digitize(t_bkg[bkg_in_window], score_edges) - 1, 0, n_score_bins - 1)
+        np.add.at(b_per_bin, b_idx, bkg_w[bkg_in_window])
+
+    sqrtb = np.sqrt(np.maximum(b_per_bin, 0.0))
+    s_over_sqrtb = np.where(sqrtb > 0.0, s_per_bin / sqrtb, 0.0)
+
+    # ---- normalised score histograms ----
+    bin_widths = score_edges[1:] - score_edges[:-1]
+    h_sig_score, _ = weighted_hist_and_var(t_sig, score_edges, sig_w if sig_w.size > 0 else None)
+    h_bkg_score, _ = weighted_hist_and_var(t_bkg, score_edges, bkg_w if bkg_w.size > 0 else None)
+    tot_s = float(np.sum(h_sig_score))
+    tot_b = float(np.sum(h_bkg_score))
+    h_sig_norm = h_sig_score / (tot_s * bin_widths) if tot_s > 0 else h_sig_score
+    h_bkg_norm = h_bkg_score / (tot_b * bin_widths) if tot_b > 0 else h_bkg_score
+
+    bin_centers = 0.5 * (score_edges[:-1] + score_edges[1:])
+
+    # ---- figure ----
+    fig, (ax_top, ax_bot) = plt.subplots(
+        2, 1, figsize=(7, 6),
+        gridspec_kw={"height_ratios": [3, 1], "hspace": 0.04},
+    )
+
+    ax_top.step(bin_centers, h_sig_norm, where="mid",
+                color="#1f77b4", linewidth=1.8, label="Signal $m_H=125$ GeV")
+    ax_top.step(bin_centers, h_bkg_norm, where="mid",
+                color="#d62728", linewidth=1.8, label="Background")
+
+    for t_edge in t_edges:
+        if score_edges[0] < t_edge < score_edges[-1]:
+            ax_top.axvline(t_edge, color="black", linestyle="--", linewidth=1.1, alpha=0.7)
+            ax_bot.axvline(t_edge, color="black", linestyle="--", linewidth=1.1, alpha=0.7)
+
+    ax_top.set_ylabel("a.u.", fontsize=11)
+    ax_top.tick_params(labelbottom=False)
+    ax_top.legend(fontsize=10, loc="upper left")
+    ax_top.grid(alpha=0.2)
+    ax_top.set_xlim(score_edges[0], score_edges[-1])
+
+    # CMS label
+    ax_top.text(0.98, 0.96, "(13.6 TeV)", transform=ax_top.transAxes,
+                ha="right", va="top", fontsize=9.5)
+    ax_top.text(0.02, 0.96, "CMS", transform=ax_top.transAxes,
+                ha="left", va="top", fontsize=11, fontweight="bold")
+
+    ax_bot.step(bin_centers, s_over_sqrtb, where="mid",
+                color="black", linewidth=1.6)
+    ax_bot.fill_between(bin_centers, s_over_sqrtb, step="mid",
+                        color="black", alpha=0.12)
+    ax_bot.set_xlabel("atanh((BDT output+1)/2)", fontsize=11)
+    ax_bot.set_ylabel("S/$\\sqrt{B}$", fontsize=11)
+    ax_bot.grid(alpha=0.2)
+    ax_bot.set_xlim(score_edges[0], score_edges[-1])
+    ymax_bot = max(float(np.max(s_over_sqrtb)) * 1.25, 0.01)
+    ax_bot.set_ylim(0.0, ymax_bot)
+
+    ax_bot.text(
+        0.98, 0.95,
+        f"HWHM window: [{mass_lo:.1f}, {mass_hi:.1f}] GeV\n"
+        f"($\\sigma$={_par_incl['sigma']:.2f} GeV)" if _par_incl else "HWHM window (fallback)",
+        transform=ax_bot.transAxes,
+        ha="right", va="top", fontsize=8,
+        bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
+    )
+
+    fig.subplots_adjust(left=0.12, right=0.97, top=0.95, bottom=0.10)
+    fig.suptitle(
+        "VBF BDT score and per-bin S/$\\sqrt{B}$ in signal HWHM window",
+        fontsize=12, fontweight="bold", y=0.99,
+    )
+    return fig
 
 
 def parse_category_edges_arg(text: str) -> Optional[np.ndarray]:
@@ -2305,7 +2472,7 @@ def _gather_category_data(
             sel = (s_sc >= lo) & (s_sc < hi)
             if np.any(sel):
                 sig_chunks.append(s_mass[sel])
-                sig_w_chunks.append(s_w[sel] * mc_weight_scale)
+                sig_w_chunks.append(s_w[sel])  # no mc_scale for signal
 
     h_data, v_data = weighted_hist_and_var(
         concat_chunks(data_chunks), mass_bins, None,
@@ -2628,7 +2795,7 @@ def main() -> None:
 
     cat_summary = summarize_categories(era_payloads, edges, args, mc_weight_scale=mc_scale)
 
-    fig_vbf_sig, dcb_cols, dcb_rows = build_vbf_signal_dcb_grid(
+    fig_vbf_bdt, dcb_cols, dcb_rows = build_vbf_signal_dcb_grid(
         era_payloads=era_payloads,
         edges=edges,
         args=args,
@@ -2636,6 +2803,15 @@ def main() -> None:
         mc_weight_scale=mc_scale,
         cat_summary=cat_summary,
     )
+
+    fig_vbf_transformed = build_vbf_bdt_transformed_figure(
+        era_payloads=era_payloads,
+        edges=edges,
+        args=args,
+        mass_bins=mass_bins,
+        mc_weight_scale=mc_scale,
+    )
+
     cat_cols, cat_rows = build_category_summary_table(edges, cat_summary)
     cat_proc_cols, cat_proc_rows = build_category_process_table(edges, cat_summary)
 
@@ -2660,9 +2836,10 @@ def main() -> None:
         )
         pdf.savefig(fig_score)
         add_table_pages(pdf, "BDT bin summary: signal, background, and sensitivity", bdt_cols, bdt_rows, max_rows=20)
+        pdf.savefig(fig_vbf_transformed)
         pdf.savefig(fig_mass)
         pdf.savefig(fig_cat_mass)
-        pdf.savefig(fig_vbf_sig)
+        pdf.savefig(fig_vbf_bdt)
         add_table_pages(pdf, "VBF signal DCB fit parameters per category", dcb_cols, dcb_rows, max_rows=20)
         add_table_pages(pdf, "Per-category full-range fit comparison (chi2/ndf, ndf)", fit_cols, fit_rows, max_rows=20)
         add_table_pages(pdf, "Optimized category summary", cat_cols, cat_rows, max_rows=20)
@@ -2671,7 +2848,8 @@ def main() -> None:
     plt.close(fig_score)
     plt.close(fig_mass)
     plt.close(fig_cat_mass)
-    plt.close(fig_vbf_sig)
+    plt.close(fig_vbf_bdt)
+    plt.close(fig_vbf_transformed)
 
     logger.info("Wrote report PDF: %s", report_path)
     print(f"[done] Wrote report: {report_path}")
