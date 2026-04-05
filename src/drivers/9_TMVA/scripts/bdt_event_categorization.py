@@ -466,6 +466,15 @@ def load_era_payload(
         mass_branch,
     )
 
+    # Per-era signal yield diagnostic
+    sig_w_sum = float(np.sum(sig_full_weight)) if sig_full_weight.size > 0 else 0.0
+    mc_side_w_sum = sum(float(np.sum(w)) for _p, _v, w in mc_side_groups)
+    logger.info(
+        "%s: sum(sig_full_weight)=%.3f events, sum(MC_sideband_weights)=%.1f, "
+        "N_data_sideband=%d",
+        era, sig_w_sum, mc_side_w_sum, int(data_side_scores.size),
+    )
+
     return {
         "era": era,
         "mass_branch": mass_branch,
@@ -3199,7 +3208,31 @@ def main() -> None:
         if not run3_mc_score_side:
             raise SystemExit("[error] No sideband MC events found for sideband normalization.")
         mc_scale = compute_sideband_mc_scale(run3_data_side_mass, run3_mc_score_side)
-        logger.info("MC normalization (sidebands): scale factor = %.6f", mc_scale)
+        n_data_side = int(run3_data_side_mass.size)
+        sum_mc_side = sum(float(np.sum(w)) for _p, _v, w in run3_mc_score_side)
+        logger.info(
+            "MC normalization (sidebands): scale factor = %.6f  "
+            "(N_data_sideband=%d, sum_MC_sideband_weights=%.1f)",
+            mc_scale, n_data_side, sum_mc_side,
+        )
+        if mc_scale < 0.1 or mc_scale > 10.0:
+            logger.warning(
+                "mc_scale=%.4f is far from 1.  This means the raw MC sideband weights "
+                "sum to %.1f events vs %d data sideband events.  The MC weights may not "
+                "be normalized to the correct luminosity; S/sqrt(B) values in the "
+                "summary table will be unreliable until the normalization is fixed.",
+                mc_scale, sum_mc_side, n_data_side,
+            )
+        # Log total signal yield across all eras for cross-check
+        total_sig_w = sum(
+            float(np.sum(np.asarray(p["sig_full_weight"], dtype=np.float64)))
+            for p in era_payloads.values()
+        )
+        logger.info(
+            "Signal yield check: sum(sig_full_weight) over all eras = %.3f events "
+            "(cross-check: at ~current lumi, VBF H->mumu expect O(1-20) events)",
+            total_sig_w,
+        )
 
     # Trim degenerate top categories
     edges = trim_degenerate_top_categories(edges, era_payloads, args, mc_scale, logger)
@@ -3237,12 +3270,14 @@ def main() -> None:
     score_signal_overlay = combine_signal_score_overlay(era_payloads)
     if score_signal_overlay is not None:
         sig_scores_all, sig_weights_all = score_signal_overlay
-        scaled_sig_weights = np.asarray(sig_weights_all, dtype=np.float64) * float(mc_scale)
-        if sig_scores_all.size > 0 and np.sum(scaled_sig_weights) > 0:
+        # Signal normalization (xsec × lumi × BR × eff) is physically independent
+        # of the data-driven sideband MC scale.  Do NOT apply mc_scale here.
+        sig_weights_overlay = np.asarray(sig_weights_all, dtype=np.float64)
+        if sig_scores_all.size > 0 and np.sum(sig_weights_overlay) > 0:
             signal_hist, _ = weighted_hist_and_var(
                 np.asarray(sig_scores_all, dtype=np.float64),
                 score_bins,
-                scaled_sig_weights,
+                sig_weights_overlay,
             )
 
     bdt_cols, bdt_rows = build_bdt_signal_background_table(
