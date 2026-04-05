@@ -2012,7 +2012,6 @@ def build_vbf_signal_dcb_grid(
         "n_L",
         "alpha_R",
         "n_R",
-        "chi2/ndf",
         "FWHM [GeV]",
         "S/sqrt(B)",
         "Asimov Z",
@@ -2098,14 +2097,12 @@ def build_vbf_signal_dcb_grid(
 
         if params:
             fwhm = 2.355 * params["sigma"]
-            chi2_str = f"{chi2ndf:.3f}" if chi2ndf >= 0.0 else "n/a"
             stats_text = (
                 f"$\\mu$ = {params['mean']:.3f} GeV\n"
                 f"$\\sigma$ = {params['sigma']:.3f} GeV\n"
                 f"$\\alpha_L$ = {params['alpha_l']:.3f},  $n_L$ = {params['n_l']:.2f}\n"
                 f"$\\alpha_R$ = {params['alpha_r']:.3f},  $n_R$ = {params['n_r']:.2f}\n"
-                f"FWHM $\\approx$ {fwhm:.3f} GeV\n"
-                f"$\\chi^2$/ndf = {chi2_str}"
+                f"FWHM $\\approx$ {fwhm:.3f} GeV"
             )
         else:
             fwhm = float("nan")
@@ -2124,7 +2121,7 @@ def build_vbf_signal_dcb_grid(
         )
         ax.legend(loc="upper left", fontsize=9)
 
-        chi2_str_row = f"{chi2ndf:.3f}" if chi2ndf >= 0.0 else "n/a"
+        chi2_str_row = f"{chi2ndf:.3f}" if chi2ndf >= 0.0 else "n/a"  # kept for internal use
         dcb_rows.append([
             str(i),
             f"[{lo:.3f}, {hi:.3f})",
@@ -2135,7 +2132,6 @@ def build_vbf_signal_dcb_grid(
             f"{params['n_l']:.3f}" if params else "n/a",
             f"{params['alpha_r']:.4f}" if params else "n/a",
             f"{params['n_r']:.3f}" if params else "n/a",
-            chi2_str_row,
             f"{fwhm:.3f}" if math.isfinite(fwhm) else "n/a",
             f"{sbsqrtb:.3f}",
             f"{asimov_z:.3f}",
