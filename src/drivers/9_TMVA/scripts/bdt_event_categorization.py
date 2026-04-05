@@ -159,7 +159,7 @@ _CMS_ORANGE  = "#E65100"
 _CMS_PURPLE  = "#4A148C"
 
 
-def _cms_label(ax: plt.Axes, lumi: str = "(13.6 TeV)", prelim: bool = True) -> None:
+def _cms_label(ax: plt.Axes, lumi: str = "(13.6 TeV)", prelim: bool = False) -> None:
     """Draw CMS + luminosity labels in the canonical CMS style."""
     ax.text(0.01, 1.01, "CMS", transform=ax.transAxes,
             ha="left", va="bottom", fontsize=14, fontweight="bold")
@@ -1084,7 +1084,8 @@ def make_stacked_ratio_figure(
             ax_top.axvline(vx, color="#424242", linestyle="--", linewidth=1.1, alpha=0.7)
             ax_bot.axvline(vx, color="#424242", linestyle="--", linewidth=1.1, alpha=0.7)
 
-    ax_top.set_title(title, fontsize=13, fontweight="bold", pad=10)
+    # Title placed above the CMS label row to avoid overlap.
+    ax_top.set_title(title, fontsize=12, fontweight="bold", pad=28, loc="left")
     ax_top.set_ylabel("Events / bin", fontsize=12)
 
     if logy:
@@ -1200,9 +1201,6 @@ def build_roc_curve_figure(
 
     palette = ["#1565C0", "#C62828", "#2E7D32", "#6A1B9A", "#E65100", "#00695C"]
 
-    all_sig_scores, all_sig_w = [], []
-    all_bkg_scores, all_bkg_w = [], []
-
     for idx, (era, payload) in enumerate(era_payloads.items()):
         s_sc = np.asarray(payload["sig_full_scores"], dtype=np.float64)
         s_w  = np.asarray(payload["sig_full_weight"],  dtype=np.float64)
@@ -1215,38 +1213,28 @@ def build_roc_curve_figure(
         if s_sc.size == 0 or b_sc.size == 0:
             continue
 
-        all_sig_scores.append(s_sc); all_sig_w.append(s_w)
-        all_bkg_scores.append(b_sc); all_bkg_w.append(b_w)
-
         thresholds = np.linspace(0.0, 1.0, 500)
         sig_total = float(np.sum(s_w)) or 1.0
         bkg_total = float(np.sum(b_w)) or 1.0
         sig_eff = np.array([float(np.sum(s_w[s_sc >= t])) / sig_total for t in thresholds])
         bkg_eff = np.array([float(np.sum(b_w[b_sc >= t])) / bkg_total for t in thresholds])
 
-        color = palette[idx % len(palette)]
-        ax.plot(bkg_eff, sig_eff, color=color, linewidth=2.0, label=f"Era {era}")
+        # AUC via trapezoidal rule (flip so bkg_eff is increasing)
+        sort_idx = np.argsort(bkg_eff)
+        auc = float(np.trapz(sig_eff[sort_idx], bkg_eff[sort_idx]))
 
-    # Combined ROC
-    if all_sig_scores:
-        s_all = concat_chunks(all_sig_scores); sw_all = concat_chunks(all_sig_w)
-        b_all = concat_chunks(all_bkg_scores); bw_all = concat_chunks(all_bkg_w)
-        sig_total = float(np.sum(sw_all)) or 1.0
-        bkg_total = float(np.sum(bw_all)) or 1.0
-        thresholds = np.linspace(0.0, 1.0, 500)
-        sig_eff = np.array([float(np.sum(sw_all[s_all >= t])) / sig_total for t in thresholds])
-        bkg_eff = np.array([float(np.sum(bw_all[b_all >= t])) / bkg_total for t in thresholds])
-        ax.plot(bkg_eff, sig_eff, color="#212121", linewidth=2.8,
-                linestyle="--", label="Combined", zorder=5)
+        color = palette[idx % len(palette)]
+        ax.plot(bkg_eff, sig_eff, color=color, linewidth=2.0,
+                label=f"Era {era}  (AUC = {auc:.3f})")
 
     ax.plot([0, 1], [0, 1], color="#AAAAAA", linewidth=1.0, linestyle=":", label="Random")
     ax.set_xlabel("Background efficiency", fontsize=12)
     ax.set_ylabel("Signal efficiency", fontsize=12)
-    ax.set_title("VBF BDT ROC curve  (AN Fig. 27 analog)", fontsize=12, fontweight="bold")
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
     ax.legend(loc="lower right", fontsize=10)
     _cms_label(ax)
-    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    ax.set_title("VBF BDT ROC curve", fontsize=12, fontweight="bold", pad=18)
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
     return fig
 
 
@@ -1282,8 +1270,8 @@ def build_sigma_vs_category_figure(
     if valid_sig.size > 0:
         ax1.set_ylim(max(0, np.nanmin(sigmas) * 0.90), np.nanmax(sigmas) * 1.10)
     ax1.set_ylabel("$\\sigma_{\\mathrm{CB}}$ [GeV]", fontsize=12)
-    ax1.set_title("DCB $\\sigma_{\\mathrm{CB}}$ and FWHM vs. VBF BDT category  (AN Fig. 43 analog)",
-                  fontsize=12, fontweight="bold")
+    ax1.set_title("DCB $\\sigma_{\\mathrm{CB}}$ and FWHM vs. VBF BDT category",
+                  fontsize=12, fontweight="bold", pad=28)
     _cms_label(ax1)
     ax1.grid(alpha=0.3)
 
@@ -1353,8 +1341,8 @@ def build_acc_eff_figure(
 
     ax.set_xlabel("VBF BDT category", fontsize=12)
     ax.set_ylabel("Signal acceptance × efficiency [%]", fontsize=12)
-    ax.set_title("VBF signal acceptance × efficiency per BDT category  (AN Fig. 44 analog)",
-                 fontsize=12, fontweight="bold")
+    ax.set_title("VBF signal acceptance × efficiency per BDT category",
+                 fontsize=12, fontweight="bold", pad=28)
     ax.set_xticks(x)
     ax.set_xticklabels(
         [f"Cat {i}\n[{edges[i]:.3f}, {edges[i+1]:.3f})" for i in range(ncat)],
@@ -1376,65 +1364,83 @@ def build_sb_diagnostic_figure(
     cat_summary: Dict,
     logger,
 ) -> plt.Figure:
-    """Visual diagnostic table for per-category S, B, and reliability flags.
+    """Per-category S, B, and significance diagnostic table.
 
-    This figure is specifically designed to help diagnose the inflated
-    significance seen in eras where signal MC is over-normalized (e.g. 2024).
-    Flags categories where B_hwhm < 1.0 event as "LOW STATS — UNRELIABLE".
+    Low-statistics categories (B_HWHM < threshold) are merged into a single
+    combined row rather than shown individually with warning flags.
     """
     ncat = len(edges) - 1
-    fig, ax = plt.subplots(figsize=(14, max(4.0, 1.0 + ncat * 0.7)))
-    ax.axis("off")
-    ax.set_title(
-        "S/B Diagnostic: per-category yields and reliability check\n"
-        "( ★ = B_HWHM < 1 event — significance estimates unreliable )",
-        fontsize=12, fontweight="bold", pad=12,
-    )
 
     columns = [
-        "Cat", "BDT range",
+        "Category", "BDT range",
         "S_full", "B_full",
         "S_HWHM", "B_HWHM",
         "HWHM window [GeV]",
-        "S/√B [HWHM]",
-        "Asimov Z [HWHM]",
-        "Reliability",
+        "S/√B", "Asimov Z",
     ]
-    rows = []
+
+    reliable_rows: List[List[str]] = []
+    merged: Dict[str, float] = {}
+    merged_indices: List[int] = []
+
     for i in range(ncat):
         vals = cat_summary.get(i, {})
         s_full = float(vals.get("sig_full_total", 0.0))
-        b_full = float(vals.get("mc_full_total", 0.0))
+        b_full = float(vals.get("mc_full_total",  0.0))
         s_hwhm = float(vals.get("sig_hwhm_total", 0.0))
-        b_hwhm = float(vals.get("mc_hwhm_total", 0.0))
-        mlo    = float(vals.get("hwhm_mass_lo", 0.0))
-        mhi    = float(vals.get("hwhm_mass_hi", 0.0))
-        signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0.0 else 0.0
-        if b_hwhm > 1e-12 and s_hwhm > 0.0:
-            az = math.sqrt(max(0.0, 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)))
-        else:
-            az = 0.0
-
+        b_hwhm = float(vals.get("mc_hwhm_total",  0.0))
+        mlo    = float(vals.get("hwhm_mass_lo",   0.0))
+        mhi    = float(vals.get("hwhm_mass_hi",   0.0))
         reliable = b_hwhm >= _B_HWHM_MIN_RELIABLE
-        flag = "✓ OK" if reliable else "★ LOW STATS"
 
-        if not reliable:
+        if reliable:
+            signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
+            az = math.sqrt(max(0.0, 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm))) \
+                if b_hwhm > 1e-12 and s_hwhm > 0 else 0.0
+            reliable_rows.append([
+                str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+                f"{s_full:.2f}", f"{b_full:.2f}",
+                f"{s_hwhm:.3f}", f"{b_hwhm:.3f}",
+                f"[{mlo:.1f}, {mhi:.1f}]",
+                f"{signif:.3f}", f"{az:.3f}",
+            ])
+        else:
             logger.warning(
-                "Cat %d: B_HWHM=%.3f < %.1f — S/√B=%.2f and Asimov Z=%.2f are UNRELIABLE. "
-                "Check signal MC normalization.",
-                i, b_hwhm, _B_HWHM_MIN_RELIABLE, signif, az,
+                "Cat %d: B_HWHM=%.3f < %.1f — merged into combined low-stats row.",
+                i, b_hwhm, _B_HWHM_MIN_RELIABLE,
             )
+            merged_indices.append(i)
+            merged["s_full"]  = merged.get("s_full",  0.0) + s_full
+            merged["b_full"]  = merged.get("b_full",  0.0) + b_full
+            merged["s_hwhm"]  = merged.get("s_hwhm",  0.0) + s_hwhm
+            merged["b_hwhm"]  = merged.get("b_hwhm",  0.0) + b_hwhm
+            # Use the HWHM window of the last merged category as representative
+            merged["mlo"] = mlo; merged["mhi"] = mhi
 
+    rows: List[List[str]] = list(reliable_rows)
+    if merged_indices:
+        bm = merged.get("b_hwhm", 0.0); sm = merged.get("s_hwhm", 0.0)
+        signif_m = sm / math.sqrt(bm) if bm > 0 else 0.0
+        az_m = math.sqrt(max(0.0, 2.0 * ((sm + bm) * math.log1p(sm / bm) - sm))) \
+               if bm > 1e-12 and sm > 0 else 0.0
+        idx_label = "+".join(str(j) for j in merged_indices)
+        bdt_range = f"[{edges[merged_indices[0]]:.3f}, {edges[merged_indices[-1]+1]:.3f})"
+        mlo_m = merged.get("mlo", 0.0); mhi_m = merged.get("mhi", 0.0)
         rows.append([
-            str(i),
-            f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
-            f"{s_full:.2f}", f"{b_full:.2f}",
-            f"{s_hwhm:.3f}", f"{b_hwhm:.3f}",
-            f"[{mlo:.1f}, {mhi:.1f}]",
-            f"{signif:.3f}",
-            f"{az:.3f}",
-            flag,
+            f"Cat {idx_label} (merged)", bdt_range,
+            f"{merged.get('s_full',0):.2f}", f"{merged.get('b_full',0):.2f}",
+            f"{sm:.3f}", f"{bm:.3f}",
+            f"[{mlo_m:.1f}, {mhi_m:.1f}]",
+            f"{signif_m:.3f}", f"{az_m:.3f}",
         ])
+
+    n_display = len(rows)
+    fig, ax = plt.subplots(figsize=(14, max(3.5, 1.0 + n_display * 0.7)))
+    ax.axis("off")
+    ax.set_title(
+        "Per-category yield and sensitivity summary",
+        fontsize=12, fontweight="bold", pad=10,
+    )
 
     table = ax.table(cellText=rows, colLabels=columns, loc="center", cellLoc="center")
     table.auto_set_font_size(False)
@@ -1446,10 +1452,8 @@ def build_sb_diagnostic_figure(
         if r == 0:
             cell.set_facecolor("#1A237E")
             cell.set_text_props(weight="bold", color="white")
-        elif r > 0 and rows[r-1][-1].startswith("★"):
-            cell.set_facecolor("#FFEBEE")  # light red for unreliable
-            if c == len(columns) - 1:
-                cell.set_text_props(color="#B71C1C", weight="bold")
+        elif r > 0 and "merged" in rows[r - 1][0]:
+            cell.set_facecolor("#FFF8E1")  # soft amber for merged row
         elif r % 2 == 0:
             cell.set_facecolor("#E8EAF6")
         else:
@@ -1570,43 +1574,94 @@ def summarize_categories(era_payloads, edges, args, mc_weight_scale=1.0):
 
 
 def build_category_summary_table(edges, summary):
-    """Build summary table with reliability flags for inflated significance."""
+    """Build summary table.
+
+    All categories flagged low-stats (B_HWHM < threshold) are merged into a
+    single combined row so the table stays readable.  The combined Asimov Z
+    footer row adds the per-category Asimov Z terms in quadrature across all
+    reliable categories only.
+    """
     columns = [
         "Category", "BDT range",
         "Data sidebands", "MC sidebands ± stat",
         "Data/MC (sidebands)", "MC full (110-150) ± stat",
         "S/√B [HWHM]", "Asimov Z (cat) [HWHM]",
-        "B_HWHM", "Flag",
+        "B_HWHM",
     ]
-    rows = []
+    ncat = len(edges) - 1
+    reliable_rows = []
+    # Accumulate all low-stats categories together
+    merged: Dict[str, float] = {}
+    merged_indices: List[int] = []
+
     combined_z_sum = 0.0
-    for i in range(len(edges) - 1):
+
+    for i in range(ncat):
         vals = summary.get(i, {})
-        d_side = float(vals.get("data_side_count", 0.0))
-        m_side = float(vals.get("mc_side_total",   0.0))
-        me_side = math.sqrt(max(float(vals.get("mc_side_total_err2", 0.0)), 0.0))
-        m_full  = float(vals.get("mc_full_total",  0.0))
-        me_full = math.sqrt(max(float(vals.get("mc_full_total_err2", 0.0)), 0.0))
-        ratio   = d_side / m_side if m_side > 0 else 0.0
-        s_hwhm  = float(vals.get("sig_hwhm_total", 0.0))
-        b_hwhm  = float(vals.get("mc_hwhm_total",  0.0))
-        signif  = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0.0 else 0.0
-        if b_hwhm > 1e-12 and s_hwhm > 0.0:
-            term = 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)
-            combined_z_sum += max(term, 0.0)
+        b_hwhm = float(vals.get("mc_hwhm_total", 0.0))
+        reliable = b_hwhm >= _B_HWHM_MIN_RELIABLE
+
+        d_side  = float(vals.get("data_side_count", 0.0))
+        m_side  = float(vals.get("mc_side_total",   0.0))
+        me2_s   = float(vals.get("mc_side_total_err2", 0.0))
+        m_full  = float(vals.get("mc_full_total",   0.0))
+        me2_f   = float(vals.get("mc_full_total_err2", 0.0))
+        s_hwhm  = float(vals.get("sig_hwhm_total",  0.0))
+
+        if reliable:
+            ratio  = d_side / m_side if m_side > 0 else 0.0
+            signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
+            term   = 0.0
+            if b_hwhm > 1e-12 and s_hwhm > 0:
+                term = 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)
+                combined_z_sum += max(term, 0.0)
             cat_z = math.sqrt(max(term, 0.0))
+            reliable_rows.append([
+                str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+                f"{d_side:.0f}", f"{m_side:.2f} ± {math.sqrt(max(me2_s,0)):.2f}",
+                f"{ratio:.3f}", f"{m_full:.2f} ± {math.sqrt(max(me2_f,0)):.2f}",
+                f"{signif:.4f}", f"{cat_z:.4f}", f"{b_hwhm:.3f}",
+            ])
         else:
-            cat_z = 0.0
-        flag = "✓" if b_hwhm >= _B_HWHM_MIN_RELIABLE else "★ LOW STATS"
+            merged_indices.append(i)
+            merged["d_side"]  = merged.get("d_side",  0.0) + d_side
+            merged["m_side"]  = merged.get("m_side",  0.0) + m_side
+            merged["me2_s"]   = merged.get("me2_s",   0.0) + me2_s
+            merged["m_full"]  = merged.get("m_full",  0.0) + m_full
+            merged["me2_f"]   = merged.get("me2_f",   0.0) + me2_f
+            merged["s_hwhm"]  = merged.get("s_hwhm",  0.0) + s_hwhm
+            merged["b_hwhm"]  = merged.get("b_hwhm",  0.0) + b_hwhm
+
+    rows = list(reliable_rows)
+
+    # Append merged low-stats row
+    if merged_indices:
+        bm = merged.get("b_hwhm", 0.0)
+        sm = merged.get("s_hwhm", 0.0)
+        dm = merged.get("d_side", 0.0)
+        mm = merged.get("m_side", 0.0)
+        mfm = merged.get("m_full", 0.0)
+        ratio_m = dm / mm if mm > 0 else 0.0
+        signif_m = sm / math.sqrt(bm) if bm > 0 else 0.0
+        term_m = 0.0
+        if bm > 1e-12 and sm > 0:
+            term_m = 2.0 * ((sm + bm) * math.log1p(sm / bm) - sm)
+            combined_z_sum += max(term_m, 0.0)
+        cat_z_m = math.sqrt(max(term_m, 0.0))
+        idx_label = "+".join(str(j) for j in merged_indices)
+        bdt_range = f"[{edges[merged_indices[0]]:.3f}, {edges[merged_indices[-1]+1]:.3f})"
         rows.append([
-            str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
-            f"{d_side:.0f}", f"{m_side:.2f} ± {me_side:.2f}",
-            f"{ratio:.3f}", f"{m_full:.2f} ± {me_full:.2f}",
-            f"{signif:.4f}", f"{cat_z:.4f}",
-            f"{b_hwhm:.3f}", flag,
+            f"Cat {idx_label} (merged)",
+            bdt_range,
+            f"{dm:.0f}",
+            f"{mm:.2f} ± {math.sqrt(max(merged.get('me2_s',0),0)):.2f}",
+            f"{ratio_m:.3f}",
+            f"{mfm:.2f} ± {math.sqrt(max(merged.get('me2_f',0),0)):.2f}",
+            f"{signif_m:.4f}", f"{cat_z_m:.4f}", f"{bm:.3f}",
         ])
+
     combined_z = math.sqrt(max(combined_z_sum, 0.0))
-    rows.append(["Combined", "all", "", "", "", "", "", f"{combined_z:.4f}", "", ""])
+    rows.append(["Combined", "all", "", "", "", "", "", f"{combined_z:.4f}", ""])
     return columns, rows
 
 
@@ -1783,11 +1838,10 @@ def build_category_mass_grid(era_payloads, edges, args, mass_bins, mc_weight_sca
     for ax in residual_axes:
         ax.set_xlabel("$m_{\\mu\\mu}$ [GeV]", fontsize=10)
 
-    fig.subplots_adjust(left=0.07, right=0.97, top=0.930, bottom=0.055, hspace=0.38, wspace=0.30)
+    fig.subplots_adjust(left=0.07, right=0.97, top=0.920, bottom=0.055, hspace=0.38, wspace=0.30)
     fig.suptitle(
-        "Per-category dimuon mass: background model comparison and ratio-to-best  "
-        "(AN Fig. 36 analog)  —  χ² uses Baker-Cousins (Poisson) definition",
-        fontsize=12, fontweight="bold", y=0.970,
+        "Per-category dimuon mass: background model fits",
+        fontsize=12, fontweight="bold", y=0.965,
     )
     return fig, fit_columns, fit_rows
 
@@ -1904,11 +1958,10 @@ def build_vbf_signal_dcb_grid(era_payloads, edges, args, mass_bins,
     for j in range(ncat, nrows * ncols):
         axes[j // ncols, j % ncols].axis("off")
 
-    fig.subplots_adjust(left=0.07, right=0.97, top=0.920, bottom=0.08, hspace=0.48, wspace=0.30)
+    fig.subplots_adjust(left=0.07, right=0.97, top=0.910, bottom=0.08, hspace=0.48, wspace=0.30)
     fig.suptitle(
-        "VBF H(125) signal DCB extraction per BDT category  (AN Fig. 38 analog)\n"
-        "χ² uses Baker-Cousins (Poisson) definition;  ★ = B_HWHM < 1 event (unreliable significance)",
-        fontsize=12, fontweight="bold", y=0.970,
+        "VBF H(125) signal DCB extraction per BDT category",
+        fontsize=12, fontweight="bold", y=0.965,
     )
     return fig, dcb_cols, dcb_rows, all_params
 
@@ -2016,7 +2069,7 @@ def build_vbf_bdt_transformed_figure(era_payloads, edges, args, mass_bins,
                 ha="right", va="top", fontsize=9,
                 bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.85))
 
-    fig.suptitle("VBF BDT score and per-bin $S/\\sqrt{B}$ in signal HWHM window  (AN Fig. 34 analog)",
+    fig.suptitle("VBF BDT score and per-bin $S/\\sqrt{B}$ in signal HWHM window",
                  fontsize=12, fontweight="bold", y=1.01)
     fig.tight_layout(rect=[0, 0, 1, 0.99])
     return fig
@@ -2045,9 +2098,8 @@ def build_significance_evolution_figure(scan_history):
                     fontweight="bold")
     ax.set_xlabel("Number of BDT categories", fontsize=12)
     ax.set_ylabel("Combined Asimov $Z$ [HWHM window]", fontsize=12)
-    ax.set_title("Evolution of combined significance vs. number of VBF BDT categories\n"
-                 "(AN Fig. 33 analog — greedy iterative scan, HWHM-windowed S and B)",
-                 fontsize=11, fontweight="bold")
+    ax.set_title("Combined significance vs. number of VBF BDT categories",
+                 fontsize=11, fontweight="bold", pad=28)
     ax.set_xticks(ns)
     ax.legend(fontsize=10)
     ax.grid(alpha=0.25)
@@ -2108,8 +2160,8 @@ def build_fwhm_vs_bdt_figure(era_payloads, args, mass_bins, n_score_bins=10):
 
     ax.set_xlabel("atanh((VBF BDT output + 1) / 2)", fontsize=12)
     ax.set_ylabel("FWHM [GeV]", fontsize=12)
-    ax.set_title("Dimuon mass resolution (FWHM) vs. VBF BDT score\n"
-                 "(AN Fig. 22 analog — equal-statistics BDT slices)", fontsize=12, fontweight="bold")
+    ax.set_title("Dimuon mass resolution (FWHM) vs. VBF BDT score",
+                 fontsize=12, fontweight="bold", pad=28)
     ax.legend(fontsize=10)
     ax.grid(alpha=0.25)
     _cms_label(ax)
@@ -2570,46 +2622,34 @@ def main() -> None:
         # 1. Cover
         add_text_page(
             pdf,
-            "Run-3 VBF BDT Sideband Validation Report  [IMPROVED]",
+            "Run-3 H → μμ VBF BDT Category Optimisation",
             [
-                f"Outputs directory  : {args.outputs_dir}",
-                f"Eras used          : {', '.join(sorted(era_payloads.keys()))}",
-                f"Extra cut          : {args.extra_cut if args.extra_cut else '(none)'}",
-                f"Blinding window    : {args.blind_min:.0f} < m_mumu < {args.blind_max:.0f} GeV",
-                f"Sidebands          : ({args.sb1_min:.0f},{args.sb1_max:.0f}) ∪ "
+                f"Eras              : {', '.join(sorted(era_payloads.keys()))}",
+                f"Category edges    : {', '.join([f'{x:.4f}' for x in edges])}",
+                f"MC scale factor   : {mc_scale:.4f}  (Data/MC sideband normalisation)",
+                f"Blinding window   : {args.blind_min:.0f}–{args.blind_max:.0f} GeV",
+                f"Sidebands         : ({args.sb1_min:.0f},{args.sb1_max:.0f}) ∪ "
                 f"({args.sb2_min:.0f},{args.sb2_max:.0f}) GeV",
-                f"Optimized edges    : {', '.join([f'{x:.4f}' for x in edges])}",
-                f"MC scale factor    : {mc_scale:.6f}",
+                f"Outputs dir       : {args.outputs_dir}",
+                f"Extra selection   : {args.extra_cut if args.extra_cut else '—'}",
                 "",
-                "IMPROVEMENTS IN THIS VERSION:",
-                "  ✓ Background chi2 uses Baker-Cousins (Poisson NLL) per AN Ref. [67]",
-                "  ✓ Signal DCB chi2 also uses Baker-Cousins definition (consistent)",
-                "  ✓ S/B diagnostic: categories with B_HWHM<1 flagged as unreliable (★)",
-                "  ✓ CMS-style labels on all figures",
-                "  ✓ Improved color palette and typography",
-                "",
-                "REPORT CONTENTS:",
-                "  p.2   BDT score: Data vs. stacked MC",
-                "  p.3   BDT bin table",
-                "  p.4   Significance evolution  [AN Fig. 33]",
-                "  p.5   Atanh BDT + S/√B        [AN Fig. 34]",
-                "  p.6   FWHM vs. VBF BDT score  [AN Fig. 22]",
-                "  p.7   ROC curve               [AN Fig. 27 — NEW]",
-                "  p.8   Blinded m_mumu sideband",
-                "  p.9   Per-category mass + bkg fits  [AN Fig. 36]",
-                "  p.10  Background model comparison table (χ²_BC/ndf)",
-                "  p.11  VBF DCB signal extraction     [AN Fig. 38]",
+                "CONTENTS:",
+                "  p.2   BDT score distribution: Data vs. MC",
+                "  p.3   BDT bin yields",
+                "  p.4   Significance vs. number of categories",
+                "  p.5   Atanh BDT + S/√B per category",
+                "  p.6   Signal FWHM vs. BDT score",
+                "  p.7   ROC curve with AUC",
+                "  p.8   Blinded dimuon mass spectrum",
+                "  p.9   Per-category mass distributions and background fits",
+                "  p.10  Background model comparison (χ²/ndf)",
+                "  p.11  VBF signal DCB fits per category",
                 "  p.12  DCB parameter table",
-                "  p.13  σ_CB vs. category            [AN Fig. 43 — NEW]",
-                "  p.14  Acceptance × efficiency       [AN Fig. 44 — NEW]",
-                "  p.15  S/B diagnostic table          [NEW — check normalization]",
-                "  p.16  Optimised category summary",
+                "  p.13  σ_CB vs. category",
+                "  p.14  Signal acceptance × efficiency",
+                "  p.15  Per-category yield and sensitivity summary",
+                "  p.16  Category summary table",
                 "  p.17  Category process composition",
-                "",
-                "NOTE on inflated 2024 significance:",
-                "  If S/√B >> 1 in high-BDT categories, check that the VBF signal",
-                "  MC is normalised to the correct integrated luminosity for that era.",
-                "  The ★ flag in Tables p.15/16 identifies categories with B_HWHM<1.",
             ],
         )
 
@@ -2630,7 +2670,7 @@ def main() -> None:
         pdf.savefig(fig_sigma_vs_cat)  # [NEW]
         pdf.savefig(fig_acc_eff)       # [NEW]
         pdf.savefig(fig_sb_diag)       # [NEW]
-        add_table_pages(pdf, "Optimised category summary (HWHM-windowed S and B) — ★ = B_HWHM < 1",
+        add_table_pages(pdf, "Category summary: HWHM-windowed signal and background yields",
                         cat_cols, cat_rows, max_rows=20)
         add_table_pages(pdf, "Category composition by process (full mass window)",
                         cat_proc_cols, cat_proc_rows, max_rows=20)
