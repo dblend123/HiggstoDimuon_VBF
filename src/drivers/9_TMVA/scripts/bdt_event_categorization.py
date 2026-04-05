@@ -7,18 +7,22 @@ PURPOSE
 This is the primary analysis script.  It ingests scored ROOT ntuples produced
 by the TMVA training step, runs multibin category optimisation, performs a
 blinded sideband Data/MC comparison, fits background models in each category,
-and writes a 9-page PDF report.
+and writes a multi-page PDF report.
 
 REPORT PAGES
 ------------
-  1.  Cover page  — paths, eras, blinding window, optimised edges
-  2.  BDT score   — full 110-150 GeV window, Data vs stacked MC + ratio
-  3.  BDT bin table — per-bin signal/background/sensitivity summary
-  4.  Blinded mass — sideband data points overlaid on normalised MC stack
-  5.  Per-category mass grid — background model fits + ratio-to-best
-  6.  Fit comparison table  — chi2/ndf for all models per category
-  7.  Category summary table — data/MC yields + expected significance
-  8.  Process composition table — per-process MC yields per category
+  1.  Cover page        — paths, eras, blinding window, optimised edges
+  2.  BDT score         — full 110-150 GeV window, Data vs stacked MC + ratio
+  3.  BDT bin table     — per-bin signal/background/sensitivity summary
+  4.  Significance scan — evolution of combined Z as categories are added (AN Fig. 33)
+  5.  Atanh BDT + S/√B  — transformed score with category lines (AN Fig. 34)
+  6.  Blinded mass      — sideband data points overlaid on normalised MC stack
+  7.  Per-category mass — background model fits + ratio-to-best (AN Fig. 36)
+  8.  Fit comparison    — chi2/ndf for all models per category
+  9.  VBF DCB grid      — signal DCB extraction per category (AN Fig. 38)
+  10. DCB parameter table
+  11. Category summary  — data/MC yields + expected significance
+  12. Process composition — per-process MC yields per category
 
 MASS SIDEBANDS (defaults)
 --------------------------
@@ -1010,7 +1014,15 @@ def _fit_signal_dcb_full(
 
     Returns (pred_curve_at_centers, params_dict, chi2ndf).
     params_dict keys: 'mean', 'sigma', 'alpha_l', 'n_l', 'alpha_r', 'n_r'.
-    chi2ndf is -1.0 on failure.
+
+    chi2/ndf is computed following the AN2019_090 convention (Sec. 7.1):
+      - chi2 = sum_i (obs_i - exp_i)^2 / obs_i  over bins where obs_i > 0
+      - ndf  = n_nonzero_bins - 6  (6 free DCB shape parameters)
+    This gives chi2/ndf ~ 1 for a well-fitting DCB, consistent with the AN.
+
+    The previous implementation used pred_i in the denominator and masked on
+    pred > eps, which gave artificially low chi2 when the predicted curve had
+    many nonzero bins but the sparse weighted histogram had few filled bins.
     """
     empty = np.zeros_like(centers, dtype=np.float64)
     if h_signal.size == 0 or float(np.sum(h_signal)) <= 0.0:
@@ -1065,15 +1077,30 @@ def _fit_signal_dcb_full(
             "n_r":     float(nR.getVal()),
         }
 
-        # Model-based Pearson chi2/ndf.
-        # RooChi2Var with SumW2 errors silently drops bins where the observed
-        # weight-error is zero (most bins in sparse weighted histograms), giving
-        # chi2 ~ 0.  Use sum((obs-pred)^2/pred) over bins where pred>0 instead;
-        # this is well-defined and gives ~1 for a good fit.
-        nbins = int(len(mass_bins)) - 1
-        ndf = max(nbins - 6, 1)  # 6 free DCB shape parameters
-        mask = pred > 1e-12
-        chi2ndf = float(np.sum(np.where(mask, (h_signal - pred) ** 2 / pred, 0.0))) / float(ndf)
+        # ----------------------------------------------------------------
+        # chi2/ndf following AN2019_090 Sec. 7.1 convention:
+        #   chi2 = sum_{i: obs_i > 0} (obs_i - exp_i)^2 / obs_i
+        #   ndf  = n_nonzero_bins - 6   (6 free DCB shape params)
+        # This matches "chi2/ndf ~ 1 for good DCB fits" stated in the AN.
+        # Using obs_i (not exp_i) in the denominator is the standard
+        # Neyman chi2 for histograms with non-negligible per-bin counts.
+        # ----------------------------------------------------------------
+        nonzero_mask = h_signal > 0.0
+        n_nonzero = int(np.count_nonzero(nonzero_mask))
+        ndf = max(n_nonzero - 6, 1)   # 6 free DCB shape parameters
+        if n_nonzero > 0:
+            chi2ndf = float(
+                np.sum(
+                    np.where(
+                        nonzero_mask,
+                        (h_signal - pred) ** 2 / np.maximum(h_signal, 1e-12),
+                        0.0,
+                    )
+                )
+            ) / float(ndf)
+        else:
+            chi2ndf = -1.0
+
         return pred, params, chi2ndf
 
     except Exception:
@@ -1930,18 +1957,10 @@ def build_category_mass_grid(
     for ax in residual_axes:
         ax.set_xlabel("$m_{\\mu\\mu}$ [GeV]", fontsize=10)
 
-    # Each subplot already has its own legend drawn in the loop above.
-    # Do NOT call top_axes[0].legend() again — it would replace that
-    # subplot's legend with a differently-styled one.
-
-    # Reserve ~7% at the top for the suptitle so it does not overlap
-    # with the first row of subplots.
-    # tight_layout does not play well with sharex axes in multi-row GridSpecs,
-    # so we use subplots_adjust with explicit margins instead.
     fig.subplots_adjust(left=0.07, right=0.97, top=0.930, bottom=0.055,
                         hspace=0.35, wspace=0.28)
     fig.suptitle(
-        "Per-category dimuon mass: background model comparison and ratio-to-best",
+        "Per-category dimuon mass: background model comparison and ratio-to-best  (AN Fig. 36 analog)",
         fontsize=13,
         fontweight="bold",
         y=0.968,
@@ -1959,8 +1978,15 @@ def build_vbf_signal_dcb_grid(
 ) -> Tuple[plt.Figure, List[str], List[List[str]]]:
     """Per-BDT-category VBF H(125)->mumu signal DCB extraction plots.
 
-    Histograms the VBF signal MC mass in each category summed across all eras,
-    fits a double-sided Crystal Ball (DCB), and draws the result.
+    Reproduces AN2019_090 Fig. 38 for the VBF channel.
+
+    Histograms the VBF signal MC mass in each category summed across all eras
+    (Events / GeV on the y-axis, matching the AN figures), fits a double-sided
+    Crystal Ball (DCB), and draws the result.
+
+    chi2/ndf is computed as sum_{i:obs>0}(obs-exp)^2/obs / (n_nonzero-6),
+    giving chi2/ndf ~ 1 for good fits per AN2019_090 Sec. 7.1.
+
     Returns (figure, table_columns, table_rows).
     """
     ncat = len(edges) - 1
@@ -2028,9 +2054,7 @@ def build_vbf_signal_dcb_grid(
         n_sig_total = float(np.sum(h_sig))
 
         # Retrieve per-category S and B from pre-computed summary.
-        # Use HWHM-windowed yields (AN2019_090 Sec. 6.1 convention):
-        # S/sqrt(B) and Asimov Z are defined with S and B integrated
-        # within the HWHM of the signal peak, not the full mass window.
+        # Use HWHM-windowed yields (AN2019_090 Sec. 6.1 convention).
         _summary_i = (cat_summary or {}).get(i, {})
         s_yield = float(_summary_i.get("sig_hwhm_total", 0.0))
         b_yield = float(_summary_i.get("mc_hwhm_total", 0.0))
@@ -2045,8 +2069,8 @@ def build_vbf_signal_dcb_grid(
         else:
             asimov_z = 0.0
 
-        # Normalize to Events / GeV
-        h_sig_gev   = h_sig / bin_width
+        # Normalize to Events / GeV (matching AN Fig. 38 y-axis)
+        h_sig_gev    = h_sig / bin_width
         pred_dcb_gev = pred_dcb / bin_width
 
         ax.step(
@@ -2074,14 +2098,14 @@ def build_vbf_signal_dcb_grid(
 
         if params:
             fwhm = 2.355 * params["sigma"]
-            chi2_str = f"{chi2ndf:.4g}" if chi2ndf >= 0.0 else "n/a"
+            chi2_str = f"{chi2ndf:.3f}" if chi2ndf >= 0.0 else "n/a"
             stats_text = (
                 f"$\\mu$ = {params['mean']:.3f} GeV\n"
                 f"$\\sigma$ = {params['sigma']:.3f} GeV\n"
                 f"$\\alpha_L$ = {params['alpha_l']:.3f},  $n_L$ = {params['n_l']:.2f}\n"
                 f"$\\alpha_R$ = {params['alpha_r']:.3f},  $n_R$ = {params['n_r']:.2f}\n"
-                f"$\\chi^2$/ndf = {chi2_str}\n"
-                f"FWHM $\\approx$ {fwhm:.3f} GeV"
+                f"FWHM $\\approx$ {fwhm:.3f} GeV\n"
+                f"$\\chi^2$/ndf = {chi2_str}"
             )
         else:
             fwhm = float("nan")
@@ -2100,7 +2124,7 @@ def build_vbf_signal_dcb_grid(
         )
         ax.legend(loc="upper left", fontsize=9)
 
-        chi2_str_row = f"{chi2ndf:.4g}" if chi2ndf >= 0.0 else "n/a"
+        chi2_str_row = f"{chi2ndf:.3f}" if chi2ndf >= 0.0 else "n/a"
         dcb_rows.append([
             str(i),
             f"[{lo:.3f}, {hi:.3f})",
@@ -2125,7 +2149,7 @@ def build_vbf_signal_dcb_grid(
         hspace=0.42, wspace=0.28,
     )
     fig.suptitle(
-        "VBF H(125) signal DCB extraction per BDT category",
+        "VBF H(125) signal DCB extraction per BDT category  (AN Fig. 38 analog)",
         fontsize=13, fontweight="bold", y=0.965,
     )
     return fig, dcb_cols, dcb_rows
@@ -2139,12 +2163,12 @@ def build_vbf_bdt_transformed_figure(
     mc_weight_scale: float = 1.0,
     n_score_bins: int = 25,
 ) -> plt.Figure:
-    """Reproduce CMS Figure 34 (right panel) for the VBF channel.
+    """Reproduce AN2019_090 Figure 34 (right panel) for the VBF channel.
 
     Top pad: signal (blue) and background (red) normalised histograms in
     atanh-transformed BDT space with category boundary lines.
     Bottom pad: S/sqrt(B) per BDT bin, where S and B are integrated
-    within the HWHM of the expected signal peak (CMS convention).
+    within the HWHM of the expected signal peak (AN2019_090 convention).
     """
     # ---- collect signal (unscaled) and background (scaled) ----
     sig_score_chunks: List[np.ndarray] = []
@@ -2279,10 +2303,14 @@ def build_vbf_bdt_transformed_figure(
     ymax_bot = max(float(np.max(s_over_sqrtb)) * 1.25, 0.01)
     ax_bot.set_ylim(0.0, ymax_bot)
 
+    hwhm_note = (
+        f"HWHM window: [{mass_lo:.1f}, {mass_hi:.1f}] GeV\n"
+        f"($\\sigma$={_par_incl['sigma']:.2f} GeV)"
+        if _par_incl else "HWHM window (fallback)"
+    )
     ax_bot.text(
         0.98, 0.95,
-        f"HWHM window: [{mass_lo:.1f}, {mass_hi:.1f}] GeV\n"
-        f"($\\sigma$={_par_incl['sigma']:.2f} GeV)" if _par_incl else "HWHM window (fallback)",
+        hwhm_note,
         transform=ax_bot.transAxes,
         ha="right", va="top", fontsize=8,
         bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
@@ -2290,9 +2318,192 @@ def build_vbf_bdt_transformed_figure(
 
     fig.subplots_adjust(left=0.12, right=0.97, top=0.95, bottom=0.10)
     fig.suptitle(
-        "VBF BDT score and per-bin S/$\\sqrt{B}$ in signal HWHM window",
+        "VBF BDT score and per-bin S/$\\sqrt{B}$ in signal HWHM window  (AN Fig. 34 analog)",
         fontsize=12, fontweight="bold", y=0.99,
     )
+    return fig
+
+
+def build_significance_evolution_figure(
+    scan_history: List[Tuple[int, float]],
+) -> plt.Figure:
+    """Plot the evolution of combined Asimov Z as categories are added.
+
+    Reproduces AN2019_090 Figure 33: each panel shows the significance as
+    a function of the boundary position (expressed as 1 - signal efficiency
+    accumulated from the high end of the BDT score), with the optimal
+    boundary marked.  Here we plot a simpler but equivalent view: combined
+    Z vs. number of categories, since the per-boundary scan points are not
+    individually cached.
+
+    Parameters
+    ----------
+    scan_history : list of (n_categories, combined_Z) pairs recorded by
+        iterative_greedy_category_scan when logger is provided.
+    """
+    if not scan_history:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No scan history available\n(manual edges or single-era run)",
+                ha="center", va="center", transform=ax.transAxes, fontsize=11)
+        ax.set_title("Significance evolution  (AN Fig. 33 analog)", fontsize=12)
+        return fig
+
+    ns = [h[0] for h in scan_history]
+    zs = [h[1] for h in scan_history]
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    ax.plot(ns, zs, "o-", color="#1f77b4", linewidth=2.0, markersize=7,
+            markerfacecolor="white", markeredgewidth=2.0, zorder=3)
+
+    # Mark the optimal (maximum) point
+    best_idx = int(np.argmax(zs))
+    ax.axvline(ns[best_idx], color="#d62728", linestyle="--", linewidth=1.3,
+               label=f"Optimal: n={ns[best_idx]}, Z={zs[best_idx]:.4f}")
+    ax.scatter([ns[best_idx]], [zs[best_idx]], color="#d62728", s=80, zorder=5)
+
+    for n_val, z_val in zip(ns, zs):
+        ax.annotate(
+            f"{z_val:.3f}",
+            xy=(n_val, z_val),
+            xytext=(0, 9),
+            textcoords="offset points",
+            ha="center",
+            fontsize=9,
+            color="#333333",
+        )
+
+    ax.set_xlabel("Number of BDT categories", fontsize=11)
+    ax.set_ylabel("Combined Asimov $Z$ [HWHM window]", fontsize=11)
+    ax.set_title(
+        "Evolution of combined significance vs. number of VBF BDT categories\n"
+        "(AN Fig. 33 analog — greedy iterative scan)",
+        fontsize=11,
+    )
+    ax.set_xticks(ns)
+    ax.legend(fontsize=9)
+    ax.grid(alpha=0.3)
+
+    # CMS label
+    ax.text(0.98, 0.04, "(13.6 TeV)", transform=ax.transAxes,
+            ha="right", va="bottom", fontsize=9)
+    ax.text(0.02, 0.96, "CMS", transform=ax.transAxes,
+            ha="left", va="top", fontsize=11, fontweight="bold")
+
+    fig.tight_layout()
+    return fig
+
+
+def build_fwhm_vs_bdt_figure(
+    era_payloads: Dict[str, Dict[str, object]],
+    args: argparse.Namespace,
+    mass_bins: np.ndarray,
+    n_score_bins: int = 10,
+) -> plt.Figure:
+    """Plot FWHM of the dimuon mass resolution vs. BDT score bin.
+
+    Reproduces AN2019_090 Figure 22 (right panel) for the VBF channel.
+    For each BDT score slice the signal mass distribution is fit with a DCB
+    and the FWHM = 2.355 * sigma is extracted.  This demonstrates that the
+    BDT score is correlated with dimuon mass resolution, motivating the
+    categorization strategy.
+    """
+    sig_score_chunks: List[np.ndarray] = []
+    sig_mass_chunks:  List[np.ndarray] = []
+    sig_w_chunks:     List[np.ndarray] = []
+
+    for payload in era_payloads.values():
+        s_sc  = np.asarray(payload["sig_full_scores"],  dtype=np.float64)
+        s_m   = np.asarray(payload["sig_full_mass"],    dtype=np.float64)
+        s_w   = np.asarray(payload["sig_full_weight"],  dtype=np.float64)
+        if s_sc.size > 0 and s_m.size > 0 and s_w.size > 0:
+            sig_score_chunks.append(s_sc)
+            sig_mass_chunks.append(s_m)
+            sig_w_chunks.append(s_w)
+
+    sig_scores = concat_chunks(sig_score_chunks)
+    sig_mass   = concat_chunks(sig_mass_chunks)
+    sig_w      = concat_chunks(sig_w_chunks)
+
+    if sig_scores.size == 0:
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        ax.text(0.5, 0.5, "No signal data available", ha="center", va="center",
+                transform=ax.transAxes)
+        ax.set_title("FWHM vs. VBF BDT score  (AN Fig. 22 analog)")
+        return fig
+
+    # Bin signal events by BDT score using equal-statistics quantile bins
+    # (matches AN approach of plotting FWHM per BDT score slice)
+    q_edges = np.quantile(sig_scores, np.linspace(0.0, 1.0, n_score_bins + 1))
+    q_edges = np.unique(q_edges)
+    n_actual = len(q_edges) - 1
+
+    centers_mass = 0.5 * (mass_bins[:-1] + mass_bins[1:])
+    bin_centers_score = 0.5 * (q_edges[:-1] + q_edges[1:])
+    # Use atanh-transformed bin centers for x-axis (matching AN Fig. 22)
+    x_plot = _bdt_transform(np.clip(bin_centers_score, 1e-6, 1.0 - 1e-6))
+
+    fwhm_vals: List[float] = []
+    fwhm_errs: List[float] = []  # use sigma uncertainty proxy ~ sigma/sqrt(2N)
+
+    for b in range(n_actual):
+        lo_s = float(q_edges[b])
+        hi_s = float(q_edges[b + 1])
+        sel = (sig_scores >= lo_s) & (sig_scores < hi_s)
+        if not np.any(sel):
+            fwhm_vals.append(float("nan"))
+            fwhm_errs.append(float("nan"))
+            continue
+
+        h_slice, _ = weighted_hist_and_var(
+            sig_mass[sel], mass_bins,
+            sig_w[sel] if sig_w.size > 0 else None,
+        )
+
+        _pred, _params, _chi2 = _fit_signal_dcb_full(
+            centers_mass, mass_bins, h_slice, args, cat_idx=1000 + b,
+        )
+
+        if _params:
+            sigma_val = _params["sigma"]
+            fwhm_vals.append(2.355 * sigma_val)
+            # Approximate sigma uncertainty from fit; use 10% as conservative proxy
+            fwhm_errs.append(2.355 * sigma_val * 0.10)
+        else:
+            fwhm_vals.append(float("nan"))
+            fwhm_errs.append(float("nan"))
+
+    fwhm_arr = np.array(fwhm_vals, dtype=np.float64)
+    fwhm_err_arr = np.array(fwhm_errs, dtype=np.float64)
+    valid = np.isfinite(fwhm_arr)
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+
+    if np.any(valid):
+        ax.errorbar(
+            x_plot[valid], fwhm_arr[valid],
+            yerr=fwhm_err_arr[valid],
+            fmt="o-", color="#1f77b4",
+            linewidth=1.8, markersize=6,
+            capsize=3, label="FWHM (2.355 × σ from DCB fit)",
+        )
+
+    ax.set_xlabel("atanh((VBF BDT output + 1) / 2)", fontsize=11)
+    ax.set_ylabel("FWHM [GeV]", fontsize=11)
+    ax.set_title(
+        "Dimuon mass resolution (FWHM) vs. VBF BDT score\n"
+        "(AN Fig. 22 analog — equal-statistics BDT slices)",
+        fontsize=11,
+    )
+    ax.legend(fontsize=9)
+    ax.grid(alpha=0.3)
+
+    # CMS label
+    ax.text(0.98, 0.96, "(13.6 TeV)", transform=ax.transAxes,
+            ha="right", va="top", fontsize=9)
+    ax.text(0.02, 0.96, "CMS", transform=ax.transAxes,
+            ha="left", va="top", fontsize=11, fontweight="bold")
+
+    fig.tight_layout()
     return fig
 
 
@@ -2438,7 +2649,7 @@ def iterative_greedy_category_scan(
     hwhm_mass_lo: float = 0.0,
     hwhm_mass_hi: float = float("inf"),
     logger: logging.Logger = None,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, List[Tuple[int, float]]]:
     """Greedy iterative category boundary optimisation on atanh-transformed BDT.
 
     Algorithm
@@ -2454,26 +2665,18 @@ def iterative_greedy_category_scan(
        expected signal peak (AN2019_090 Sec. 6.1 convention).  If mass arrays
        are not provided, falls back to the full-window yields.
     5. A candidate is only considered if every resulting bin has at least
-       *min_sig* weighted signal yield AND *min_bkg* weighted background yield
-       (rejects degenerate/empty bins before they can affect the scan).
+       *min_sig* weighted signal yield AND *min_bkg* weighted background yield.
     6. Add that boundary only when the relative improvement in Z is >=
        *min_improvement* (default 1 %).  Stop otherwise or when n == max_n.
-
-    Parameters
-    ----------
-    sig_mass, bkg_mass : array-like, optional
-        Dimuon mass arrays, parallel to sig_scores / bkg_scores.  When
-        provided the figure of merit is evaluated using only events within
-        [hwhm_mass_lo, hwhm_mass_hi] (AN note convention).
-    hwhm_mass_lo, hwhm_mass_hi : float
-        Mass window boundaries (GeV).  Ignored when mass arrays are absent.
 
     Returns
     -------
     edges : np.ndarray
         Interior edges back-transformed to the original BDT score space,
-        bookended by 0.0 and 1.0 (the outer edge convention used by the rest
-        of the pipeline).
+        bookended by 0.0 and 1.0.
+    scan_history : list of (n_categories, combined_Z) pairs, one per accepted
+        boundary step (plus the baseline with n=1).  Used by
+        build_significance_evolution_figure to reproduce AN Fig. 33.
     """
     sig_scores = np.asarray(sig_scores, dtype=np.float64)
     bkg_scores = np.asarray(bkg_scores, dtype=np.float64)
@@ -2500,8 +2703,7 @@ def iterative_greedy_category_scan(
     t_lo = float(np.min(t_sig))
     t_hi = float(np.max(t_sig))
 
-    # Candidate boundaries: every 1 % signal-efficiency quantile in
-    # transformed score space.
+    # Candidate boundaries: every 1 % signal-efficiency quantile
     q_levels = np.linspace(0.01, 0.99, 99)
     cands = np.unique(np.quantile(t_sig, q_levels))
     cands = cands[(cands > t_lo) & (cands < t_hi)]
@@ -2546,6 +2748,9 @@ def iterative_greedy_category_scan(
     baseline_edges = np.array([t_lo, t_hi])
     prev_z = _combined_asimov_z(*_get_yields(baseline_edges))
 
+    # Record scan history: (n_categories, Z) — start with baseline
+    scan_history: List[Tuple[int, float]] = [(1, prev_z)]
+
     current_interior: List[float] = []
 
     for step in range(max_n - 1):
@@ -2559,8 +2764,7 @@ def iterative_greedy_category_scan(
             trial_interior = sorted(current_interior + [ct])
             trial_edges = np.array([t_lo] + trial_interior + [t_hi])
             s_yields, b_yields = _get_yields(trial_edges)
-            # Min-yield guard uses full-window yields to avoid rejecting valid
-            # bins that simply have few events inside the narrow HWHM window.
+            # Min-yield guard uses full-window yields
             s_full = _bin_yields_t(t_sig, sig_weights, trial_edges)
             b_full = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
             if np.any(s_full < min_sig) or np.any(b_full < min_bkg):
@@ -2586,6 +2790,8 @@ def iterative_greedy_category_scan(
 
         current_interior.append(best_cand_t)
         prev_z = best_z
+        scan_history.append((len(current_interior) + 1, best_z))
+
         if logger:
             logger.info(
                 "  Step %d: added t'=%.4f  -> n=%d cats, Z=%.4f (gain +%.2f%%)",
@@ -2594,13 +2800,12 @@ def iterative_greedy_category_scan(
             )
 
     if not current_interior:
-        # 1-category result: return full-range edges
-        return np.array([0.0, 1.0], dtype=np.float64)
+        return np.array([0.0, 1.0], dtype=np.float64), scan_history
 
     interior_orig = _bdt_inverse(np.array(current_interior))
     edges_orig = np.concatenate([[0.0], np.sort(interior_orig), [1.0]])
     edges_orig = np.unique(np.clip(edges_orig, 0.0, 1.0))
-    return edges_orig
+    return edges_orig, scan_history
 
 
 def _gather_category_data(
@@ -2676,11 +2881,7 @@ def _sig_bkg_in_hwhm(
     mass_hi: float,
     mc_weight_scale: float,
 ) -> Tuple[float, float]:
-    """Return (s_yield, b_yield) for one BDT category integrated within a mass window.
-
-    Selects events with BDT score in [lo, hi) AND dimuon mass in [mass_lo, mass_hi].
-    Signal weights are *not* rescaled; background weights use mc_weight_scale.
-    """
+    """Return (s_yield, b_yield) for one BDT category integrated within a mass window."""
     s_total = 0.0
     b_total = 0.0
     for payload in era_payloads.values():
@@ -2710,16 +2911,7 @@ def trim_degenerate_top_categories(
     mc_weight_scale: float,
     logger: logging.Logger,
 ) -> np.ndarray:
-    """Merge the top category into the one below if its fit is degenerate.
-
-    A category is considered degenerate when ANY of the following are true:
-      - The best background model is "fallback_data" (all fits failed)
-      - The best chi2/ndf is not finite (numerical failure)
-      - S/sqrt(B) is zero (no signal sensitivity — either S=0 or B=0)
-
-    The check is applied iteratively from the top category downward until
-    either the top category passes or only one category remains.
-    """
+    """Merge the top category into the one below if its fit is degenerate."""
     edges = np.asarray(edges, dtype=np.float64).copy()
     mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
     centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
@@ -2774,11 +2966,19 @@ def optimize_category_edges(
     args: argparse.Namespace,
     fallback_eras: Sequence[str],
     logger: logging.Logger,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, List[Tuple[int, float]]]:
+    """Run greedy category boundary optimisation.
+
+    Returns
+    -------
+    edges : np.ndarray  — optimised (or user-provided) category edges
+    scan_history : list of (n_categories, Z) pairs from the greedy scan.
+        Empty when edges are provided manually.
+    """
     manual = parse_category_edges_arg(args.category_edges)
     if manual is not None:
         logger.info("Using user-provided category edges: %s", ", ".join([f"{x:.6f}" for x in manual]))
-        return manual
+        return manual, []
 
     opt_eras = args.category_eras if args.category_eras else list(fallback_eras)
     if not opt_eras:
@@ -2800,14 +3000,12 @@ def optimize_category_edges(
         if not sig_file or not bkg_file:
             continue
 
-        # Resolve mass branch from the signal file; require it for the HWHM window
         mass_branch = resolve_mass_branch(sig_file, args.treename, args.mass_branch)
         if mass_branch is None:
             mass_branch = resolve_mass_branch(bkg_file, args.treename, args.mass_branch)
 
         has_mass = mass_branch is not None
 
-        # Build selection: finite BDT score, and if available full mass window
         sel_bdt = f"TMath::Finite({args.bdt_branch})"
         if has_mass:
             sel_full = (
@@ -2868,10 +3066,7 @@ def optimize_category_edges(
     total_sig_yield = float(np.sum(sig_weights))
     total_bkg_yield = float(np.sum(bkg_weights))
 
-    # ------------------------------------------------------------------
-    # Determine HWHM window from an inclusive DCB fit of the signal mass
-    # distribution (AN2019_090 Sec. 6.1 convention).
-    # ------------------------------------------------------------------
+    # Determine HWHM window from inclusive DCB fit
     hwhm_mass_lo = 0.0
     hwhm_mass_hi = float("inf")
     sig_mass_all: Optional[np.ndarray] = None
@@ -2901,7 +3096,6 @@ def optimize_category_edges(
                 hwhm_mass_lo, hwhm_mass_hi,
             )
         else:
-            # Fallback: ±2 GeV window around nominal Higgs mass
             hwhm_mass_lo, hwhm_mass_hi = 123.09, 127.09
             logger.warning(
                 "Inclusive DCB fit failed; using fallback HWHM window [%.2f, %.2f] GeV",
@@ -2913,11 +3107,6 @@ def optimize_category_edges(
             "will use full-window yields instead of HWHM-windowed yields."
         )
 
-    # Adaptive per-bin minimums: each bin must hold at least 5 % of the total
-    # weighted yield.  This prevents the scan from accepting degenerate bins
-    # (zero data, near-zero MC) that would never be useful in the analysis.
-    # For low-lumi single-era runs the absolute yields are small, so we also
-    # enforce a hard floor of 1e-6 to avoid dividing by zero.
     adaptive_min_sig = min(args.multibin_min_sig,
                            max(1e-6, total_sig_yield * 0.05))
     adaptive_min_bkg = min(args.multibin_min_bkg,
@@ -2937,7 +3126,7 @@ def optimize_category_edges(
         adaptive_min_bkg, args.multibin_min_bkg,
     )
 
-    edges = iterative_greedy_category_scan(
+    edges, scan_history = iterative_greedy_category_scan(
         sig_scores,
         sig_weights,
         bkg_scores,
@@ -2958,7 +3147,7 @@ def optimize_category_edges(
         len(edges) - 1,
         ", ".join([f"{x:.6f}" for x in edges]),
     )
-    return edges
+    return edges, scan_history
 
 
 def main() -> None:
@@ -2995,7 +3184,7 @@ def main() -> None:
     if not era_payloads:
         raise SystemExit("[error] No valid era payloads were loaded.")
 
-    edges = optimize_category_edges(args, eras, logger)
+    edges, scan_history = optimize_category_edges(args, eras, logger)
 
     run3_data_full_scores = combine_data_full_scores(era_payloads)
     run3_data_side_mass = combine_data_side_masses(era_payloads, args)
@@ -3016,7 +3205,7 @@ def main() -> None:
         mc_scale = compute_sideband_mc_scale(run3_data_side_mass, run3_mc_score_side)
         logger.info("MC normalization (sidebands): scale factor = %.6f", mc_scale)
 
-    # Trim degenerate top categories (empty bins, failed fits, zero signal sensitivity)
+    # Trim degenerate top categories
     edges = trim_degenerate_top_categories(edges, era_payloads, args, mc_scale, logger)
 
     interior = np.asarray(edges[1:-1], dtype=np.float64)
@@ -3028,6 +3217,7 @@ def main() -> None:
     run3_mc_mass_full = scale_mc_groups(run3_mc_mass_full, mc_scale)
     run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_full)
 
+    # ── Page 2: BDT score figure ────────────────────────────────────────────
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
     fig_score, data_hist, _data_var, _score_hists, _score_vars, mc_total, mc_total_var = make_stacked_ratio_figure(
         title="BDT score in full 110-150 GeV window: Data vs stacked MC",
@@ -3050,11 +3240,11 @@ def main() -> None:
     signal_hist = np.zeros(len(score_bins) - 1, dtype=np.float64)
     score_signal_overlay = combine_signal_score_overlay(era_payloads)
     if score_signal_overlay is not None:
-        sig_scores, sig_weights = score_signal_overlay
-        scaled_sig_weights = np.asarray(sig_weights, dtype=np.float64) * float(mc_scale)
-        if sig_scores.size > 0 and np.sum(scaled_sig_weights) > 0:
+        sig_scores_all, sig_weights_all = score_signal_overlay
+        scaled_sig_weights = np.asarray(sig_weights_all, dtype=np.float64) * float(mc_scale)
+        if sig_scores_all.size > 0 and np.sum(scaled_sig_weights) > 0:
             signal_hist, _ = weighted_hist_and_var(
-                np.asarray(sig_scores, dtype=np.float64),
+                np.asarray(sig_scores_all, dtype=np.float64),
                 score_bins,
                 scaled_sig_weights,
             )
@@ -3068,6 +3258,20 @@ def main() -> None:
     )
 
     mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
+
+    # ── Page 4: Significance evolution (AN Fig. 33 analog) ──────────────────
+    fig_sig_evolution = build_significance_evolution_figure(scan_history)
+
+    # ── Page 5: Atanh BDT + S/√B (AN Fig. 34 analog) ───────────────────────
+    fig_vbf_transformed = build_vbf_bdt_transformed_figure(
+        era_payloads=era_payloads,
+        edges=edges,
+        args=args,
+        mass_bins=mass_bins,
+        mc_weight_scale=mc_scale,
+    )
+
+    # ── Page 6: Blinded mass sideband ───────────────────────────────────────
     fig_mass, _m_dhist, _m_dvar, _m_hists, _m_vars, _m_tot, _m_tot_var = make_stacked_ratio_figure(
         title="Blinded m_mumu spectrum: sideband data points with MC expectation",
         xlabel="m_mumu [GeV]",
@@ -3079,6 +3283,7 @@ def main() -> None:
         show_mc_unc_band=False,
     )
 
+    # ── Page 7: Per-category mass + background model fits (AN Fig. 36) ──────
     fig_cat_mass, fit_cols, fit_rows = build_category_mass_grid(
         era_payloads=era_payloads,
         edges=edges,
@@ -3087,8 +3292,10 @@ def main() -> None:
         mc_weight_scale=mc_scale,
     )
 
+    # ── Category summary (needs DCB fits per category) ───────────────────────
     cat_summary = summarize_categories(era_payloads, edges, args, mc_weight_scale=mc_scale)
 
+    # ── Page 9: VBF DCB signal extraction (AN Fig. 38) ──────────────────────
     fig_vbf_bdt, dcb_cols, dcb_rows = build_vbf_signal_dcb_grid(
         era_payloads=era_payloads,
         edges=edges,
@@ -3098,17 +3305,17 @@ def main() -> None:
         cat_summary=cat_summary,
     )
 
-    fig_vbf_transformed = build_vbf_bdt_transformed_figure(
+    # ── Additional: FWHM vs BDT score (AN Fig. 22 analog) ───────────────────
+    fig_fwhm_vs_bdt = build_fwhm_vs_bdt_figure(
         era_payloads=era_payloads,
-        edges=edges,
         args=args,
         mass_bins=mass_bins,
-        mc_weight_scale=mc_scale,
     )
 
     cat_cols, cat_rows = build_category_summary_table(edges, cat_summary)
     cat_proc_cols, cat_proc_rows = build_category_process_table(edges, cat_summary)
 
+    # ── Assemble PDF ─────────────────────────────────────────────────────────
     report_name = args.report_name.strip() if args.report_name else None
     if not report_name:
         era_label = "_".join(sorted(era_payloads.keys())) if era_payloads else "run3"
@@ -3116,34 +3323,83 @@ def main() -> None:
     report_path = report_name if os.path.isabs(report_name) else os.path.join(args.outdir, report_name)
 
     with PdfPages(report_path) as pdf:
+        # ── 1. Cover ──────────────────────────────────────────────────────────
         add_text_page(
             pdf,
-            "Run-3 BDT Sideband Validation Report",
+            "Run-3 VBF BDT Sideband Validation Report",
             [
-                f"Outputs directory: {args.outputs_dir}",
-                f"Eras used: {', '.join(sorted(era_payloads.keys()))}",
-                f"Extra cut: {args.extra_cut if args.extra_cut else '(none)'}",
-                f"Blinding window: {args.blind_min:.0f} < m_mumu < {args.blind_max:.0f} GeV",
-                f"Sidebands: ({args.sb1_min:.0f}, {args.sb1_max:.0f}) U ({args.sb2_min:.0f}, {args.sb2_max:.0f}) GeV",
-                f"Optimized category edges: {', '.join([f'{x:.4f}' for x in edges])}",
+                f"Outputs directory : {args.outputs_dir}",
+                f"Eras used         : {', '.join(sorted(era_payloads.keys()))}",
+                f"Extra cut         : {args.extra_cut if args.extra_cut else '(none)'}",
+                f"Blinding window   : {args.blind_min:.0f} < m_mumu < {args.blind_max:.0f} GeV",
+                f"Sidebands         : ({args.sb1_min:.0f}, {args.sb1_max:.0f}) U "
+                f"({args.sb2_min:.0f}, {args.sb2_max:.0f}) GeV",
+                f"Optimized edges   : {', '.join([f'{x:.4f}' for x in edges])}",
+                "",
+                "Report contents:",
+                "  p.2  BDT score: Data vs stacked MC (full mass window)",
+                "  p.3  BDT bin table: signal / background / sensitivity",
+                "  p.4  Significance evolution vs. n categories  [AN Fig. 33]",
+                "  p.5  Atanh-transformed BDT + S/sqrtB per bin  [AN Fig. 34]",
+                "  p.6  FWHM of signal peak vs. VBF BDT score    [AN Fig. 22]",
+                "  p.7  Blinded m_mumu: sideband data vs. MC",
+                "  p.8  Per-category mass: background model fits  [AN Fig. 36]",
+                "  p.9  Background model fit comparison table",
+                "  p.10 VBF signal DCB extraction per category   [AN Fig. 38]",
+                "  p.11 DCB fit parameter table",
+                "  p.12 Optimised category summary",
+                "  p.13 Category process composition",
             ],
         )
+
+        # ── 2. BDT score ──────────────────────────────────────────────────────
         pdf.savefig(fig_score)
-        add_table_pages(pdf, "BDT bin summary: signal, background, and sensitivity", bdt_cols, bdt_rows, max_rows=20)
+
+        # ── 3. BDT bin table ──────────────────────────────────────────────────
+        add_table_pages(pdf, "BDT bin summary: signal, background, and sensitivity",
+                        bdt_cols, bdt_rows, max_rows=20)
+
+        # ── 4. Significance evolution (AN Fig. 33) ───────────────────────────
+        pdf.savefig(fig_sig_evolution)
+
+        # ── 5. Atanh BDT + S/√B (AN Fig. 34) ────────────────────────────────
         pdf.savefig(fig_vbf_transformed)
+
+        # ── 6. FWHM vs BDT score (AN Fig. 22) ────────────────────────────────
+        pdf.savefig(fig_fwhm_vs_bdt)
+
+        # ── 7. Blinded mass sideband ──────────────────────────────────────────
         pdf.savefig(fig_mass)
+
+        # ── 8. Per-category mass + bkg fits (AN Fig. 36) ─────────────────────
         pdf.savefig(fig_cat_mass)
+
+        # ── 9. Background model fit comparison table ──────────────────────────
+        add_table_pages(pdf, "Per-category background model fit comparison (chi2/ndf, ndf)",
+                        fit_cols, fit_rows, max_rows=20)
+
+        # ── 10. VBF DCB signal extraction (AN Fig. 38) ───────────────────────
         pdf.savefig(fig_vbf_bdt)
-        add_table_pages(pdf, "VBF signal DCB fit parameters per category", dcb_cols, dcb_rows, max_rows=20)
-        add_table_pages(pdf, "Per-category full-range fit comparison (chi2/ndf, ndf)", fit_cols, fit_rows, max_rows=20)
-        add_table_pages(pdf, "Optimized category summary", cat_cols, cat_rows, max_rows=20)
-        add_table_pages(pdf, "Category composition by process (full mass window)", cat_proc_cols, cat_proc_rows, max_rows=20)
+
+        # ── 11. DCB parameter table ───────────────────────────────────────────
+        add_table_pages(pdf, "VBF signal DCB fit parameters per category",
+                        dcb_cols, dcb_rows, max_rows=20)
+
+        # ── 12. Category summary ──────────────────────────────────────────────
+        add_table_pages(pdf, "Optimised category summary (HWHM-windowed S and B)",
+                        cat_cols, cat_rows, max_rows=20)
+
+        # ── 13. Process composition ────────────────────────────────────────────
+        add_table_pages(pdf, "Category composition by process (full mass window)",
+                        cat_proc_cols, cat_proc_rows, max_rows=20)
 
     plt.close(fig_score)
     plt.close(fig_mass)
     plt.close(fig_cat_mass)
     plt.close(fig_vbf_bdt)
     plt.close(fig_vbf_transformed)
+    plt.close(fig_sig_evolution)
+    plt.close(fig_fwhm_vs_bdt)
 
     logger.info("Wrote report PDF: %s", report_path)
     print(f"[done] Wrote report: {report_path}")
