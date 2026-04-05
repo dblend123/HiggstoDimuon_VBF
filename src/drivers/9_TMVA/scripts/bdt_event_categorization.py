@@ -146,6 +146,10 @@ def parse_args() -> argparse.Namespace:
                    help="ERA:/path/data1.root[,/path/data2.root]")
     p.add_argument("--mc-era", action="append", default=[],
                    help="ERA:PROC:/path/mc1.root[,/path/mc2.root] (repeat)")
+    p.add_argument("--bkg-exclude", default="ggh",
+                   help="Comma-separated canonical process names to drop from background MC "
+                        "(matched via canonical_proc; default: 'ggh' to exclude ggH->mumu). "
+                        "Pass '' to disable.")
 
     p.add_argument("--score-nbins", type=int, default=40)
     p.add_argument("--score-min", type=float, default=0.0)
@@ -418,7 +422,24 @@ def load_era_payload(
     mc_side_groups: List[Tuple[str, np.ndarray, np.ndarray]] = []
     mc_full_groups: List[Tuple[str, np.ndarray, np.ndarray, np.ndarray]] = []
 
+    # Build set of canonical process names to exclude from the background.
+    bkg_exclude: set = set()
+    raw_exclude = getattr(args, "bkg_exclude", "ggh") or ""
+    for _tok in raw_exclude.split(","):
+        _tok = _tok.strip().lower()
+        if _tok:
+            bkg_exclude.add(_tok)
+
     for proc, files in mc_entries:
+        cproc_check = canonical_proc(proc).lower()
+        if cproc_check in bkg_exclude:
+            logger.warning(
+                "%s: skipping MC process '%s' (canonical='%s') — excluded from "
+                "background by --bkg-exclude ('%s'). "
+                "This process likely peaks near 125 GeV and must not be treated as background.",
+                era, proc, canonical_proc(proc), raw_exclude,
+            )
+            continue
         try:
             arr_side = load_arrays(files, args.treename, [args.bdt_branch, args.weight_branch], sel_sb)
             s_side = arr_side[args.bdt_branch]
@@ -458,15 +479,17 @@ def load_era_payload(
         logger.warning("%s: empty sideband payload", era)
         return None
 
+    proc_names = ", ".join(canonical_proc(p) for p, _, _, _ in mc_full_groups)
     logger.info(
-        "%s: data(side)=%d, mc_procs(side)=%d, mass_branch=%s",
+        "%s: data(side)=%d, mc_procs(side)=%d [%s], mass_branch=%s",
         era,
         data_side_scores.size,
         len(mc_side_groups),
+        proc_names,
         mass_branch,
     )
 
-    # Per-era signal yield diagnostic
+    # Per-era signal and per-process sideband yield diagnostic
     sig_w_sum = float(np.sum(sig_full_weight)) if sig_full_weight.size > 0 else 0.0
     mc_side_w_sum = sum(float(np.sum(w)) for _p, _v, w in mc_side_groups)
     logger.info(
@@ -474,6 +497,8 @@ def load_era_payload(
         "N_data_sideband=%d",
         era, sig_w_sum, mc_side_w_sum, int(data_side_scores.size),
     )
+    for sp, _sv, sw in mc_side_groups:
+        logger.info("%s:   sideband MC proc %-10s: %.1f events (raw)", era, sp, float(np.sum(sw)))
 
     return {
         "era": era,
@@ -3223,6 +3248,38 @@ def main() -> None:
                 "summary table will be unreliable until the normalization is fixed.",
                 mc_scale, sum_mc_side, n_data_side,
             )
+            # Per-process breakdown: compare sideband vs blinded signal window density
+            # to identify any process peaking near 125 GeV (e.g. ggH included as background).
+            sb_width = (args.sb1_max - args.sb1_min) + (args.sb2_max - args.sb2_min)
+            sigwin_width = args.blind_max - args.blind_min
+            proc_b_side: Dict[str, float] = {}
+            proc_b_sigwin: Dict[str, float] = {}
+            for payload in era_payloads.values():
+                for proc, _sc, m_mass, m_w in payload["mc_full_groups"]:  # type: ignore[index]
+                    cproc = canonical_proc(proc)
+                    m_mass = np.asarray(m_mass, dtype=np.float64)
+                    m_w_sc = np.asarray(m_w, dtype=np.float64) * mc_scale
+                    sb_mask = sideband_mass_mask(m_mass, args)
+                    sigwin_mask = (m_mass >= args.blind_min) & (m_mass <= args.blind_max)
+                    proc_b_side[cproc] = proc_b_side.get(cproc, 0.0) + float(np.sum(m_w_sc[sb_mask]))
+                    proc_b_sigwin[cproc] = proc_b_sigwin.get(cproc, 0.0) + float(np.sum(m_w_sc[sigwin_mask]))
+            logger.warning(
+                "Per-process B breakdown (mc_scale corrected, scaled to data):  "
+                "%-12s %10s %12s %12s",
+                "Process", "B_sideband", "B_signalwin", "Ratio/GeV",
+            )
+            all_procs = sorted(set(list(proc_b_side) + list(proc_b_sigwin)))
+            for cproc in all_procs:
+                b_sb = proc_b_side.get(cproc, 0.0)
+                b_sw = proc_b_sigwin.get(cproc, 0.0)
+                dens_sb = b_sb / sb_width if sb_width > 0 else 0.0
+                dens_sw = b_sw / sigwin_width if sigwin_width > 0 else 0.0
+                ratio = dens_sw / dens_sb if dens_sb > 1e-9 else float("inf")
+                logger.warning("  %-12s %10.2f %12.2f %12.3f", cproc, b_sb, b_sw, ratio)
+            logger.warning(
+                "  Ratio/GeV > 1 signals a process that peaks in the signal window "
+                "(e.g. ggH->mumu); such processes should not be in the background MC."
+            )
         # Log total signal yield across all eras for cross-check
         total_sig_w = sum(
             float(np.sum(np.asarray(p["sig_full_weight"], dtype=np.float64)))
@@ -3230,7 +3287,7 @@ def main() -> None:
         )
         logger.info(
             "Signal yield check: sum(sig_full_weight) over all eras = %.3f events "
-            "(cross-check: at ~current lumi, VBF H->mumu expect O(1-20) events)",
+            "(cross-check: VBF H->mumu at full Run3 lumi expect O(10-100) events depending on selection)",
             total_sig_w,
         )
 
