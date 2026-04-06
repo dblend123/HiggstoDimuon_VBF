@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--outputs-dir", default=bec.DEFAULT_OUTPUTS_DIR)
     p.add_argument("--outdir", default=bec.DEFAULT_OUTDIR)
-    p.add_argument("--output-name", default="bdt_publishable_figures.pdf")
+    p.add_argument("--output-name", default="bdt_figures.pdf")
 
     p.add_argument("--eras", nargs="*", default=None)
 

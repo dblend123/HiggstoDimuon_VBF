@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import math
+from typing import List, Tuple
+
 import numpy as np
 import ROOT
 
@@ -884,3 +887,286 @@ def run_bias_test_matrix(shape_inputs, mu_true=1.0, n_toys=30, threshold=0.20, s
         "threshold": threshold,
         "n_toys": int(n_toys),
     }
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# VBF BDT transformation and category optimisation utilities
+# Extracted from bdt_event_categorization for modularity.
+# ────────────────────────────────────────────────────────────────────────────
+
+# Clipping guard for atanh (avoid ±∞ at score boundaries)
+_ATANH_EPS = 1e-7
+
+
+def baker_cousins_chi2(obs: np.ndarray, exp: np.ndarray) -> Tuple[float, int]:
+    """Baker-Cousins Poisson chi2 and degrees-of-freedom count.
+
+    chi2_BC = 2 * sum_i [ exp_i - obs_i + obs_i * ln(obs_i / exp_i) ]
+    where the sum runs over ALL bins (zero-obs bins contribute exp_i).
+    ndf = number of bins with (obs > 0 OR exp > 0).
+
+    Reference: Baker & Cousins (1984), NIM A 221 437.
+    Used in AN2019_090 Sec. 8, Table 27.
+    """
+    obs = np.asarray(obs, dtype=np.float64)
+    exp = np.asarray(exp, dtype=np.float64)
+    exp_safe = np.maximum(exp, 1e-30)
+    chi2_val = 0.0
+    for o_i, e_i in zip(obs, exp_safe):
+        if o_i > 0:
+            chi2_val += 2.0 * (e_i - o_i + o_i * math.log(o_i / e_i))
+        else:
+            chi2_val += 2.0 * e_i
+    ndf = int(np.count_nonzero((obs > 0) | (exp > 0)))
+    return max(chi2_val, 0.0), ndf
+
+
+def baker_cousins_chi2ndf(obs: np.ndarray, exp: np.ndarray, n_params: int) -> float:
+    """Return chi2_BC / (ndf - n_params), clamped to avoid division by zero."""
+    chi2_val, ndf = baker_cousins_chi2(obs, exp)
+    dof = max(ndf - n_params, 1)
+    return chi2_val / float(dof)
+
+
+def _bdt_transform(scores: np.ndarray) -> np.ndarray:
+    """Map BDT score in (-1, 1) to the atanh-transformed space.
+
+    Formula: atanh((score + 1) / 2) — matches AN2019_090 Fig. 34.
+    """
+    x = np.clip(
+        (np.asarray(scores, dtype=np.float64) + 1.0) / 2.0,
+        _ATANH_EPS,
+        1.0 - _ATANH_EPS,
+    )
+    return np.arctanh(x)
+
+
+def _bdt_inverse(t: np.ndarray) -> np.ndarray:
+    """Inverse of _bdt_transform: maps atanh space back to (-1, 1)."""
+    return 2.0 * np.tanh(np.asarray(t, dtype=np.float64)) - 1.0
+
+
+def _hwhm_window_from_sigma(mean: float, sigma: float) -> Tuple[float, float]:
+    """Return (lo, hi) of the ±HWHM mass window around the signal peak.
+
+    HWHM = sigma * sqrt(2 * ln 2) ≈ 1.1774 * sigma.
+    S/√B is evaluated inside this window (AN2019_090 Sec. 6.1).
+    """
+    hwhm = 1.1774 * float(sigma)
+    return float(mean) - hwhm, float(mean) + hwhm
+
+
+def _sig_bkg_in_hwhm(
+    era_payloads: dict,
+    lo: float,
+    hi: float,
+    mass_lo: float,
+    mass_hi: float,
+    mc_weight_scale: float,
+) -> Tuple[float, float]:
+    """Sum signal and background yields inside the HWHM window for a BDT slice.
+
+    Parameters
+    ----------
+    era_payloads : dict returned by load_era_payload (one entry per era).
+    lo, hi : BDT score range [lo, hi).
+    mass_lo, mass_hi : HWHM mass window boundaries.
+    mc_weight_scale : overall MC normalisation scale factor.
+
+    Returns
+    -------
+    (s_total, b_total) summed over all eras.
+    """
+    s_total = 0.0
+    b_total = 0.0
+    for payload in era_payloads.values():
+        s_sc   = np.asarray(payload["sig_full_scores"],  dtype=np.float64)
+        s_mass = np.asarray(payload["sig_full_mass"],    dtype=np.float64)
+        s_w    = np.asarray(payload["sig_full_weight"],  dtype=np.float64)
+        if s_sc.size > 0 and s_mass.size > 0 and s_w.size > 0:
+            sel = (s_sc >= lo) & (s_sc < hi) & (s_mass >= mass_lo) & (s_mass <= mass_hi)
+            s_total += float(np.sum(s_w[sel]))
+        for _proc, m_sc, m_mass, m_w in payload["mc_full_groups"]:
+            m_sc   = np.asarray(m_sc,   dtype=np.float64)
+            m_mass = np.asarray(m_mass, dtype=np.float64)
+            m_w    = np.asarray(m_w,    dtype=np.float64) * float(mc_weight_scale)
+            sel = (m_sc >= lo) & (m_sc < hi) & (m_mass >= mass_lo) & (m_mass <= mass_hi)
+            b_total += float(np.sum(m_w[sel]))
+    return s_total, b_total
+
+
+def _bin_yields_t(
+    t_scores: np.ndarray, weights: np.ndarray, edges_t: np.ndarray
+) -> np.ndarray:
+    """Histogram event weights into atanh-transformed BDT score bins."""
+    bin_idx = np.clip(np.digitize(t_scores, edges_t) - 1, 0, len(edges_t) - 2)
+    return np.bincount(bin_idx, weights=weights, minlength=len(edges_t) - 1).astype(np.float64)
+
+
+def _bin_yields_t_hwhm(
+    t_scores: np.ndarray,
+    weights: np.ndarray,
+    mass: np.ndarray,
+    mass_lo: float,
+    mass_hi: float,
+    edges_t: np.ndarray,
+) -> np.ndarray:
+    """Like _bin_yields_t but restricted to events inside the HWHM mass window."""
+    in_window = (mass >= mass_lo) & (mass <= mass_hi)
+    if not np.any(in_window):
+        return np.zeros(len(edges_t) - 1, dtype=np.float64)
+    bin_idx = np.clip(
+        np.digitize(t_scores[in_window], edges_t) - 1, 0, len(edges_t) - 2
+    )
+    return np.bincount(
+        bin_idx, weights=weights[in_window], minlength=len(edges_t) - 1
+    ).astype(np.float64)
+
+
+def _combined_asimov_z(s_yields: np.ndarray, b_yields: np.ndarray) -> float:
+    """Multi-bin Asimov significance summed in quadrature over categories.
+
+    Uses the exact Poisson log-likelihood ratio: 2[(s+b) ln(1 + s/b) - s].
+    """
+    total = 0.0
+    for s, b in zip(s_yields, b_yields):
+        if b < 1e-12 or s <= 0.0:
+            continue
+        total += 2.0 * ((s + b) * float(np.log1p(s / b)) - s)
+    return float(np.sqrt(max(total, 0.0)))
+
+
+def iterative_greedy_category_scan(
+    sig_scores: np.ndarray,
+    sig_weights: np.ndarray,
+    bkg_scores: np.ndarray,
+    bkg_weights: np.ndarray,
+    max_n: int = 4,
+    min_improvement: float = 0.01,
+    min_sig: float = 1e-6,
+    min_bkg: float = 1e-6,
+    sig_mass: np.ndarray = None,
+    bkg_mass: np.ndarray = None,
+    hwhm_mass_lo: float = 0.0,
+    hwhm_mass_hi: float = float("inf"),
+    logger=None,
+) -> Tuple[np.ndarray, List[Tuple[int, float]]]:
+    """Iterative greedy VBF BDT category optimisation.
+
+    Scans candidate boundaries at signal quantile positions (1% steps in the
+    atanh-transformed BDT space).  At each iteration the boundary that gives
+    the largest Asimov significance gain is added.  The scan stops when the
+    marginal gain is below *min_improvement* or *max_n* categories are reached.
+
+    Algorithm matches AN2019_090 Sec. 6.1 (default: 4 VBF categories).
+
+    Parameters
+    ----------
+    sig_scores, sig_weights : VBF signal BDT scores and event weights.
+    bkg_scores, bkg_weights : background BDT scores and event weights.
+    max_n : maximum number of output categories (AN default = 4 for VBF).
+    min_improvement : minimum relative Asimov-Z gain to accept a boundary (1%).
+    min_sig, min_bkg : minimum per-bin full-mass yields (guard rail).
+    sig_mass, bkg_mass : optional mass arrays; when provided, significance is
+        evaluated inside the HWHM window [hwhm_mass_lo, hwhm_mass_hi].
+    logger : optional Python logger for step-by-step diagnostics.
+
+    Returns
+    -------
+    edges : 1-D array of optimised BDT score boundaries in [0, 1].
+    scan_history : list of (n_categories, Z_asimov) tuples for plotting.
+    """
+    sig_scores  = np.asarray(sig_scores,  dtype=np.float64)
+    bkg_scores  = np.asarray(bkg_scores,  dtype=np.float64)
+    sig_weights = np.asarray(sig_weights, dtype=np.float64)
+    bkg_weights = np.asarray(bkg_weights, dtype=np.float64)
+
+    use_hwhm = (
+        sig_mass is not None
+        and bkg_mass is not None
+        and np.isfinite(hwhm_mass_lo)
+        and np.isfinite(hwhm_mass_hi)
+        and hwhm_mass_hi > hwhm_mass_lo
+    )
+    if use_hwhm:
+        sig_mass_arr = np.asarray(sig_mass, dtype=np.float64)
+        bkg_mass_arr = np.asarray(bkg_mass, dtype=np.float64)
+    else:
+        sig_mass_arr = bkg_mass_arr = None
+
+    t_sig = _bdt_transform(sig_scores)
+    t_bkg = _bdt_transform(bkg_scores)
+    t_lo = float(np.min(t_sig))
+    t_hi = float(np.max(t_sig))
+    q_levels = np.linspace(0.01, 0.99, 99)
+    cands = np.unique(np.quantile(t_sig, q_levels))
+    cands = cands[(cands > t_lo) & (cands < t_hi)]
+
+    def _get_yields(trial_edges):
+        if use_hwhm:
+            s_yields = _bin_yields_t_hwhm(
+                t_sig, sig_weights, sig_mass_arr, hwhm_mass_lo, hwhm_mass_hi, trial_edges
+            )
+            b_yields = _bin_yields_t_hwhm(
+                t_bkg, bkg_weights, bkg_mass_arr, hwhm_mass_lo, hwhm_mass_hi, trial_edges
+            )
+        else:
+            s_yields = _bin_yields_t(t_sig, sig_weights, trial_edges)
+            b_yields = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
+        return s_yields, b_yields
+
+    baseline_edges = np.array([t_lo, t_hi])
+    prev_z = _combined_asimov_z(*_get_yields(baseline_edges))
+    scan_history: List[Tuple[int, float]] = [(1, prev_z)]
+    current_interior: List[float] = []
+
+    for step in range(max_n - 1):
+        remaining = set(cands.tolist()) - set(current_interior)
+        if not remaining:
+            break
+        best_cand_t = None
+        best_z = -1.0
+        for ct in remaining:
+            trial_interior = sorted(current_interior + [ct])
+            trial_edges = np.array([t_lo] + trial_interior + [t_hi])
+            s_yields, b_yields = _get_yields(trial_edges)
+            s_full = _bin_yields_t(t_sig, sig_weights, trial_edges)
+            b_full = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
+            if np.any(s_full < min_sig) or np.any(b_full < min_bkg):
+                continue
+            z = _combined_asimov_z(s_yields, b_yields)
+            if z > best_z:
+                best_z = z
+                best_cand_t = ct
+
+        if best_cand_t is None:
+            break
+        rel_gain = (best_z - prev_z) / max(prev_z, 1e-12)
+        if rel_gain < min_improvement:
+            if logger:
+                logger.info(
+                    "  Step %d: gain %.2f%% < threshold; stopping at n=%d.",
+                    step + 1,
+                    rel_gain * 100.0,
+                    len(current_interior) + 1,
+                )
+            break
+        current_interior.append(best_cand_t)
+        prev_z = best_z
+        scan_history.append((len(current_interior) + 1, best_z))
+        if logger:
+            logger.info(
+                "  Step %d: added t'=%.4f -> n=%d cats, Z=%.4f (gain +%.2f%%)",
+                step + 1,
+                best_cand_t,
+                len(current_interior) + 1,
+                best_z,
+                rel_gain * 100.0,
+            )
+
+    if not current_interior:
+        return np.array([0.0, 1.0], dtype=np.float64), scan_history
+    interior_orig = _bdt_inverse(np.array(current_interior))
+    edges_orig = np.concatenate([[0.0], np.sort(interior_orig), [1.0]])
+    edges_orig = np.unique(np.clip(edges_orig, 0.0, 1.0))
+    return edges_orig, scan_history

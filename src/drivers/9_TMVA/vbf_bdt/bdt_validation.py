@@ -13,19 +13,21 @@ ROLE IN THE WORKFLOW
 This script is complementary to ``bdt_event_categorization.py``, which is
 the primary multi-era categorization and sideband-validation report.
 
-  bdt_analysis.py               — shared utility library (import only)
-  bdt_event_categorization.py   — MAIN script: multi-era sideband validation,
-                                   category optimisation, 9-page blinded report
-  vbf_bdt_validation.py         — THIS script: single-era diagnostic report
-                                   (KS folds, ROC, feature cross-check, …)
-  bdt_publishable_figures.py    — Thin wrapper that calls bdt_event_categ
-                                   functions and emits a figure-only PDF
-  significance_inference.py     — Post-categorisation significance scan
+Directory: vbf_bdt/
+
+  bdt_analysis.py           — shared utility library (import only)
+  bdt_event_categorization.py — MAIN script: multi-era sideband validation,
+                                 category optimisation, blinded report
+  bdt_validation.py         — THIS script: single-era diagnostic report
+                               (KS folds, ROC, feature cross-check, …)
+  bdt_figures.py            — Thin wrapper that calls bdt_event_categorization
+                               functions and emits a figure-only PDF
+  significance_inference.py — BDT math, chi2, significance scan utilities
 
 SHARED HELPERS
 --------------
-All weight-handling, file discovery, and histogram utilities are imported from
-``bdt_analysis``.  No duplicate implementations should exist here.
+All weight-handling, file discovery, and histogram utilities should be imported
+from ``bdt_analysis``.  No duplicate implementations should exist here.
 """
 
 import argparse
@@ -58,6 +60,16 @@ except Exception:
         "y_mumu", "pt_mumu", "jet1_eta", "deta_jj", "dphi_jj", "njets",
         "pt_j1", "pt_j2", "dphi_mumu_jj", "deta_mumu_jj", "phi_CS", "costheta_CS",
     ]
+
+# Shared pure-math utilities from the utility library
+from bdt_analysis import (
+    weighted_mean_std,
+    weighted_corr,
+    asimov_q,
+    multi_bin_asimov_z,
+    ks_2samp,
+    compute_roc,
+)
 
 
 PROC_ORDER = ["DY", "DYVBF", "EWK", "TOP", "VV", "VVV", "GGH", "VBF", "BACKGROUND", "SIGNAL", "OTHER"]
@@ -476,92 +488,9 @@ def ks_profile_status(d_val: float, p_val: float, p_min: float, d_max: float) ->
     return "FAIL"
 
 
-# sanitize_weights is imported from bdt_analysis at the top of this file.
-# A re-definition here has been removed to avoid shadowing the shared version.
-
-
-def weighted_mean_std(values: np.ndarray, weights: np.ndarray) -> Tuple[float, float]:
-    values = np.asarray(values, dtype=np.float64)
-    weights = np.asarray(weights, dtype=np.float64)
-    if values.size == 0:
-        return float("nan"), float("nan")
-    sw = weights.sum()
-    if sw <= 0:
-        return float("nan"), float("nan")
-    mean = float(np.sum(weights * values) / sw)
-    var = float(np.sum(weights * (values - mean) ** 2) / sw)
-    return mean, math.sqrt(max(var, 0.0))
-
-
-def weighted_corr(x: np.ndarray, y: np.ndarray, w: np.ndarray) -> float:
-    x = np.asarray(x, dtype=np.float64)
-    y = np.asarray(y, dtype=np.float64)
-    w = np.asarray(w, dtype=np.float64)
-    if x.size == 0:
-        return float("nan")
-    sw = w.sum()
-    if sw <= 0:
-        return float("nan")
-    mx = np.sum(w * x) / sw
-    my = np.sum(w * y) / sw
-    cov = np.sum(w * (x - mx) * (y - my)) / sw
-    vx = np.sum(w * (x - mx) ** 2) / sw
-    vy = np.sum(w * (y - my) ** 2) / sw
-    if vx <= 0 or vy <= 0:
-        return float("nan")
-    return float(cov / math.sqrt(vx * vy))
-
-
-def asimov_q(s: float, b: float) -> float:
-    if s <= 0 or b <= 0:
-        return 0.0
-    return float(2.0 * ((s + b) * math.log(1.0 + s / max(b, 1e-12)) - s))
-
-
-def multi_bin_asimov_z(s_bins: np.ndarray, b_bins: np.ndarray) -> float:
-    q = 0.0
-    for s, b in zip(s_bins, b_bins):
-        q += asimov_q(float(s), float(b))
-    return math.sqrt(max(q, 0.0))
-
-
-def ks_2samp(x: np.ndarray, y: np.ndarray) -> Tuple[float, float]:
-    x = np.sort(np.asarray(x, dtype=np.float64))
-    y = np.sort(np.asarray(y, dtype=np.float64))
-    nx, ny = x.size, y.size
-    if nx == 0 or ny == 0:
-        return 0.0, 0.0
-    i = j = 0
-    d = 0.0
-    while i < nx and j < ny:
-        if x[i] <= y[j]:
-            i += 1
-        else:
-            j += 1
-        d = max(d, abs(i / nx - j / ny))
-    en = math.sqrt(nx * ny / (nx + ny))
-    lam = (en + 0.12 + 0.11 / en) * d
-    p = 0.0
-    for k in range(1, 101):
-        p += 2.0 * ((-1.0) ** (k - 1)) * math.exp(-2.0 * (k * k) * (lam * lam))
-    p = float(np.clip(p, 0.0, 1.0))
-    return d, p
-
-
-def compute_roc(sig_scores: np.ndarray, sig_w: np.ndarray, bkg_scores: np.ndarray, bkg_w: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    if sig_scores.size == 0 or bkg_scores.size == 0:
-        return np.array([]), np.array([])
-    scores = np.concatenate([sig_scores, bkg_scores])
-    labels = np.concatenate([np.ones_like(sig_scores), np.zeros_like(bkg_scores)])
-    weights = np.concatenate([sig_w, bkg_w])
-    order = np.argsort(scores)[::-1]
-    labels = labels[order]
-    weights = weights[order]
-    tps = np.cumsum(weights * (labels == 1))
-    fps = np.cumsum(weights * (labels == 0))
-    tpr = tps / max(tps[-1], 1e-12)
-    fpr = fps / max(fps[-1], 1e-12)
-    return fpr, tpr
+# The following pure-math utilities are imported from bdt_analysis above:
+# weighted_mean_std, weighted_corr, asimov_q, multi_bin_asimov_z,
+# ks_2samp, compute_roc.
 
 
 def interpolate_tpr_at_fpr(fpr: np.ndarray, tpr: np.ndarray, target: float) -> float:
@@ -1061,7 +990,7 @@ def main() -> None:
             pdf,
             f"VBF BDT Validation - {args.era}",
             [
-                "Streamlined standalone script: vbf_bdt_validation.py",
+                "Standalone per-era diagnostic script: bdt_validation.py",
                 "Logic references: ScanYields / PlotScored / MassSculpt / KS_perfold / DataMC",
                 f"Resolved branches: {branch_map}",
             ],

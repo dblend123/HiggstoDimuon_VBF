@@ -3,7 +3,7 @@ cd /eos/user/m/memmad/HiggstoDimuon_VBF
 export MPLBACKEND=Agg
 
 OUT=src/drivers/9_TMVA/Outputs
-SCRIPT=src/drivers/9_TMVA/scripts/vbf_bdt_validation.py
+SCRIPT=src/drivers/9_TMVA/vbf_bdt/bdt_validation.py
 
 for era in 12022 12023 22022 22023 2024; do
   ODIR="$OUT/VBFValidation/$era"
