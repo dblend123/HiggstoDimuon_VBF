@@ -959,6 +959,50 @@ def fit_signal_dcb_template(centers, mass_bins, h_signal, args):
     return pred
 
 
+def _dcb_smooth_curve(x: np.ndarray, params: dict, total_yield: float,
+                      mass_min: float, mass_max: float) -> np.ndarray:
+    """Evaluate the fitted DCB as a smooth curve at arbitrary x positions.
+
+    Returns Events/GeV (i.e. PDF × total_yield), ready to plot with ax.plot().
+    The PDF is the double-sided Crystal Ball:
+      - Gaussian core for |t| within [alpha_l, alpha_r]
+      - Power-law tails outside, matched continuously at the transition points.
+    """
+    mean    = params["mean"]
+    sigma   = max(params["sigma"], 1e-6)
+    alpha_l = params["alpha_l"]
+    n_l     = params["n_l"]
+    alpha_r = params["alpha_r"]
+    n_r     = params["n_r"]
+
+    t = (x - mean) / sigma
+    pdf = np.zeros_like(x, dtype=np.float64)
+
+    core  = (t >= -alpha_l) & (t <= alpha_r)
+    left  = t < -alpha_l
+    right = t > alpha_r
+
+    pdf[core] = np.exp(-0.5 * t[core] ** 2)
+
+    if np.any(left):
+        A_l = (n_l / alpha_l) ** n_l * math.exp(-0.5 * alpha_l ** 2)
+        B_l = n_l / alpha_l - alpha_l
+        pdf[left] = A_l * np.power(np.maximum(B_l - t[left], 1e-30), -n_l)
+
+    if np.any(right):
+        A_r = (n_r / alpha_r) ** n_r * math.exp(-0.5 * alpha_r ** 2)
+        B_r = n_r / alpha_r - alpha_r
+        pdf[right] = A_r * np.power(np.maximum(B_r + t[right], 1e-30), -n_r)
+
+    # Integrate via trapezoid to find normalisation constant
+    norm = float(np.trapz(pdf, x))
+    if norm <= 0.0:
+        return np.zeros_like(x)
+
+    # Convert to Events/GeV: PDF × total_yield
+    return pdf * (total_yield / norm)
+
+
 def compute_group_hists(groups, bins):
     out, out_var = {}, {}
     total = np.zeros(len(bins)-1, dtype=np.float64)
@@ -1024,6 +1068,18 @@ def make_stacked_ratio_figure(
             alpha=0.88, label=proc, zorder=1,
         )
         base = base + hh
+
+    # Draw cumulative-boundary outline for each layer so sub-dominant
+    # backgrounds are visible even when DY dominates.
+    cumulative = np.zeros(len(bins)-1, dtype=np.float64)
+    for proc, _vals, _weights in plot_groups:
+        hh = mc_hists.get(proc, None)
+        if hh is None or np.sum(hh) <= 0:
+            continue
+        cumulative = cumulative + hh
+        color = _proc_color_improved(proc)
+        ax_top.step(centers, cumulative, where="mid",
+                    color=color, linewidth=1.3, alpha=0.9, zorder=4)
 
     if np.any(mc_sum > 0):
         ax_top.step(centers, mc_sum, where="mid",
@@ -1211,7 +1267,6 @@ def build_roc_curve_figure(
         ax.plot(bkg_eff, sig_eff, color=color, linewidth=2.0,
                 label=f"Era {era}  (AUC = {auc:.3f})")
 
-    ax.plot([0, 1], [0, 1], color="#AAAAAA", linewidth=1.0, linestyle=":", label="Random")
     ax.set_xlabel("Background efficiency", fontsize=12)
     ax.set_ylabel("Signal efficiency", fontsize=12)
     ax.set_xlim(0, 1); ax.set_ylim(0, 1)
@@ -1428,7 +1483,7 @@ def build_sb_diagnostic_figure(
 # ────────────────────────────────────────────────────────────────────────────
 
 def build_bdt_signal_background_table(bins, signal_hist, bkg_hist, bkg_var, data_hist):
-    columns = ["BDT bin", "Total signal", "Bkg. ± ΔB", "Data", "S/(S+B) (%)", "S/√B"]
+    columns = ["BDT bin", "Total signal", "Bkg. ± ΔB", "Data", "S/(S+B) (%)"]
     rows = []
     nbins = len(bins) - 1
     for i in range(nbins):
@@ -1437,11 +1492,10 @@ def build_bdt_signal_background_table(bins, signal_hist, bkg_hist, bkg_var, data
         db = math.sqrt(max(float(bkg_var[i]), 0.0)) if i < bkg_var.size else 0.0
         d  = float(data_hist[i])   if i < data_hist.size   else 0.0
         purity = (100.0 * s / (s + b)) if (s + b) > 0 else 0.0
-        signif = (s / math.sqrt(b)) if b > 0 else 0.0
         rows.append([
             f"[{bins[i]:.3f}, {bins[i+1]:.3f})",
             f"{s:.3f}", f"{b:.2f} ± {db:.2f}", f"{int(round(d))}",
-            f"{purity:.2f}", f"{signif:.3f}",
+            f"{purity:.2f}",
         ])
     return columns, rows
 
@@ -1612,7 +1666,7 @@ def build_category_mass_grid(era_payloads, edges, args, mass_bins, mc_weight_sca
                           hspace=0.38, wspace=0.30)
     top_axes, residual_axes = [], []
     centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
-    fit_columns = ["Category", "BDT range", "Best model", "Best χ²_BC/ndf", "S/√B",
+    fit_columns = ["Category", "BDT range", "Best model", "Best χ²_BC/ndf",
                    "BWZRedux", "BWZGamma", "BWZ×Bern", "Landau×Bern",
                    "Bernstein", "S-PowerLaw", "S-Exponential"]
     fit_rows = []
@@ -1709,8 +1763,7 @@ def build_category_mass_grid(era_payloads, edges, args, mass_bins, mc_weight_sca
         ax.grid(alpha=0.22)
         ax.tick_params(labelbottom=False)
         ax.text(0.02, 0.40,
-                f"Best: {best_model}\n$\\chi^2_{{\\mathrm{{BC}}}}$/ndf = {best_chi2ndf:.3f}\n"
-                f"S/$\\sqrt{{B}}$ = {signif:.3f}",
+                f"Best: {best_model}\n$\\chi^2_{{\\mathrm{{BC}}}}$/ndf = {best_chi2ndf:.3f}",
                 transform=ax.transAxes, va="top", ha="left", fontsize=7.5,
                 bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.88,
                           edgecolor="#CCCCCC"))
@@ -1721,7 +1774,7 @@ def build_category_mass_grid(era_payloads, edges, args, mass_bins, mc_weight_sca
         model_order = ["BWZRedux", "BWZGamma", "BWZ\u00d7Bern", "Landau\u00d7Bern",
                        "Bernstein", "S-PowerLaw", "S-Exponential"]
         row_data = [str(i), f"[{lo:.3f}, {hi:.3f})", best_model,
-                    f"{best_chi2ndf:.3f}", f"{signif:.3f}"]
+                    f"{best_chi2ndf:.3f}"]
         for model_name in model_order:
             if model_name in model_stats:
                 chi2_bc, ndf = model_stats[model_name]
@@ -1773,7 +1826,7 @@ def build_vbf_signal_dcb_grid(era_payloads, edges, args, mass_bins,
     bin_width = float(mass_bins[1] - mass_bins[0])
 
     dcb_cols = ["Category", "BDT range", "N_sig", "Mean [GeV]", "Sigma [GeV]",
-                "alpha_L", "n_L", "alpha_R", "n_R", "FWHM [GeV]", "S/√B", "Asimov Z",
+                "alpha_L", "n_L", "alpha_R", "n_R", "FWHM [GeV]", "Asimov Z",
                 "χ²_BC/ndf"]
     dcb_rows = []
     all_params = []  # collect for sigma-vs-category figure
@@ -1819,8 +1872,11 @@ def build_vbf_signal_dcb_grid(era_payloads, edges, args, mass_bins,
         ax.fill_between(centers, h_sig_gev, step="mid",
                         color=_CMS_BLUE, alpha=0.18, zorder=1)
 
-        if np.sum(pred_dcb_gev) > 0.0:
-            ax.step(centers, pred_dcb_gev, where="mid",
+        if params and np.sum(pred_dcb) > 0.0:
+            x_smooth = np.linspace(float(args.mass_min), float(args.mass_max), 500)
+            y_smooth = _dcb_smooth_curve(x_smooth, params, n_sig_total,
+                                         float(args.mass_min), float(args.mass_max))
+            ax.plot(x_smooth, y_smooth,
                     color=_CMS_RED, linewidth=2.4,
                     label="DCB fit", zorder=3)
 
@@ -1843,7 +1899,6 @@ def build_vbf_signal_dcb_grid(era_payloads, edges, args, mass_bins,
                 f"$\\alpha_L$ = {params['alpha_l']:.3f},  $n_L$ = {params['n_l']:.2f}\n"
                 f"$\\alpha_R$ = {params['alpha_r']:.3f},  $n_R$ = {params['n_r']:.2f}\n"
                 f"FWHM $\\approx$ {fwhm:.3f} GeV\n"
-                f"S/$\\sqrt{{B}}$ = {sbsqrtb:.3f}{rel_flag}\n"
                 + chi2_str
             )
         else:
@@ -1866,7 +1921,6 @@ def build_vbf_signal_dcb_grid(era_payloads, edges, args, mass_bins,
             f"{params['alpha_r']:.4f}" if params else "n/a",
             f"{params['n_r']:.3f}"     if params else "n/a",
             f"{fwhm:.3f}" if math.isfinite(fwhm) else "n/a",
-            f"{sbsqrtb:.3f}",
             f"{asimov_z:.3f}",
             chi2_str_row,
         ])
