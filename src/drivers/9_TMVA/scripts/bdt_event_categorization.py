@@ -1366,8 +1366,9 @@ def build_sb_diagnostic_figure(
 ) -> plt.Figure:
     """Per-category S, B, and significance diagnostic table.
 
-    Low-statistics categories (B_HWHM < threshold) are merged into a single
-    combined row rather than shown individually with warning flags.
+    Each category is shown as its own row.  The greedy scan enforces
+    B_HWHM >= _B_HWHM_MIN_RELIABLE for every category, so no post-hoc
+    merging is needed here.
     """
     ncat = len(edges) - 1
 
@@ -1379,9 +1380,7 @@ def build_sb_diagnostic_figure(
         "S/√B", "Asimov Z",
     ]
 
-    reliable_rows: List[List[str]] = []
-    merged: Dict[str, float] = {}
-    merged_indices: List[int] = []
+    rows: List[List[str]] = []
 
     for i in range(ncat):
         vals = cat_summary.get(i, {})
@@ -1391,47 +1390,16 @@ def build_sb_diagnostic_figure(
         b_hwhm = float(vals.get("mc_hwhm_total",  0.0))
         mlo    = float(vals.get("hwhm_mass_lo",   0.0))
         mhi    = float(vals.get("hwhm_mass_hi",   0.0))
-        reliable = b_hwhm >= _B_HWHM_MIN_RELIABLE
 
-        if reliable:
-            signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
-            az = math.sqrt(max(0.0, 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm))) \
-                if b_hwhm > 1e-12 and s_hwhm > 0 else 0.0
-            reliable_rows.append([
-                str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
-                f"{s_full:.2f}", f"{b_full:.2f}",
-                f"{s_hwhm:.3f}", f"{b_hwhm:.3f}",
-                f"[{mlo:.1f}, {mhi:.1f}]",
-                f"{signif:.3f}", f"{az:.3f}",
-            ])
-        else:
-            logger.warning(
-                "Cat %d: B_HWHM=%.3f < %.1f — merged into combined low-stats row.",
-                i, b_hwhm, _B_HWHM_MIN_RELIABLE,
-            )
-            merged_indices.append(i)
-            merged["s_full"]  = merged.get("s_full",  0.0) + s_full
-            merged["b_full"]  = merged.get("b_full",  0.0) + b_full
-            merged["s_hwhm"]  = merged.get("s_hwhm",  0.0) + s_hwhm
-            merged["b_hwhm"]  = merged.get("b_hwhm",  0.0) + b_hwhm
-            # Use the HWHM window of the last merged category as representative
-            merged["mlo"] = mlo; merged["mhi"] = mhi
-
-    rows: List[List[str]] = list(reliable_rows)
-    if merged_indices:
-        bm = merged.get("b_hwhm", 0.0); sm = merged.get("s_hwhm", 0.0)
-        signif_m = sm / math.sqrt(bm) if bm > 0 else 0.0
-        az_m = math.sqrt(max(0.0, 2.0 * ((sm + bm) * math.log1p(sm / bm) - sm))) \
-               if bm > 1e-12 and sm > 0 else 0.0
-        idx_label = "+".join(str(j) for j in merged_indices)
-        bdt_range = f"[{edges[merged_indices[0]]:.3f}, {edges[merged_indices[-1]+1]:.3f})"
-        mlo_m = merged.get("mlo", 0.0); mhi_m = merged.get("mhi", 0.0)
+        signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
+        az = math.sqrt(max(0.0, 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm))) \
+            if b_hwhm > 1e-12 and s_hwhm > 0 else 0.0
         rows.append([
-            f"Cat {idx_label} (merged)", bdt_range,
-            f"{merged.get('s_full',0):.2f}", f"{merged.get('b_full',0):.2f}",
-            f"{sm:.3f}", f"{bm:.3f}",
-            f"[{mlo_m:.1f}, {mhi_m:.1f}]",
-            f"{signif_m:.3f}", f"{az_m:.3f}",
+            str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+            f"{s_full:.2f}", f"{b_full:.2f}",
+            f"{s_hwhm:.3f}", f"{b_hwhm:.3f}",
+            f"[{mlo:.1f}, {mhi:.1f}]",
+            f"{signif:.3f}", f"{az:.3f}",
         ])
 
     n_display = len(rows)
@@ -1452,8 +1420,6 @@ def build_sb_diagnostic_figure(
         if r == 0:
             cell.set_facecolor("#1A237E")
             cell.set_text_props(weight="bold", color="white")
-        elif r > 0 and "merged" in rows[r - 1][0]:
-            cell.set_facecolor("#FFF8E1")  # soft amber for merged row
         elif r % 2 == 0:
             cell.set_facecolor("#E8EAF6")
         else:
@@ -1576,10 +1542,9 @@ def summarize_categories(era_payloads, edges, args, mc_weight_scale=1.0):
 def build_category_summary_table(edges, summary):
     """Build summary table.
 
-    All categories flagged low-stats (B_HWHM < threshold) are merged into a
-    single combined row so the table stays readable.  The combined Asimov Z
-    footer row adds the per-category Asimov Z terms in quadrature across all
-    reliable categories only.
+    Each category occupies its own row.  The greedy scan enforces
+    B_HWHM >= _B_HWHM_MIN_RELIABLE for every category, so all rows are
+    statistically meaningful.  The Combined footer sums Z in quadrature.
     """
     columns = [
         "Category", "BDT range",
@@ -1589,18 +1554,12 @@ def build_category_summary_table(edges, summary):
         "B_HWHM",
     ]
     ncat = len(edges) - 1
-    reliable_rows = []
-    # Accumulate all low-stats categories together
-    merged: Dict[str, float] = {}
-    merged_indices: List[int] = []
-
+    rows = []
     combined_z_sum = 0.0
 
     for i in range(ncat):
         vals = summary.get(i, {})
         b_hwhm = float(vals.get("mc_hwhm_total", 0.0))
-        reliable = b_hwhm >= _B_HWHM_MIN_RELIABLE
-
         d_side  = float(vals.get("data_side_count", 0.0))
         m_side  = float(vals.get("mc_side_total",   0.0))
         me2_s   = float(vals.get("mc_side_total_err2", 0.0))
@@ -1608,56 +1567,18 @@ def build_category_summary_table(edges, summary):
         me2_f   = float(vals.get("mc_full_total_err2", 0.0))
         s_hwhm  = float(vals.get("sig_hwhm_total",  0.0))
 
-        if reliable:
-            ratio  = d_side / m_side if m_side > 0 else 0.0
-            signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
-            term   = 0.0
-            if b_hwhm > 1e-12 and s_hwhm > 0:
-                term = 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)
-                combined_z_sum += max(term, 0.0)
-            cat_z = math.sqrt(max(term, 0.0))
-            reliable_rows.append([
-                str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
-                f"{d_side:.0f}", f"{m_side:.2f} ± {math.sqrt(max(me2_s,0)):.2f}",
-                f"{ratio:.3f}", f"{m_full:.2f} ± {math.sqrt(max(me2_f,0)):.2f}",
-                f"{signif:.4f}", f"{cat_z:.4f}", f"{b_hwhm:.3f}",
-            ])
-        else:
-            merged_indices.append(i)
-            merged["d_side"]  = merged.get("d_side",  0.0) + d_side
-            merged["m_side"]  = merged.get("m_side",  0.0) + m_side
-            merged["me2_s"]   = merged.get("me2_s",   0.0) + me2_s
-            merged["m_full"]  = merged.get("m_full",  0.0) + m_full
-            merged["me2_f"]   = merged.get("me2_f",   0.0) + me2_f
-            merged["s_hwhm"]  = merged.get("s_hwhm",  0.0) + s_hwhm
-            merged["b_hwhm"]  = merged.get("b_hwhm",  0.0) + b_hwhm
-
-    rows = list(reliable_rows)
-
-    # Append merged low-stats row
-    if merged_indices:
-        bm = merged.get("b_hwhm", 0.0)
-        sm = merged.get("s_hwhm", 0.0)
-        dm = merged.get("d_side", 0.0)
-        mm = merged.get("m_side", 0.0)
-        mfm = merged.get("m_full", 0.0)
-        ratio_m = dm / mm if mm > 0 else 0.0
-        signif_m = sm / math.sqrt(bm) if bm > 0 else 0.0
-        term_m = 0.0
-        if bm > 1e-12 and sm > 0:
-            term_m = 2.0 * ((sm + bm) * math.log1p(sm / bm) - sm)
-            combined_z_sum += max(term_m, 0.0)
-        cat_z_m = math.sqrt(max(term_m, 0.0))
-        idx_label = "+".join(str(j) for j in merged_indices)
-        bdt_range = f"[{edges[merged_indices[0]]:.3f}, {edges[merged_indices[-1]+1]:.3f})"
+        ratio  = d_side / m_side if m_side > 0 else 0.0
+        signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
+        term   = 0.0
+        if b_hwhm > 1e-12 and s_hwhm > 0:
+            term = 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)
+            combined_z_sum += max(term, 0.0)
+        cat_z = math.sqrt(max(term, 0.0))
         rows.append([
-            f"Cat {idx_label} (merged)",
-            bdt_range,
-            f"{dm:.0f}",
-            f"{mm:.2f} ± {math.sqrt(max(merged.get('me2_s',0),0)):.2f}",
-            f"{ratio_m:.3f}",
-            f"{mfm:.2f} ± {math.sqrt(max(merged.get('me2_f',0),0)):.2f}",
-            f"{signif_m:.4f}", f"{cat_z_m:.4f}", f"{bm:.3f}",
+            str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+            f"{d_side:.0f}", f"{m_side:.2f} ± {math.sqrt(max(me2_s,0)):.2f}",
+            f"{ratio:.3f}", f"{m_full:.2f} ± {math.sqrt(max(me2_f,0)):.2f}",
+            f"{signif:.4f}", f"{cat_z:.4f}", f"{b_hwhm:.3f}",
         ])
 
     combined_z = math.sqrt(max(combined_z_sum, 0.0))
@@ -1914,9 +1835,8 @@ def build_vbf_signal_dcb_grid(era_payloads, edges, args, mass_bins,
         ax.grid(alpha=0.22)
         _cms_label(ax)
 
-        # Reliability flag for significance
+        # Significance annotation
         b_hwhm = float(_summary_i.get("mc_hwhm_total", 0.0))
-        rel_flag = "" if b_hwhm >= _B_HWHM_MIN_RELIABLE else " ★"
 
         if params:
             fwhm = 2.355 * params["sigma"]
@@ -1927,7 +1847,7 @@ def build_vbf_signal_dcb_grid(era_payloads, edges, args, mass_bins,
                 f"$\\alpha_L$ = {params['alpha_l']:.3f},  $n_L$ = {params['n_l']:.2f}\n"
                 f"$\\alpha_R$ = {params['alpha_r']:.3f},  $n_R$ = {params['n_r']:.2f}\n"
                 f"FWHM $\\approx$ {fwhm:.3f} GeV\n"
-                f"S/$\\sqrt{{B}}$ = {sbsqrtb:.3f}{rel_flag}\n"
+                f"S/$\\sqrt{{B}}$ = {sbsqrtb:.3f}\n"
                 + chi2_str
             )
         else:
@@ -2268,9 +2188,16 @@ def iterative_greedy_category_scan(
             trial_interior = sorted(current_interior + [ct])
             trial_edges = np.array([t_lo] + trial_interior + [t_hi])
             s_yields, b_yields = _get_yields(trial_edges)
-            s_full = _bin_yields_t(t_sig, sig_weights, trial_edges)
-            b_full = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
-            if np.any(s_full < min_sig) or np.any(b_full < min_bkg): continue
+            # When HWHM mode is active, use the HWHM-windowed yields for the
+            # per-bin minimum check.  This ensures every accepted category has
+            # at least min_bkg (= _B_HWHM_MIN_RELIABLE) expected background
+            # events in the signal window, preventing inflated S/sqrt(B).
+            if use_hwhm:
+                if np.any(s_yields < min_sig) or np.any(b_yields < min_bkg): continue
+            else:
+                s_full = _bin_yields_t(t_sig, sig_weights, trial_edges)
+                b_full = _bin_yields_t(t_bkg, bkg_weights, trial_edges)
+                if np.any(s_full < min_sig) or np.any(b_full < min_bkg): continue
             z = _combined_asimov_z(s_yields, b_yields)
             if z > best_z: best_z = z; best_cand_t = ct
 
@@ -2378,7 +2305,7 @@ def parse_category_edges_arg(text):
     return out
 
 
-def optimize_category_edges(args, fallback_eras, logger):
+def optimize_category_edges(args, fallback_eras, logger, mc_weight_scale=1.0):
     manual = parse_category_edges_arg(args.category_edges)
     if manual is not None:
         logger.info("Using user-provided category edges: %s", ", ".join([f"{x:.6f}" for x in manual]))
@@ -2417,7 +2344,10 @@ def optimize_category_edges(args, fallback_eras, logger):
             logger.warning("%s: failed loading optimization arrays: %s", era, exc); continue
 
         s_sc = s_arr[args.bdt_branch]; s_w = sanitize_weights(s_arr[args.weight_branch], args.abs_weights)
-        b_sc = b_arr[args.bdt_branch]; b_w = sanitize_weights(b_arr[args.weight_branch], args.abs_weights)
+        b_sc = b_arr[args.bdt_branch]
+        # Apply mc_weight_scale to background so the greedy scan sees realistic
+        # scaled B yields and the per-bin B_HWHM minimum is physically meaningful.
+        b_w = sanitize_weights(b_arr[args.weight_branch], args.abs_weights) * float(mc_weight_scale)
         if s_sc.size == 0 or b_sc.size == 0: continue
         sig_scores_chunks.append(s_sc); sig_weight_chunks.append(s_w)
         bkg_scores_chunks.append(b_sc); bkg_weight_chunks.append(b_w)
@@ -2449,9 +2379,17 @@ def optimize_category_edges(args, fallback_eras, logger):
         else:
             hwhm_mass_lo, hwhm_mass_hi = 123.09, 127.09
 
-    total_sig_yield = float(np.sum(sig_weights)); total_bkg_yield = float(np.sum(bkg_weights))
+    total_sig_yield = float(np.sum(sig_weights))
     adaptive_min_sig = min(args.multibin_min_sig, max(1e-6, total_sig_yield * 0.05))
-    adaptive_min_bkg = min(args.multibin_min_bkg, max(1e-6, total_bkg_yield * 0.05))
+    # When operating in HWHM mode (mass info available), use _B_HWHM_MIN_RELIABLE
+    # as the per-bin floor.  This is the physically motivated minimum: at least
+    # 1 expected background event in the signal HWHM window per category.
+    # The old adaptive 5%-of-total floor used unscaled weights and was too lax.
+    if sig_mass_all is not None:
+        adaptive_min_bkg = _B_HWHM_MIN_RELIABLE
+    else:
+        total_bkg_yield = float(np.sum(bkg_weights))
+        adaptive_min_bkg = min(args.multibin_min_bkg, max(1e-6, total_bkg_yield * 0.05))
 
     edges, scan_history = iterative_greedy_category_scan(
         sig_scores, sig_weights, bkg_scores, bkg_weights,
@@ -2491,19 +2429,11 @@ def main() -> None:
     if not era_payloads:
         raise SystemExit("[error] No valid era payloads were loaded.")
 
-    edges, scan_history = optimize_category_edges(args, eras, logger)
-
-    run3_data_full_scores = combine_data_full_scores(era_payloads)
+    # Compute mc_scale BEFORE category optimisation so the greedy scan can
+    # apply it to background weights and enforce a realistic per-category
+    # B_HWHM >= _B_HWHM_MIN_RELIABLE minimum during the scan itself.
     run3_data_side_mass   = combine_data_side_masses(era_payloads, args)
     run3_mc_score_side    = combine_mc_score_groups(era_payloads, region="side")
-    run3_mc_score_full    = combine_mc_score_groups(era_payloads, region="full")
-    run3_mc_mass_full     = combine_mc_mass_groups(era_payloads, args, region="full")
-
-    if run3_data_full_scores.size == 0:
-        raise SystemExit("[error] No data events found in full mass window.")
-    if not run3_mc_score_full:
-        raise SystemExit("[error] No full-window MC events found.")
-
     mc_scale = 1.0
     if args.mc_normalization == "sidebands":
         if not run3_mc_score_side:
@@ -2512,6 +2442,17 @@ def main() -> None:
         logger.info("MC normalization scale factor: %.6f", mc_scale)
         if mc_scale < 0.1 or mc_scale > 10.0:
             logger.warning("mc_scale=%.4f is far from 1 — check MC luminosity normalization.", mc_scale)
+
+    edges, scan_history = optimize_category_edges(args, eras, logger, mc_weight_scale=mc_scale)
+
+    run3_data_full_scores = combine_data_full_scores(era_payloads)
+    run3_mc_score_full    = combine_mc_score_groups(era_payloads, region="full")
+    run3_mc_mass_full     = combine_mc_mass_groups(era_payloads, args, region="full")
+
+    if run3_data_full_scores.size == 0:
+        raise SystemExit("[error] No data events found in full mass window.")
+    if not run3_mc_score_full:
+        raise SystemExit("[error] No full-window MC events found.")
 
     edges = trim_degenerate_top_categories(edges, era_payloads, args, mc_scale, logger)
     interior = np.asarray(edges[1:-1], dtype=np.float64)
