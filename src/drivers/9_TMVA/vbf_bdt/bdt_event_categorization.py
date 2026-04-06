@@ -2173,25 +2173,58 @@ def _gather_category_data(era_payloads, lo, hi, mass_bins, mc_weight_scale):
 
 
 def trim_degenerate_top_categories(edges, era_payloads, args, mc_weight_scale, logger):
+    """Remove top categories that are empty, fit-degenerate, or have lower
+    per-category Asimov Z than the category immediately below them.
+
+    The last case handles small-statistics artefacts where the highest-BDT
+    category accidentally collects more background than signal, breaking the
+    expected monotone sensitivity ordering (low cat → low Z, high cat → high Z).
+    Categories are merged from the top downward until the ordering is restored.
+    """
     edges = np.asarray(edges, dtype=np.float64).copy()
     mass_bins = np.linspace(args.mass_min, args.mass_max, args.mass_nbins + 1)
     centers = 0.5 * (mass_bins[:-1] + mass_bins[1:])
-    while edges.size > 2:
-        lo = float(edges[-2]); hi = float(edges[-1])
-        h_data, v_data, h_bkg, h_sig = _gather_category_data(era_payloads, lo, hi, mass_bins, mc_weight_scale)
+
+    def _cat_asimov_z(lo, hi):
+        """Return per-category Asimov Z for [lo, hi)."""
+        h_data, v_data, h_bkg, h_sig = _gather_category_data(
+            era_payloads, lo, hi, mass_bins, mc_weight_scale)
         if float(np.sum(h_data)) == 0.0 and float(np.sum(h_bkg)) == 0.0:
-            logger.info("Top category [%.3f, %.3f) is empty; merging.", lo, hi)
-            edges = np.concatenate([edges[:-2], [edges[-1]]]); continue
-        h_bkg_fit, best_model, best_chi2ndf, _, _ = fit_background_models_full(centers, h_data, v_data, args)
+            return 0.0, True  # empty → degenerate
+        h_bkg_fit, best_model, best_chi2ndf, _, _ = fit_background_models_full(
+            centers, h_data, v_data, args)
         h_sig_dcb = fit_signal_dcb_template(centers, mass_bins, h_sig, args)
-        b_total = float(np.sum(h_bkg_fit)); s_total = float(np.sum(h_sig_dcb))
-        signif = (s_total / math.sqrt(b_total)) if b_total > 0.0 else 0.0
-        is_degenerate = (best_model == "fallback_data" or not np.isfinite(best_chi2ndf) or signif == 0.0)
-        if is_degenerate:
-            logger.info("Top category [%.3f, %.3f) is degenerate; merging.", lo, hi)
+        b = float(np.sum(h_bkg_fit)); s = float(np.sum(h_sig_dcb))
+        degenerate = (best_model == "fallback_data"
+                      or not np.isfinite(best_chi2ndf) or s == 0.0)
+        if degenerate or b <= 0.0:
+            return 0.0, degenerate
+        z = math.sqrt(max(0.0, 2.0 * ((s + b) * math.log1p(s / b) - s)))
+        return z, False
+
+    while edges.size > 2:
+        lo_top  = float(edges[-2]); hi_top  = float(edges[-1])
+        z_top, degenerate = _cat_asimov_z(lo_top, hi_top)
+
+        if degenerate:
+            logger.info("Top category [%.3f, %.3f) is degenerate; merging.", lo_top, hi_top)
             edges = np.concatenate([edges[:-2], [edges[-1]]])
-        else:
-            break
+            continue
+
+        # Check monotonicity: top Z must be >= second-to-top Z
+        if edges.size > 3:
+            lo_prev = float(edges[-3]); hi_prev = float(edges[-2])
+            z_prev, _ = _cat_asimov_z(lo_prev, hi_prev)
+            if z_top < z_prev:
+                logger.info(
+                    "Top category [%.3f, %.3f) Z=%.4f < prev [%.3f, %.3f) Z=%.4f "
+                    "— non-monotone; merging top two.",
+                    lo_top, hi_top, z_top, lo_prev, hi_prev, z_prev,
+                )
+                edges = np.concatenate([edges[:-2], [edges[-1]]])
+                continue
+
+        break
     return edges
 
 
