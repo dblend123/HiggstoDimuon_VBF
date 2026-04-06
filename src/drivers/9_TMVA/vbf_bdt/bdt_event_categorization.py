@@ -2319,6 +2319,21 @@ def main() -> None:
     run3_mc_mass_full     = scale_mc_groups(run3_mc_mass_full, mc_scale)
     run3_mc_score_display = group_backgrounds_for_display(run3_mc_score_full)
 
+    # ── Display-only normalization ───────────────────────────────────────────
+    # Always sideband-normalize the two data/MC overview plots so data points
+    # sit on top of MC at the right scale. This does not affect mc_scale or any
+    # significance/Asimov/table computation.
+    if run3_mc_score_side:
+        display_mc_scale = compute_sideband_mc_scale(run3_data_side_mass, run3_mc_score_side)
+        logger.info("Display plot normalization (sideband scale): %.6f", display_mc_scale)
+    else:
+        display_mc_scale = mc_scale
+        logger.warning("No sideband MC for display normalization; falling back to mc_scale.")
+    # mc_score_display and mc_mass_full already carry mc_scale — apply the net factor
+    _display_net = display_mc_scale / mc_scale if mc_scale > 1e-12 else display_mc_scale
+    mc_for_score_plot = scale_mc_groups(run3_mc_score_display, _display_net)
+    mc_for_mass_plot  = scale_mc_groups(run3_mc_mass_full,     _display_net)
+
     era_label = ", ".join(sorted(era_payloads.keys()))
 
     # ── Page 2: BDT score ───────────────────────────────────────────────────
@@ -2328,7 +2343,7 @@ def main() -> None:
         xlabel="BDT score",
         bins=score_bins,
         data_values=run3_data_full_scores,
-        mc_groups=run3_mc_score_display,
+        mc_groups=mc_for_score_plot,
         logy=args.score_logy,
         category_band=category_band,
         show_mc_unc_band=False,
@@ -2376,7 +2391,7 @@ def main() -> None:
         xlabel="$m_{\\mu\\mu}$ [GeV]",
         bins=mass_bins,
         data_values=run3_data_side_mass,
-        mc_groups=run3_mc_mass_full,
+        mc_groups=mc_for_mass_plot,
         logy=False,
         blind_band=(args.blind_min, args.blind_max),
         show_mc_unc_band=False,
