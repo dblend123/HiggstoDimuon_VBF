@@ -278,7 +278,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--abs-weights", dest="abs_weights", action="store_true", default=True)
     p.add_argument("--signed-weights", dest="abs_weights", action="store_false")
     p.add_argument("--score-logy", action="store_true")
-    p.add_argument("--mc-normalization", choices=["none", "sidebands"], default="sidebands")
+    p.add_argument("--mc-normalization", choices=["none", "sidebands"], default="none")
     p.add_argument("--category-edges", default="")
     p.add_argument("--category-eras", nargs="*", default=None)
     p.add_argument("--multibin-min-n", type=int, default=4)
@@ -1350,8 +1350,8 @@ def build_sb_diagnostic_figure(
 ) -> plt.Figure:
     """Per-category S, B, and significance diagnostic table.
 
-    Low-statistics categories (B_HWHM < threshold) are merged into a single
-    combined row rather than shown individually with warning flags.
+    All categories are shown individually. Low-stats categories
+    (B_HWHM < threshold) are flagged with ★ but not merged.
     """
     ncat = len(edges) - 1
 
@@ -1363,9 +1363,7 @@ def build_sb_diagnostic_figure(
         "S/√B", "Asimov Z",
     ]
 
-    reliable_rows: List[List[str]] = []
-    merged: Dict[str, float] = {}
-    merged_indices: List[int] = []
+    rows: List[List[str]] = []
 
     for i in range(ncat):
         vals = cat_summary.get(i, {})
@@ -1377,45 +1375,22 @@ def build_sb_diagnostic_figure(
         mhi    = float(vals.get("hwhm_mass_hi",   0.0))
         reliable = b_hwhm >= _B_HWHM_MIN_RELIABLE
 
-        if reliable:
-            signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
-            az = math.sqrt(max(0.0, 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm))) \
-                if b_hwhm > 1e-12 and s_hwhm > 0 else 0.0
-            reliable_rows.append([
-                str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
-                f"{s_full:.2f}", f"{b_full:.2f}",
-                f"{s_hwhm:.3f}", f"{b_hwhm:.3f}",
-                f"[{mlo:.1f}, {mhi:.1f}]",
-                f"{signif:.3f}", f"{az:.3f}",
-            ])
-        else:
+        if not reliable:
             logger.warning(
-                "Cat %d: B_HWHM=%.3f < %.1f — merged into combined low-stats row.",
+                "Cat %d: B_HWHM=%.3f < %.1f (low stats ★).",
                 i, b_hwhm, _B_HWHM_MIN_RELIABLE,
             )
-            merged_indices.append(i)
-            merged["s_full"]  = merged.get("s_full",  0.0) + s_full
-            merged["b_full"]  = merged.get("b_full",  0.0) + b_full
-            merged["s_hwhm"]  = merged.get("s_hwhm",  0.0) + s_hwhm
-            merged["b_hwhm"]  = merged.get("b_hwhm",  0.0) + b_hwhm
-            # Use the HWHM window of the last merged category as representative
-            merged["mlo"] = mlo; merged["mhi"] = mhi
 
-    rows: List[List[str]] = list(reliable_rows)
-    if merged_indices:
-        bm = merged.get("b_hwhm", 0.0); sm = merged.get("s_hwhm", 0.0)
-        signif_m = sm / math.sqrt(bm) if bm > 0 else 0.0
-        az_m = math.sqrt(max(0.0, 2.0 * ((sm + bm) * math.log1p(sm / bm) - sm))) \
-               if bm > 1e-12 and sm > 0 else 0.0
-        idx_label = "+".join(str(j) for j in merged_indices)
-        bdt_range = f"[{edges[merged_indices[0]]:.3f}, {edges[merged_indices[-1]+1]:.3f})"
-        mlo_m = merged.get("mlo", 0.0); mhi_m = merged.get("mhi", 0.0)
+        signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
+        az = math.sqrt(max(0.0, 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm))) \
+            if b_hwhm > 1e-12 and s_hwhm > 0 else 0.0
+        flag = "" if reliable else " ★"
         rows.append([
-            f"Cat {idx_label} (merged)", bdt_range,
-            f"{merged.get('s_full',0):.2f}", f"{merged.get('b_full',0):.2f}",
-            f"{sm:.3f}", f"{bm:.3f}",
-            f"[{mlo_m:.1f}, {mhi_m:.1f}]",
-            f"{signif_m:.3f}", f"{az_m:.3f}",
+            str(i) + flag, f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+            f"{s_full:.2f}", f"{b_full:.2f}",
+            f"{s_hwhm:.3f}", f"{b_hwhm:.3f}",
+            f"[{mlo:.1f}, {mhi:.1f}]",
+            f"{signif:.3f}", f"{az:.3f}",
         ])
 
     n_display = len(rows)
@@ -1436,8 +1411,8 @@ def build_sb_diagnostic_figure(
         if r == 0:
             cell.set_facecolor("#1A237E")
             cell.set_text_props(weight="bold", color="white")
-        elif r > 0 and "merged" in rows[r - 1][0]:
-            cell.set_facecolor("#FFF8E1")  # soft amber for merged row
+        elif r > 0 and "★" in rows[r - 1][0]:
+            cell.set_facecolor("#FFF8E1")  # soft amber for low-stats row
         elif r % 2 == 0:
             cell.set_facecolor("#E8EAF6")
         else:
@@ -1560,10 +1535,8 @@ def summarize_categories(era_payloads, edges, args, mc_weight_scale=1.0):
 def build_category_summary_table(edges, summary):
     """Build summary table.
 
-    All categories flagged low-stats (B_HWHM < threshold) are merged into a
-    single combined row so the table stays readable.  The combined Asimov Z
-    footer row adds the per-category Asimov Z terms in quadrature across all
-    reliable categories only.
+    All categories are shown individually. Low-stats categories
+    (B_HWHM < threshold) are flagged with ★ but not merged.
     """
     columns = [
         "Category", "BDT range",
@@ -1573,11 +1546,7 @@ def build_category_summary_table(edges, summary):
         "B_HWHM",
     ]
     ncat = len(edges) - 1
-    reliable_rows = []
-    # Accumulate all low-stats categories together
-    merged: Dict[str, float] = {}
-    merged_indices: List[int] = []
-
+    rows = []
     combined_z_sum = 0.0
 
     for i in range(ncat):
@@ -1592,56 +1561,19 @@ def build_category_summary_table(edges, summary):
         me2_f   = float(vals.get("mc_full_total_err2", 0.0))
         s_hwhm  = float(vals.get("sig_hwhm_total",  0.0))
 
-        if reliable:
-            ratio  = d_side / m_side if m_side > 0 else 0.0
-            signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
-            term   = 0.0
-            if b_hwhm > 1e-12 and s_hwhm > 0:
-                term = 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)
-                combined_z_sum += max(term, 0.0)
-            cat_z = math.sqrt(max(term, 0.0))
-            reliable_rows.append([
-                str(i), f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
-                f"{d_side:.0f}", f"{m_side:.2f} ± {math.sqrt(max(me2_s,0)):.2f}",
-                f"{ratio:.3f}", f"{m_full:.2f} ± {math.sqrt(max(me2_f,0)):.2f}",
-                f"{signif:.4f}", f"{cat_z:.4f}", f"{b_hwhm:.3f}",
-            ])
-        else:
-            merged_indices.append(i)
-            merged["d_side"]  = merged.get("d_side",  0.0) + d_side
-            merged["m_side"]  = merged.get("m_side",  0.0) + m_side
-            merged["me2_s"]   = merged.get("me2_s",   0.0) + me2_s
-            merged["m_full"]  = merged.get("m_full",  0.0) + m_full
-            merged["me2_f"]   = merged.get("me2_f",   0.0) + me2_f
-            merged["s_hwhm"]  = merged.get("s_hwhm",  0.0) + s_hwhm
-            merged["b_hwhm"]  = merged.get("b_hwhm",  0.0) + b_hwhm
-
-    rows = list(reliable_rows)
-
-    # Append merged low-stats row
-    if merged_indices:
-        bm = merged.get("b_hwhm", 0.0)
-        sm = merged.get("s_hwhm", 0.0)
-        dm = merged.get("d_side", 0.0)
-        mm = merged.get("m_side", 0.0)
-        mfm = merged.get("m_full", 0.0)
-        ratio_m = dm / mm if mm > 0 else 0.0
-        signif_m = sm / math.sqrt(bm) if bm > 0 else 0.0
-        term_m = 0.0
-        if bm > 1e-12 and sm > 0:
-            term_m = 2.0 * ((sm + bm) * math.log1p(sm / bm) - sm)
-            combined_z_sum += max(term_m, 0.0)
-        cat_z_m = math.sqrt(max(term_m, 0.0))
-        idx_label = "+".join(str(j) for j in merged_indices)
-        bdt_range = f"[{edges[merged_indices[0]]:.3f}, {edges[merged_indices[-1]+1]:.3f})"
+        ratio  = d_side / m_side if m_side > 0 else 0.0
+        signif = s_hwhm / math.sqrt(b_hwhm) if b_hwhm > 0 else 0.0
+        term   = 0.0
+        if b_hwhm > 1e-12 and s_hwhm > 0:
+            term = 2.0 * ((s_hwhm + b_hwhm) * math.log1p(s_hwhm / b_hwhm) - s_hwhm)
+            combined_z_sum += max(term, 0.0)
+        cat_z = math.sqrt(max(term, 0.0))
+        flag = "" if reliable else " ★"
         rows.append([
-            f"Cat {idx_label} (merged)",
-            bdt_range,
-            f"{dm:.0f}",
-            f"{mm:.2f} ± {math.sqrt(max(merged.get('me2_s',0),0)):.2f}",
-            f"{ratio_m:.3f}",
-            f"{mfm:.2f} ± {math.sqrt(max(merged.get('me2_f',0),0)):.2f}",
-            f"{signif_m:.4f}", f"{cat_z_m:.4f}", f"{bm:.3f}",
+            str(i) + flag, f"[{edges[i]:.3f}, {edges[i+1]:.3f})",
+            f"{d_side:.0f}", f"{m_side:.2f} ± {math.sqrt(max(me2_s,0)):.2f}",
+            f"{ratio:.3f}", f"{m_full:.2f} ± {math.sqrt(max(me2_f,0)):.2f}",
+            f"{signif:.4f}", f"{cat_z:.4f}", f"{b_hwhm:.3f}",
         ])
 
     combined_z = math.sqrt(max(combined_z_sum, 0.0))
@@ -2373,9 +2305,11 @@ def main() -> None:
         if not run3_mc_score_side:
             raise SystemExit("[error] No sideband MC events found.")
         mc_scale = compute_sideband_mc_scale(run3_data_side_mass, run3_mc_score_side)
-        logger.info("MC normalization scale factor: %.6f", mc_scale)
+        logger.info("MC normalization: sideband scale factor = %.6f", mc_scale)
         if mc_scale < 0.1 or mc_scale > 10.0:
             logger.warning("mc_scale=%.4f is far from 1 — check MC luminosity normalization.", mc_scale)
+    else:
+        logger.info("MC normalization: lumi-weighted (scale = 1.0, following AN2019_090_UCSD)")
 
     edges = trim_degenerate_top_categories(edges, era_payloads, args, mc_scale, logger)
     interior = np.asarray(edges[1:-1], dtype=np.float64)
