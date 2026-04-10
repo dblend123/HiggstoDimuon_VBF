@@ -1,3 +1,7 @@
+//Example Run:
+//root -l
+//.L MassResolution_SCR.C
+//MassResolution_SCR("/eos/user/d/dblend/Analyzed_SkimmedFiles/2024/KIT/noJERC_noJetVeto_noBtagSF_noZPtRW/VBF/VBF_all.root", "2024")
 #include "TFile.h"
 #include "TKey.h"
 #include "TClass.h"

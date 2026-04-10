@@ -1,3 +1,7 @@
+// Example:
+// root -l
+// .L MassResolution_HSBSR.C
+// MassResolution_HSBSR(
 #include "TFile.h"
 #include "TH1.h"
 #include "THStack.h"
@@ -234,8 +238,8 @@ void MassResolution_HSBSR(const char* inputPath,
 
   gStyle->SetOptStat(0);
 
-  const double xmin = 110.0;
-  const double xmax = 150.0;
+  const double xmin = 115.0;
+  const double xmax = 135.0;
   const double blindLo = 120.0;
   const double blindHi = 130.0;
 

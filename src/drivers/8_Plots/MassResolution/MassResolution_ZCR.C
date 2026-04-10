@@ -1,5 +1,7 @@
-// MassResolution_ZCR_Voigt.C
-// Example:  MassResolution_ZCR("/eos/user/d/dblend/Analyzed_SkimmedFiles/12022/KIT/noJERC_noJetVeto_noBtagSF_noZPtRW/", "12022");
+// Example:
+// root -l
+// .L MassResolution_ZCR.C
+// MassResolution_ZCR("/eos/user/d/dblend/Analyzed_SkimmedFiles/12022/KIT/noJERC_noJetVeto_noBtagSF_noZPtRW/", "12022");
 #include "TFile.h"
 #include "TKey.h"
 #include "TClass.h"

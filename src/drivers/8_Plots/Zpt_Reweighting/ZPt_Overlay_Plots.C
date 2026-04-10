@@ -217,6 +217,21 @@ static void makeOneCategory(const std::string& outBase,
   if (hVV)  hMC->Add(hVV);
   if (hVVV) hMC->Add(hVVV);
 
+  std::cout << "\n[DEBUG] Category = " << catDir << "\n";
+  std::cout << "  hData : bins=" << hData->GetNbinsX()
+            << " xmin=" << hData->GetXaxis()->GetXmin()
+            << " xmax=" << hData->GetXaxis()->GetXmax() << "\n";
+  std::cout << "  hDY   : bins=" << hDY->GetNbinsX()
+            << " xmin=" << hDY->GetXaxis()->GetXmin()
+            << " xmax=" << hDY->GetXaxis()->GetXmax() << "\n";
+  std::cout << "  hMC   : bins=" << hMC->GetNbinsX()
+            << " xmin=" << hMC->GetXaxis()->GetXmin()
+            << " xmax=" << hMC->GetXaxis()->GetXmax() << "\n";
+  if (hEWK) std::cout << "  hEWK  : bins=" << hEWK->GetNbinsX() << "\n";
+  if (hTT)  std::cout << "  hTT   : bins=" << hTT->GetNbinsX() << "\n";
+  if (hVV)  std::cout << "  hVV   : bins=" << hVV->GetNbinsX() << "\n";
+  if (hVVV) std::cout << "  hVVV  : bins=" << hVVV->GetNbinsX() << "\n";
+
   // SFs
   TH1* sfDY = (TH1*)hData->Clone(("SF_DataOverDY_" + catDir).c_str());
   sfDY->SetDirectory(nullptr);

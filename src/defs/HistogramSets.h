@@ -9,7 +9,31 @@ namespace analysis
 {
 	namespace processing
 	{
-		struct MuonSet
+		struct VtxSet
+        {
+			VtxSet(TDirectory* parentDir, TString const& postfix)
+			    : _postfix(postfix)
+            {
+			    _dir = parentDir->mkdir(postfix);
+                _dir->cd();
+			
+                h_nPV_nom = new TH1F("h_nPV_nom", ";\nPV;Events", 100, 0, 100);
+                h_nPV_pu  = new TH1F("h_nPV_pu",  ";\nPV;Events", 100, 0, 100);
+                
+                parentDir->cd();
+            }
+                
+                ~VtxSet() {}
+
+                TDirectory* _dir;
+                TString _postfix;
+
+                TH1F *h_nPV_nom;
+                TH1F *h_nPV_pu;
+
+            };
+
+        struct MuonSet
 		{
 			MuonSet(TDirectory* parentDir, TString const& postfix)
 			    : _postfix(postfix)
@@ -19,9 +43,9 @@ namespace analysis
 			
                 // -----  DiMuon Plots  -----
 				hDiMuonMass         = new TH1F("DiMuonMass", "DiMuonMass", 130, 70, 200);
-				hDiMuonMass_Z       = new TH1F("DiMuonMass_Z", "DiMuonMass_Z", 120, 75, 105);
+				hDiMuonMass_Z       = new TH1F("DiMuonMass_Z", "DiMuonMass_Z", 120, 70, 110);
 				hDiMuonMass_Higgs   = new TH1F("DiMuonMass_Higgs", "DiMuonMass_Higgs", 180, 110, 150);
-                hDiMuonpt           = new TH1F("DiMuonpt", "DiMuonpt", 50, 0, 200);
+                hDiMuonpt           = new TH1F("DiMuonpt", "DiMuonpt", 60, 0, 200);
                 hDiMuoneta          = new TH1F("DiMuoneta", "DiMuoneta", 50, -2.5, 2.5);
                 hDiMuonrapidity     = new TH1F("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
                 hCollinsSoper       = new TH1F("CollinsSoper","CollinsSoper", 30, -3.2, 3.2);
@@ -106,7 +130,70 @@ namespace analysis
                 TH1F *hJet1eta;
                 TH1F *hJet2eta;
                 TH1F *hnJets;
-		};        
+		};      
+
+        struct BTagEffSet
+        {
+            BTagEffSet(TDirectory* parentDir, TString const& postfix)
+                : _postfix(postfix)
+            {
+                _dir = parentDir->mkdir(postfix);
+                _dir->cd();
+
+                const int nPtBins = 9;
+                double ptBins[nPtBins + 1] = {20, 30, 50, 70, 100, 140, 200, 300, 600, 1000};
+
+                const int nEtaBins = 4;
+                double etaBins[nEtaBins + 1] = {0.0, 0.8, 1.6, 2.0, 2.5};
+
+                // --- Loose WP ---
+                h_den_b_L = new TH2F("h_den_b_L", "b denom L;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+                h_num_b_L = new TH2F("h_num_b_L", "b numer L;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+
+                h_den_c_L = new TH2F("h_den_c_L", "c denom L;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+                h_num_c_L = new TH2F("h_num_c_L", "c numer L;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+
+                h_den_l_L = new TH2F("h_den_l_L", "light denom L;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+                h_num_l_L = new TH2F("h_num_l_L", "light numer L;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+
+                // --- Medium WP ---
+                h_den_b_M = new TH2F("h_den_b_M", "b denom M;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+                h_num_b_M = new TH2F("h_num_b_M", "b numer M;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+
+                h_den_c_M = new TH2F("h_den_c_M", "c denom M;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+                h_num_c_M = new TH2F("h_num_c_M", "c numer M;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+
+                h_den_l_M = new TH2F("h_den_l_M", "light denom M;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+                h_num_l_M = new TH2F("h_num_l_M", "light numer M;jet p_{T} [GeV];|#eta|",
+                                     nPtBins, ptBins, nEtaBins, etaBins);
+
+                parentDir->cd();
+            }
+
+            ~BTagEffSet() {}
+
+            TDirectory* _dir;
+            TString _postfix;
+
+            TH2F *h_den_b_L, *h_num_b_L;
+            TH2F *h_den_c_L, *h_num_c_L;
+            TH2F *h_den_l_L, *h_num_l_L;
+
+            TH2F *h_den_b_M, *h_num_b_M;
+            TH2F *h_den_c_M, *h_num_c_M;
+            TH2F *h_den_l_M, *h_num_l_M;
+        };
 
         struct FsrSet
 		{
@@ -298,79 +385,105 @@ namespace analysis
         
         struct HistSetCollection {
             
-            //Fsr blocks
+            // Fsr Block
             //analysis::processing::MuonSet& setDM_PreFsr;
             //analysis::processing::MuonSet& setDM_PostFsr;
 
-            //Pre-Selection blocks
+            // Vertex Block
+            analysis::processing::VtxSet& PileupReweighting_PreSelection;
+            analysis::processing::VtxSet& PileupReweighting_VBF;
+
+            // Z-Reweighting Block
             analysis::processing::MuonSet& corr_setDM_PreSelection_Z0j;
             analysis::processing::MuonSet& corr_setDM_PreSelection_Z1j;
             analysis::processing::MuonSet& corr_setDM_PreSelection_Z2j;
             analysis::processing::MuonSet& corr_setDM_PreSelection_wZpt_Z0j;
             analysis::processing::MuonSet& corr_setDM_PreSelection_wZpt_Z1j;
             analysis::processing::MuonSet& corr_setDM_PreSelection_wZpt_Z2j;
+           
+            // B-Tag Reweighting Block
+            analysis::processing::BTagEffSet& BTagEff_PreSelection;
+            analysis::processing::BTagEffSet& BTagEff_VBF;
+
+            // Pre-Selection Block
             analysis::processing::MuonSet& setDM_PreSelection;
             analysis::processing::MuonSet& corr_setDM_PreSelection;
+            analysis::processing::MuonSet& corr_setDM_PreSelection_Z;
+            analysis::processing::MuonSet& corr_setDM_PreSelection_SR;
             analysis::processing::JetSet&  setJet_PreSelection;
             analysis::processing::JetSet&  corr_setJet_PreSelection;
 
-            /*analysis::processing::MuonSet& setDM_PreSelection_BB;
+            analysis::processing::MuonSet& setDM_PreSelection_BB;
             analysis::processing::MuonSet& corr_setDM_PreSelection_BB;
             analysis::processing::JetSet& setJet_PreSelection_BB;
+            analysis::processing::JetSet& corr_setJet_PreSelection_BB;
 
             analysis::processing::MuonSet& setDM_PreSelection_BO;
             analysis::processing::MuonSet& corr_setDM_PreSelection_BO;
             analysis::processing::JetSet& setJet_PreSelection_BO;
+            analysis::processing::JetSet& corr_setJet_PreSelection_BO;
 
             analysis::processing::MuonSet& setDM_PreSelection_BE;
             analysis::processing::MuonSet& corr_setDM_PreSelection_BE;
             analysis::processing::JetSet& setJet_PreSelection_BE;
+            analysis::processing::JetSet& corr_setJet_PreSelection_BE;
 
             analysis::processing::MuonSet& setDM_PreSelection_OO;
             analysis::processing::MuonSet& corr_setDM_PreSelection_OO;
             analysis::processing::JetSet& setJet_PreSelection_OO;
+            analysis::processing::JetSet& corr_setJet_PreSelection_OO;
 
             analysis::processing::MuonSet& setDM_PreSelection_OE;
             analysis::processing::MuonSet& corr_setDM_PreSelection_OE;
             analysis::processing::JetSet& setJet_PreSelection_OE;
+            analysis::processing::JetSet& corr_setJet_PreSelection_OE;
 
             analysis::processing::MuonSet& setDM_PreSelection_EE;
             analysis::processing::MuonSet& corr_setDM_PreSelection_EE;
-            analysis::processing::JetSet& setJet_PreSelection_EE;*/
+            analysis::processing::JetSet& setJet_PreSelection_EE;
+            analysis::processing::JetSet& corr_setJet_PreSelection_EE;
 
-            // pre-dijet
+            // Pre-DiJet Block
             analysis::processing::JetSet& setJet_PreDiJet_VBF;
             analysis::processing::JetSet& corr_setJet_PreDiJet_VBF;
 
-            // VBF blocks
+            // VBF Block
             analysis::processing::MuonSet& setDM_VBF;
             analysis::processing::MuonSet& corr_setDM_VBF;
+            analysis::processing::MuonSet& corr_setDM_VBF_Z;
+            analysis::processing::MuonSet& corr_setDM_VBF_SR;
             analysis::processing::JetSet&  setJet_VBF;
             analysis::processing::JetSet&  corr_setJet_VBF;
 
-            /*analysis::processing::MuonSet& setDM_VBF_BB;
+            analysis::processing::MuonSet& setDM_VBF_BB;
             analysis::processing::MuonSet& corr_setDM_VBF_BB;
             analysis::processing::JetSet& setJet_VBF_BB;
+            analysis::processing::JetSet& corr_setJet_VBF_BB;
 
             analysis::processing::MuonSet& setDM_VBF_BO;
             analysis::processing::MuonSet& corr_setDM_VBF_BO;
             analysis::processing::JetSet& setJet_VBF_BO;
+            analysis::processing::JetSet& corr_setJet_VBF_BO;
 
             analysis::processing::MuonSet& setDM_VBF_BE;
             analysis::processing::MuonSet& corr_setDM_VBF_BE;
             analysis::processing::JetSet& setJet_VBF_BE;
+            analysis::processing::JetSet& corr_setJet_VBF_BE;
 
             analysis::processing::MuonSet& setDM_VBF_OO;
             analysis::processing::MuonSet& corr_setDM_VBF_OO;
             analysis::processing::JetSet& setJet_VBF_OO;
+            analysis::processing::JetSet& corr_setJet_VBF_OO;
 
             analysis::processing::MuonSet& setDM_VBF_OE;
             analysis::processing::MuonSet& corr_setDM_VBF_OE;
             analysis::processing::JetSet& setJet_VBF_OE;
+            analysis::processing::JetSet& corr_setJet_VBF_OE;
 
             analysis::processing::MuonSet& setDM_VBF_EE;
             analysis::processing::MuonSet& corr_setDM_VBF_EE;
-            analysis::processing::JetSet& setJet_VBF_EE;*/
+            analysis::processing::JetSet& setJet_VBF_EE;
+            analysis::processing::JetSet& corr_setJet_VBF_EE;
         };
     }
 }
