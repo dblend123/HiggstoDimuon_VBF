@@ -425,8 +425,11 @@ void MassResolution_ZCR_AllRegions(const char* fileListTxt,
               << "  Data mean = " << meanD.getVal() << " +/- " << meanD.getError()
               << "  MC mean = "   << meanM.getVal() << " +/- " << meanM.getError()
               << "\n";
-    
-    const double ratioPeak = (meanM.getVal() != 0.0 ? meanD.getVal() / meanM.getVal() : 0.0);
+
+    // --- peak summary ---
+    const double ratioPeak =
+      (meanM.getVal() != 0.0 ? meanD.getVal() / meanM.getVal() : 0.0);
+
     const double errRatioPeak =
       (meanD.getVal() > 0.0 && meanM.getVal() > 0.0)
       ? ratioPeak * std::sqrt(
@@ -434,80 +437,66 @@ void MassResolution_ZCR_AllRegions(const char* fileListTxt,
           std::pow(meanM.getError()/meanM.getVal(), 2))
       : 0.0;
 
-    const double diffMeV = 1000.0 * (meanD.getVal() - meanM.getVal());
-    const double errDiffMeV = 1000.0 * std::sqrt(
+    const double diffPeakMeV = 1000.0 * (meanD.getVal() - meanM.getVal());
+    const double errDiffPeakMeV = 1000.0 * std::sqrt(
       std::pow(meanD.getError(), 2) + std::pow(meanM.getError(), 2)
     );
 
+    // --- sigma68 summary ---
+    // Not propagated here yet; leave as 0 for now
+    const double errSigma68D = 0.0;
+    const double errSigma68M = 0.0;
+
+    const double ratioSigma68 =
+      (sigma68M != 0.0 ? sigma68D / sigma68M : 0.0);
+
+    const double errRatioSigma68 = 0.0;
+
+    const double diffSigma68MeV = 1000.0 * (sigma68D - sigma68M);
+    const double errDiffSigma68MeV = 0.0;
+
+    // --- fitted CB/core sigma summary ---
+    const double ratioSigmaCB =
+      (sigmaM.getVal() != 0.0 ? sigmaD.getVal() / sigmaM.getVal() : 0.0);
+
+    const double errRatioSigmaCB =
+      (sigmaD.getVal() > 0.0 && sigmaM.getVal() > 0.0)
+      ? ratioSigmaCB * std::sqrt(
+          std::pow(sigmaD.getError()/sigmaD.getVal(), 2) +
+          std::pow(sigmaM.getError()/sigmaM.getVal(), 2))
+      : 0.0;
+
+    const double diffSigmaCBMeV = 1000.0 * (sigmaD.getVal() - sigmaM.getVal());
+    const double errDiffSigmaCBMeV = 1000.0 * std::sqrt(
+      std::pow(sigmaD.getError(), 2) + std::pow(sigmaM.getError(), 2)
+    );
+
+    // --- FWHM-derived sigma summary ---
+    const double ratioSigmaFwhm =
+      (sigmaFromFwhmM != 0.0 ? sigmaFromFwhmD / sigmaFromFwhmM : 0.0);
+
+    const double diffSigmaFwhmMeV =
+      1000.0 * (sigmaFromFwhmD - sigmaFromFwhmM);
+
     fitOut << regionLabel << " "
-           << meanD.getVal()   << " "
-           << meanD.getError() << " "
-           << meanM.getVal()   << " "
-           << meanM.getError() << " "
-           << ratioPeak        << " "
-           << errRatioPeak     << " "
-           << diffMeV          << " "
-           << errDiffMeV       << "\n";
-        
-    const double ratioPeak = (meanM.getVal() != 0.0 ? meanD.getVal() / meanM.getVal() : 0.0);
-const double errRatioPeak =
-  (meanD.getVal() > 0.0 && meanM.getVal() > 0.0)
-  ? ratioPeak * std::sqrt(
-      std::pow(meanD.getError()/meanD.getVal(), 2) +
-      std::pow(meanM.getError()/meanM.getVal(), 2))
-  : 0.0;
+           << meanD.getVal() << " " << meanD.getError() << " "
+           << meanM.getVal() << " " << meanM.getError() << " "
+           << ratioPeak << " " << errRatioPeak << " "
+           << diffPeakMeV << " " << errDiffPeakMeV << " "
 
-const double diffPeakMeV = 1000.0 * (meanD.getVal() - meanM.getVal());
-const double errDiffPeakMeV = 1000.0 * std::sqrt(
-  std::pow(meanD.getError(), 2) + std::pow(meanM.getError(), 2)
-);
+           << sigma68D << " " << errSigma68D << " "
+           << sigma68M << " " << errSigma68M << " "
+           << ratioSigma68 << " " << errRatioSigma68 << " "
+           << diffSigma68MeV << " " << errDiffSigma68MeV << " "
 
-// --- sigma68 summary ---
-const double errSigma68D = meanD.getError() > -1 ? 0.0 : 0.0; // placeholder if you don't propagate it
-const double errSigma68M = meanM.getError() > -1 ? 0.0 : 0.0; // placeholder if you don't propagate it
+           << sigmaD.getVal() << " " << sigmaD.getError() << " "
+           << sigmaM.getVal() << " " << sigmaM.getError() << " "
+           << ratioSigmaCB << " " << errRatioSigmaCB << " "
+           << diffSigmaCBMeV << " " << errDiffSigmaCBMeV << " "
 
-const double ratioSigma68 = (sigma68M != 0.0 ? sigma68D / sigma68M : 0.0);
-const double errRatioSigma68 = 0.0; // not propagated here
-const double diffSigma68MeV = 1000.0 * (sigma68D - sigma68M);
-const double errDiffSigma68MeV = 0.0;
-
-// --- fitted CB/core sigma summary ---
-const double ratioSigmaCB = (sigmaM.getVal() != 0.0 ? sigmaD.getVal() / sigmaM.getVal() : 0.0);
-const double errRatioSigmaCB =
-  (sigmaD.getVal() > 0.0 && sigmaM.getVal() > 0.0)
-  ? ratioSigmaCB * std::sqrt(
-      std::pow(sigmaD.getError()/sigmaD.getVal(), 2) +
-      std::pow(sigmaM.getError()/sigmaM.getVal(), 2))
-  : 0.0;
-
-const double diffSigmaCBMeV = 1000.0 * (sigmaD.getVal() - sigmaM.getVal());
-const double errDiffSigmaCBMeV = 1000.0 * std::sqrt(
-  std::pow(sigmaD.getError(), 2) + std::pow(sigmaM.getError(), 2)
-);
-
-// --- FWHM-derived sigma summary ---
-const double ratioSigmaFwhm = (sigmaFromFwhmM != 0.0 ? sigmaFromFwhmD / sigmaFromFwhmM : 0.0);
-const double diffSigmaFwhmMeV = 1000.0 * (sigmaFromFwhmD - sigmaFromFwhmM);
-
-fitOut << regionLabel << " "
-       << meanD.getVal() << " " << meanD.getError() << " "
-       << meanM.getVal() << " " << meanM.getError() << " "
-       << ratioPeak << " " << errRatioPeak << " "
-       << diffPeakMeV << " " << errDiffPeakMeV << " "
-
-       << sigma68D << " " << errSigma68D << " "
-       << sigma68M << " " << errSigma68M << " "
-       << ratioSigma68 << " " << errRatioSigma68 << " "
-       << diffSigma68MeV << " " << errDiffSigma68MeV << " "
-
-       << sigmaD.getVal() << " " << sigmaD.getError() << " "
-       << sigmaM.getVal() << " " << sigmaM.getError() << " "
-       << ratioSigmaCB << " " << errRatioSigmaCB << " "
-       << diffSigmaCBMeV << " " << errDiffSigmaCBMeV << " "
-
-       << sigmaFromFwhmD << " " << sigmaFromFwhmM << " "
-       << ratioSigmaFwhm << " " << diffSigmaFwhmMeV
-       << "\n";
+           << sigmaFromFwhmD << " " << sigmaFromFwhmM << " "
+           << ratioSigmaFwhm << " " << diffSigmaFwhmMeV
+           << "\n";
 
     delete one;
     delete hRatio;
@@ -568,6 +557,4 @@ fitOut << regionLabel << " "
                "ZCR_" + reg.label + "_DiMuonMass_Z",
                reg.label);
   }
-    std::ofstream fitOut((outdir + "ZPeakSummary_" + TString(eraStr.c_str()) + ".txt").Data());
-    fitOut << "#region meanData errData meanMC errMC ratio errRatio diffMeV errDiffMeV\n";
 }

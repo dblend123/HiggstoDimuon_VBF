@@ -2050,25 +2050,25 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     const double phiCS      = std::atan2(lhat.Dot(ycs), lhat.Dot(xcs)); // [-π, π]
 
     // -------------------------------------
-    //              JETS  
+    //              JETS
     // -------------------------------------
 
     bool pass_bjet_veto = true;
     int n_loose_bjets   = 0;
     int n_medium_bjets  = 0;
     int n_tight_bjets   = 0;
-    float rho           = rhos->at(0)._fixedGridRhoFastjetAll;
+    const float rho     = rhos->at(0)._fixedGridRhoFastjetAll;
 
-    std::vector<TLorentzVector> p4jets;
-    p4jets.reserve(jets->size());
-
-    // Build the Jet list that mirrors p4jets for b-tag SFs
-    std::vector<analysis::core::Jet> btagJets;
-    btagJets.reserve(jets->size());
-
+    // Cache ParticleNet WPs once per event
     const float pnetL = pnetWPThreshold("L");
     const float pnetM = pnetWPThreshold("M");
     const float pnetT = pnetWPThreshold("T");
+
+    std::vector<TLorentzVector> p4jets;
+    std::vector<analysis::core::Jet> btagJets;
+
+    p4jets.reserve(jets->size());
+    btagJets.reserve(jets->size());
 
 /*std::cerr
 << "[BTAG WP DBG]"
@@ -2078,12 +2078,13 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
 << " T=" << pnetT
 << "\n";*/
 
+    // -------------------------------------
+    //   Event-level jet veto map decision
+    // -------------------------------------
     bool eventFailsJetVetoMap = false;
 
     if (!g_disableJetVeto) {
         for (const auto& j : *jets) {
-
-            // You want the veto decision based on corrected jet pt
             float genJetPt_veto = 0.f;
             bool hasGenJet_veto = false;
 
@@ -2093,8 +2094,10 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
                 hasGenJet_veto = true;
             }
 
-            int runNum_veto = __isMC ? 0 : static_cast<int>(event._run);
-            float corr_pt_veto = getCorrectedJetPt(j, rho, __isMC, genJetPt_veto, hasGenJet_veto, runNum_veto);
+            const int runNum_veto = __isMC ? 0 : static_cast<int>(event._run);
+            const float corr_pt_veto = getCorrectedJetPt(
+                j, rho, __isMC, genJetPt_veto, hasGenJet_veto, runNum_veto
+            );
 
             if (!passesJetVetoMapMinimalSelection(j, corr_pt_veto))
                 continue;
@@ -2106,15 +2109,15 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
         }
     }
 
-    if (eventFailsJetVetoMap) {
-        return;   // reject whole event
-    }
+    if (eventFailsJetVetoMap) return;
 
+    // -------------------------------------
+    //       Main selected-jet loop
+    // -------------------------------------
     for (const auto& j : *jets) {
         ++jets_in;
-        ++jets_after_vetoMap;
 
-        // gen matching for JER
+        // Gen matching for JER
         float genJetPt = 0.f;
         bool hasGenJet = false;
 
@@ -2124,29 +2127,25 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
             hasGenJet = true;
         }
 
-        int runNum = __isMC ? 0 : static_cast<int>(event._run);
-        float corr_pt = getCorrectedJetPt(j, rho, __isMC, genJetPt, hasGenJet, runNum);
-        float corr_mass = j._mass * (corr_pt / std::max(1e-6f, j._pt));
-/*        
-static int n=0;
-if (n++ < 20) {
-std::cerr << "[JETDBG] jetId raw=" << int(j._jetId)
-<< " pt=" << j._pt
-<< " corr_pt=" << corr_pt
-<< " factor=" << (corr_pt / std::max(1e-6f, j._pt))
-<< " eta=" << j._eta << "\n";
-}*/
-        
+        const int runNum = __isMC ? 0 : static_cast<int>(event._run);
+        const float corr_pt = getCorrectedJetPt(
+            j, rho, __isMC, genJetPt, hasGenJet, runNum
+        );
+
+        const float raw_pt_safe = std::max(1e-6f, j._pt);
+        const float corr_mass   = j._mass * (corr_pt / raw_pt_safe);
+
+        // This counter means the event survived the earlier event-level veto stage
+        ++jets_after_vetoMap;
+
         if (!g_disableJetCriteria) {
-            
             if (j._jetId < 4)
                 continue;
             ++jets_after_id;
 
             const float abseta = std::abs(j._eta);
-            const float ptCut  = hornMitigatedJetPtCut(j._eta, g_era);
 
-            // default pt cut (25 GeV)
+            // Default pt cut
             if (corr_pt <= 25.f)
                 continue;
             ++jets_after_pt_default;
@@ -2165,128 +2164,102 @@ std::cerr << "[JETDBG] jetId raw=" << int(j._jetId)
                 ++jets_after_pt_he;
             }
 
-            // final "pt passed after mitigation"
             ++jets_after_pt;
 
-            if (std::abs(j._eta) >= 4.7f)
+            if (abseta >= 4.7f)
                 continue;
             ++jets_after_eta;
 
             if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) <= 0.4)
                 continue;
             ++jets_after_dR1;
-            
+
             if (jetMuondR(j._eta, j._phi, mu2._eta, mu2._phi) <= 0.4)
                 continue;
             ++jets_after_dR2;
-
-            //const bool passJetID = passJetIDfromJSON(j, JetAlgo::AK4PUPPI, JetIDWP::Tight);
-            //if (!passJetID) continue;
         }
+
         ++jets_pass;
 
-        // keep the kinematics for later use
-        TLorentzVector p4; 
+        // Save corrected four-vector for later dijet kinematics
+        TLorentzVector p4;
         p4.SetPtEtaPhiM(corr_pt, j._eta, j._phi, corr_mass);
         p4jets.push_back(p4);
 
-        // Pushing a copy of the *Jet* we just accepted, and overwrite its pt with the corrected pt so SFs see corrected kinematics
+        // Save corrected jet copy for b-tag efficiency / veto logic
         analysis::core::Jet jSF = j;
-        jSF._pt             = corr_pt;
-        jSF._mass           = corr_mass;
-        jSF._btagPNetB      = j._btagPNetB;
-        jSF._hadronFlavour  = j._hadronFlavour;
-        jSF._eta            = j._eta;
-        jSF._phi            = j._phi;
+        jSF._pt            = corr_pt;
+        jSF._mass          = corr_mass;
+        jSF._eta           = j._eta;
+        jSF._phi           = j._phi;
+        jSF._btagPNetB     = j._btagPNetB;
+        jSF._hadronFlavour = j._hadronFlavour;
+
         btagJets.push_back(jSF);
-
-static int btagJetDbg = 0;
-const int maxBtagJetDbg = 100;
-
-if (btagJetDbg++ < maxBtagJetDbg) {
-const float cutL = pnetWPThreshold("L");
-const float cutM = pnetWPThreshold("M");
-
-std::cerr
-<< "[BTAG JET DBG]"
-<< " pt_raw=" << j._pt
-<< " pt_corr=" << corr_pt
-<< " eta=" << j._eta
-<< " flav(raw)=" << int(j._hadronFlavour)
-<< " flav(copy)=" << int(jSF._hadronFlavour)
-<< " pnet(raw)=" << j._btagPNetB
-<< " pnet(copy)=" << jSF._btagPNetB
-<< " cutL=" << cutL
-<< " cutM=" << cutM
-<< " raw>=L=" << (j._btagPNetB >= cutL)
-<< " copy>=L=" << (jSF._btagPNetB >= cutL)
-<< " raw>=M=" << (j._btagPNetB >= cutM)
-<< " copy>=M=" << (jSF._btagPNetB >= cutM)
-<< " passL=" << isTaggedPNet(jSF, "L")
-<< " passM=" << isTaggedPNet(jSF, "M")
-<< "\n";
-}
     }
-    
-    // fill PreSelection efficiency maps here
+
+    // -------------------------------------
+    //   Fill b-tag efficiency maps + count tags
+    // -------------------------------------
     for (const auto& jb : btagJets) {
         FILL_BTAG_EFF_HIST(hists.BTagEff_PreSelection, jb, pnetL, pnetM, Dataweight);
-    }
 
-    // now do the veto counting
-    for (const auto& jb : btagJets) {
-        const bool passT = isTaggedPNet(jb, "T");
-        const bool passM = isTaggedPNet(jb, "M");
-        const bool passL = isTaggedPNet(jb, "L");
-
-        if (passT) ++n_tight_bjets;
-        if (passM) ++n_medium_bjets;
-        if (passL) ++n_loose_bjets;
+        const float disc = jb._btagPNetB;
+        if (disc >= pnetL) ++n_loose_bjets;
+        if (disc >= pnetM) ++n_medium_bjets;
+        if (disc >= pnetT) ++n_tight_bjets;
     }
 
     pass_bjet_veto = !(n_medium_bjets >= 1 || n_loose_bjets >= 2);
     if (!pass_bjet_veto) return;
 
-    std::sort(p4jets.begin(), p4jets.end(), [](const TLorentzVector& a, const TLorentzVector& b){ return a.Pt() > b.Pt(); });
-    
+    // -------------------------------------
+    //      Sort jets / derive jet vars
+    // -------------------------------------
+    std::sort(
+        p4jets.begin(),
+        p4jets.end(),
+        [](const TLorentzVector& a, const TLorentzVector& b) {
+            return a.Pt() > b.Pt();
+        }
+    );
+
     const bool is0jet = (p4jets.size() == 0);
     const bool is1jet = (p4jets.size() == 1);
     const bool is2jet = (p4jets.size() >= 2);
-    
+
     const bool has1jet = (p4jets.size() >= 1);
     const bool has2jet = (p4jets.size() >= 2);
 
-    // Defaults for “inclusive” running (0/1 jet events won’t crash)
-    float jet1eta   = -99.f, jet2eta = -99.f;
-    float jet1pt    = -1.f,  jet2pt  = -1.f;
-    float dijetpt   = -1.f,  dijetdeta = -1.f, dijetmass = -1.f, dijetdphi = -1.f;
+    float jet1eta   = -99.f, jet2eta   = -99.f;
+    float jet1pt    = -1.f,  jet2pt    = -1.f;
+    float dijetpt   = -1.f,  dijetdeta = -1.f;
+    float dijetmass = -1.f,  dijetdphi = -1.f;
 
     TLorentzVector p4lead, p4sub, dijet;
 
     if (has1jet) {
-      p4lead = p4jets[0];
-      jet1eta = p4lead.Eta();
-      jet1pt  = p4lead.Pt();
+        p4lead  = p4jets[0];
+        jet1eta = p4lead.Eta();
+        jet1pt  = p4lead.Pt();
     }
 
     if (has2jet) {
-      p4sub = p4jets[1];
-      jet2eta = p4sub.Eta();
-      jet2pt  = p4sub.Pt();
+        p4sub   = p4jets[1];
+        jet2eta = p4sub.Eta();
+        jet2pt  = p4sub.Pt();
 
-      dijet = p4lead + p4sub;
-      dijetpt   = dijet.Pt();
-      dijetdeta = TMath::Abs(p4lead.Eta() - p4sub.Eta());
-      dijetmass = dijet.M();
-
-      const float dphi_signed = p4lead.DeltaPhi(p4sub);
-      dijetdphi = std::fabs(dphi_signed);
+        dijet     = p4lead + p4sub;
+        dijetpt   = dijet.Pt();
+        dijetdeta = TMath::Abs(p4lead.Eta() - p4sub.Eta());
+        dijetmass = dijet.M();
+        dijetdphi = std::fabs(p4lead.DeltaPhi(p4sub));
     }
 
     float PTdDM1 = corr_p4m1.Pt() / corr_p4dimuon.M();
     float PTdDM2 = corr_p4m2.Pt() / corr_p4dimuon.M();
 
-    //  Choosing Largest Dijet Mass Pair
+    // Choosing Largest Dijet Mass Pair
     /*double best_mjj = -1.0;
     int i_best = -1, j_best = -1;
 
@@ -2306,7 +2279,7 @@ std::cerr
     TLorentzVector jB = p4jets[j_best];
     TLorentzVector p4lead = (jA.Pt() >= jB.Pt()) ? jA : jB;
     TLorentzVector p4sub  = (jA.Pt()  <  jB.Pt()) ? jA : jB;*/
-
+    
     // -------------------------------------
     //          SF && WEIGHTS  
     // -------------------------------------
@@ -2356,13 +2329,12 @@ std::cerr
     //          B-TAG REWEIGHTING  
     // -------------------------------------
    
-// --- debug print for first N events ---
-static int btagDbgEvt = 0;
-const int maxBtagDbgEvts = 50;
+static int DbgEvt = 0;
+const int maxDbgEvts = 10;
 
-if (btagDbgEvt++ < maxBtagDbgEvts) {
+if (DbgEvt++ < maxDbgEvts) {
 std::cerr
-<< "[BTAG DBG] run=" << event._run
+<< "[WEIGHT DBG] run=" << event._run
 << " lumi=" << event._lumi
 << " evt=" << event._event
 << " | btagJets.size()=" << btagJets.size()
