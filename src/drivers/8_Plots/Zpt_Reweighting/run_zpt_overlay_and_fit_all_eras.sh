@@ -7,7 +7,7 @@ CONFIG_DIR="${2:-noScaleSmear_noBtagSF_noZPtRW}"
 REBIN="${3:-1}"
 
 #ERAS=(12022 22022 12023 22023 2024)
-ERAS=(12022 22022 12023 22023)
+ERAS=(2024)
 
 # ---- SET YOUR MACRO DIRECTORY HERE ----
 MACRO_DIR="/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/8_Plots/Zpt_Reweighting"
@@ -60,5 +60,18 @@ EOF
 
     echo "=================================================="
     echo
+
+    # ------------------- Copy to AFS -------------------
+    SRC_FILE="/eos/user/d/dblend/StackedPlots/${ERA}/ZPt_Corrections/${CORR_MODE}/${CONFIG_DIR}/Fits/ZPtSF_Fits_${ERA}_${CORR_MODE}_${CONFIG_DIR}.root"
+
+    DEST_DIR="/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/ZptReweight/"
+
+    if [ -f "$SRC_FILE" ]; then
+        echo "[STEP 3] Copying ZPt SF file to AFS"
+        cp "$SRC_FILE" "$DEST_DIR"
+        echo "[OK] Copied to $DEST_DIR"
+    else
+        echo "[WARNING] Fit output not found, skipping copy: $SRC_FILE"
+    fi
 
 done

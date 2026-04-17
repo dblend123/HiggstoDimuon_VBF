@@ -115,7 +115,7 @@
                          ((jetobj)._hadronFlavour == 4 ? 4 : 0));                      \
         const float pt = (jetobj)._pt;                                                 \
         const float abseta = std::abs((jetobj)._eta);                                  \
-        const float disc = (jetobj)._btagPNetB;                                        \
+        const float disc = jetBTagScore(jetobj);                                       \
                                                                                         \
         const bool passL = (disc >= (wpL));                                            \
         const bool passM = (disc >= (wpM));                                            \
@@ -503,11 +503,24 @@ static void initZPtRW() {
 //             JETS 
 // -------------------------------------
 
-// Jet Energy Corrections/Resolutions (JEC/JER) 
+// Global Pointers
 std::shared_ptr<correction::CorrectionSet> jetCorrections   = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetVetoMaps      = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetIdCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> btagCorrections  = nullptr;
+std::unique_ptr<TFile> g_btagEffFile                        = nullptr;
+
+// b
+TH2* g_eff_b_L = nullptr;
+TH2* g_eff_b_M = nullptr;
+
+// c
+TH2* g_eff_c_L = nullptr;
+TH2* g_eff_c_M = nullptr;
+
+// light
+TH2* g_eff_l_L = nullptr;
+TH2* g_eff_l_M = nullptr;
 
 // ---------- Era-aware config & helpers ----------
 std::string g_jmeDir        = "/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/7_Corrections/JME";
@@ -692,6 +705,38 @@ void loadJetCorrections() {
   }
 }
 
+// -------------------------------------
+//        B-TAG EFFICIENCY MAPS
+// -------------------------------------
+void loadBTagEffMaps(const std::string& filePath) {
+    g_btagEffFile.reset(TFile::Open(filePath.c_str(), "READ"));
+    if (!g_btagEffFile || g_btagEffFile->IsZombie()) {
+        std::cerr << "[BTAG EFF] ERROR opening " << filePath << "\n";
+        return;
+    }
+
+    auto get = [&](const std::string& name) -> TH2* {
+        TH2* h = dynamic_cast<TH2*>(g_btagEffFile->Get(name.c_str()));
+        if (!h) {
+            std::cerr << "[BTAG EFF] Missing histogram: " << name << "\n";
+            return nullptr;
+        }
+        TH2* c = (TH2*)h->Clone();
+        c->SetDirectory(nullptr);
+        return c;
+    };
+
+    g_eff_b_L = get("eff_b_L");
+    g_eff_b_M = get("eff_b_M");
+
+    g_eff_c_L = get("eff_c_L");
+    g_eff_c_M = get("eff_c_M");
+
+    g_eff_l_L = get("eff_light_L");
+    g_eff_l_M = get("eff_light_M");
+
+    std::cerr << "[BTAG EFF] Loaded efficiency maps from " << filePath << "\n";
+}
 
 // -------------------------------------
 //             PU WEIGHTS 
@@ -719,7 +764,8 @@ static std::string puKeyForEra(const std::string& era) {
   if (era == "22022") return "Collisions2022_359022_362760_eraEFG_GoldenJson";
   if (era == "12023") return "Collisions2023_366403_369802_eraBC_GoldenJson";
   if (era == "22023") return "Collisions2023_369803_370790_eraD_GoldenJson";
-  // fallback: common names people use in PU JSONs
+  if (era == "2024")  return "Collisions24_CDEFGHI_goldenJSON";
+
   return "weights";  // try a generic name if your files have only one correction
 }
 
@@ -738,7 +784,7 @@ void loadPileupCorrections() {
     pileupCorrections = correction::CorrectionSet::from_file(puPath);
     pu_corrections    = pileupCorrections->at(puKey);
 
-    std::cerr << "[PU] Loaded " << puKey << " from " << puPath << "\n";
+    std::cerr << "[PU] Loaded Era =" << g_era << " Key =" << puKey << " From =" << puPath << "\n";
   } catch (const std::exception& e) {
     std::cerr << "[PU load ERROR] " << e.what() << std::endl;
     std::cerr << "[PU load ERROR] era=" << g_era
@@ -1261,55 +1307,113 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
 //              B-TAGGING
 // -------------------------------------
 
-// ParticleNet WP threshold from JSON (tries 2023 naming and capitalization)
-static inline float pnetWPThreshold(const std::string& wp) {
-    if (!btagCorrections) return 1e9f;
-    for (const std::string key : {"particleNet_wp_values", "ParticleNet_wp_values"}) {
-        try { return (float)btagCorrections->at(key)->evaluate({wp}); }
-        catch (...) {}
+static inline bool useUParTAK4(const std::string& era) {
+    return (era == "2024");
+}
+
+// Official Run 3 fixed WP cuts for the tagger used in each era.
+// 2022/2023: ParticleNet
+// 2024:      UParTAK4
+static inline float btagWPThreshold(const std::string& wp) {
+    // -------------------------
+    // 2022/2023 : ParticleNet
+    // -------------------------
+    if (g_era == "12022") {
+        if (wp == "L") return 0.0470f;
+        if (wp == "M") return 0.2450f;
+        if (wp == "T") return 0.6734f;
     }
-    std::cerr << "[BTAG] Missing ParticleNet wp_values for wp='" << wp << "'\n";
+    else if (g_era == "22022") {
+        if (wp == "L") return 0.0499f;
+        if (wp == "M") return 0.2605f;
+        if (wp == "T") return 0.6915f;
+    }
+    else if (g_era == "12023") {
+        if (wp == "L") return 0.0358f;
+        if (wp == "M") return 0.1917f;
+        if (wp == "T") return 0.6172f;
+    }
+    else if (g_era == "22023") {
+        if (wp == "L") return 0.0359f;
+        if (wp == "M") return 0.1919f;
+        if (wp == "T") return 0.6133f;
+    }
+
+    // -------------------------
+    // 2024 : UParTAK4
+    // -------------------------
+    else if (g_era == "2024") {
+        if (wp == "L") return 0.0246f;
+        if (wp == "M") return 0.1272f;
+        if (wp == "T") return 0.4648f;
+    }
+
+    std::cerr << "[BTAG] ERROR: No hardcoded WP for era=" << g_era
+              << " and wp=" << wp << "\n";
     return 1e9f;
 }
 
-static inline bool isTaggedPNet(const Jet& j, const std::string& wp) {
-    const float cut = pnetWPThreshold(wp);
-    return j._btagPNetB >= cut;
+static inline float jetBTagScore(const Jet& j) {
+    // 2022/2023 currently use ParticleNet branch
+    // 2024 should use the UParTAK4 discriminator branch once available in Jet
+    if (g_era == "2024") {
+        // Replace this with your actual Jet member for 2024 UParTAK4 once added.
+        // Example: return j._btagUParTAK4B;
+        return j._btagPNetB;  // temporary placeholder ONLY if you're forced to test
+    }
+
+    return j._btagPNetB;
 }
 
-static inline void logPNetWPsOnce() {
+static inline bool isTaggedBTag(const Jet& j, const std::string& wp) {
+    const float cut  = btagWPThreshold(wp);
+    const float disc = jetBTagScore(j);
+    return disc >= cut;
+}
+
+static inline void logBTagWPsOnce() {
     static bool printedWPonce = false;
-    if (!printedWPonce && btagCorrections) {
-        std::cerr << "[GOLDEN][BTAG] ParticleNet WP: "
-                  << "L=" << pnetWPThreshold("L")
-                  << " M=" << pnetWPThreshold("M") << "\n";
+    if (!printedWPonce) {
+        std::cerr << "[BTAG] Era=" << g_era
+                  << " tagger=" << (useUParTAK4(g_era) ? "UParTAK4" : "ParticleNet")
+                  << " WP: L=" << btagWPThreshold("L")
+                  << " M=" << btagWPThreshold("M")
+                  << " T=" << btagWPThreshold("T")
+                  << "\n";
         printedWPonce = true;
     }
 }
 
-// Per-jet WP SF for ParticleNet (MC only; returns 1 on DATA)
-static inline double pnetSF_WP_jet(const Jet& j, const std::string& wp, const std::string& syst = "central")
+static inline double btagSF_WP_jet(const Jet& j,
+                                   const std::string& wp,
+                                   const std::string& syst = "central")
 {
     if (g_disableBtagSF) return 1.0;
     if (!__isMC || !btagCorrections) return 1.0;
+
     const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
     const double abseta = std::fabs((double)j._eta);
     const double pt     = std::max((double)j._pt, 0.1);
 
-    // choose source based on flavor
     const std::string source = (flav == 5 || flav == 4) ? "comb" : "light";
 
-    // Tables exist in your 2023 JSON: particleNet_comb, particleNet_light
-    // signature: (systematic, working_point, flavor, abseta, pt)
-    for (const std::string base : {"particleNet_", "ParticleNet_"}) {
+    std::vector<std::string> prefixes;
+    if (g_era == "2024") {
+        prefixes = {"UParTAK4_", "uParTAK4_", "upartAK4_"};
+    } else {
+        prefixes = {"particleNet_", "ParticleNet_"};
+    }
+
+    for (const auto& base : prefixes) {
         const std::string name = base + source;
         try {
             const auto& c = btagCorrections->at(name);
             return c->evaluate({syst, wp, flav, abseta, pt});
-        } catch (...) {
-            // try next capitalization
-        }
+        } catch (...) {}
     }
+
+    std::cerr << "[BTAG] WARNING: missing SF correction for era=" << g_era
+              << " wp=" << wp << " source=" << source << "\n";
     return 1.0;
 }
 
@@ -1766,59 +1870,58 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
 //            B-TAGGED JETS 
 // -------------------------------------
 
-static inline double clamp01(double x) {
+static inline double clampProb(double x) {
     if (!std::isfinite(x)) return 0.0;
-    return std::max(0.0, std::min(1.0, x));
+    if (x < 0.0) return 0.0;
+    if (x > 1.0) return 1.0;
+    return x;
 }
 
-// Replace this with your real efficiency map lookup.
-// Must return the MC tagging efficiency for the requested WP
-// in your analysis phase space, using the same selected jets.
-static inline double getPNetEff_MC(const Jet& j, const std::string& wp)
-{
-    // TODO:
-    // Look up epsilon(flavor, pt, abseta, wp) from your derived MC maps.
-    // Example placeholders ONLY:
+static inline double getEff(const Jet& j, const std::string& wp) {
+
     const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
-    const double pt = std::max(20.0, (double)j._pt);
-    const double abseta = std::fabs((double)j._eta);
 
-    // --- REMOVE THIS PLACEHOLDER ---
-    // Just to keep code numerically safe before you plug real maps in.
-    if (wp == "M") {
-        if (flav == 5) return 0.70;
-        if (flav == 4) return 0.20;
-        return 0.01;
-    }
-    if (wp == "L") {
-        if (flav == 5) return 0.85;
-        if (flav == 4) return 0.35;
-        return 0.10;
-    }
-    return 0.0;
+    const double pt     = j._pt;
+    const double abseta = std::fabs(j._eta);
+
+    TH2* h = nullptr;
+
+    if (flav == 5)
+        h = (wp == "M" ? g_eff_b_M : g_eff_b_L);
+    else if (flav == 4)
+        h = (wp == "M" ? g_eff_c_M : g_eff_c_L);
+    else
+        h = (wp == "M" ? g_eff_l_M : g_eff_l_L);
+
+    if (!h) return 0.0;
+
+    int binx = h->GetXaxis()->FindBin(pt);
+    int biny = h->GetYaxis()->FindBin(abseta);
+
+    // clamp overflow/underflow into valid histogram range
+    if (binx < 1) binx = 1;
+    if (binx > h->GetNbinsX()) binx = h->GetNbinsX();
+    if (biny < 1) biny = 1;
+    if (biny > h->GetNbinsY()) biny = h->GetNbinsY();
+
+    return clampProb(h->GetBinContent(binx, biny));
 }
 
-static inline double pnetSF_WP_jet_safe(const Jet& j,
-                                        const std::string& wp,
-                                        const std::string& syst = "central")
-{
-    const double sf = pnetSF_WP_jet(j, wp, syst);
-    if (!std::isfinite(sf) || sf <= 0.0) return 1.0;
-    return sf;
+static inline double btagWeightJet(const Jet& j, const std::string& wp) {
+
+    const double eps = getEff(j, wp);
+    const double SF  = btagSF_WP_jet(j, wp, "central");
+
+    const bool tagged = isTaggedBTag(j, wp);
+
+    if (tagged) {
+        return SF;
+    } else {
+        if (eps >= 1.0) return 1.0;
+        return (1.0 - SF * eps) / (1.0 - eps);
+    }
 }
 
-// -------------------------------------
-// Proper fixed-WP event reweighting for a veto using
-// Method 1a extended to multiple WPs.
-//
-// Categories per selected jet:
-//   - tagged at M
-//   - tagged at L but not M
-//   - not tagged at L
-//
-// Event veto logic is still decided by the reco tags in the event.
-// The weight corrects the yield of those selected MC events.
-// -------------------------------------
 static inline double getBTagSF_PNet_WP_forVeto(const std::vector<const Jet*>& jets,
                                                const std::string& looseWP  = "L",
                                                const std::string& mediumWP = "M",
@@ -1832,17 +1935,17 @@ static inline double getBTagSF_PNet_WP_forVeto(const std::vector<const Jet*>& je
     for (const Jet* pj : jets) {
         const Jet& j = *pj;
 
-        const bool passM = isTaggedPNet(j, mediumWP);
-        const bool passL = isTaggedPNet(j, looseWP);
+        const bool passM = isTaggedBTag(j, mediumWP);
+        const bool passL = isTaggedBTag(j, looseWP);
 
-        const double epsM = clamp01(getPNetEff_MC(j, mediumWP));
-        const double epsL = clamp01(getPNetEff_MC(j, looseWP));
+        const double epsM = clamp01(getEff(j, mediumWP));
+        const double epsL = clamp01(getEff(j, looseWP));
 
         // sanity: by construction loose efficiency must be >= medium efficiency
         const double epsLonly = std::max(0.0, epsL - epsM);
 
-        const double sfM = pnetSF_WP_jet_safe(j, mediumWP, syst);
-        const double sfL = pnetSF_WP_jet_safe(j, looseWP,  syst);
+        const double sfM = btagWeightJet(j, mediumWP);
+        const double sfL = btagWeightJet(j, looseWP);
 
         double factor = 1.0;
 
@@ -2058,11 +2161,12 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     int n_medium_bjets  = 0;
     int n_tight_bjets   = 0;
     const float rho     = rhos->at(0)._fixedGridRhoFastjetAll;
+    double btagEventWeight = 1.0;
 
     // Cache ParticleNet WPs once per event
-    const float pnetL = pnetWPThreshold("L");
-    const float pnetM = pnetWPThreshold("M");
-    const float pnetT = pnetWPThreshold("T");
+    const float btagL = btagWPThreshold("L");
+    const float btagM = btagWPThreshold("M");
+    const float btagT = btagWPThreshold("T");
 
     std::vector<TLorentzVector> p4jets;
     std::vector<analysis::core::Jet> btagJets;
@@ -2070,13 +2174,17 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     p4jets.reserve(jets->size());
     btagJets.reserve(jets->size());
 
-/*std::cerr
+static int dbg_btag_wp = 0;
+if (dbg_btag_wp < 2) {
+std::cerr
 << "[BTAG WP DBG]"
 << " era=" << g_era
-<< " L=" << pnetL
-<< " M=" << pnetM
-<< " T=" << pnetT
-<< "\n";*/
+<< " L=" << btagL
+<< " M=" << btagM
+<< " T=" << btagT
+<< "\n";
+++dbg_btag_wp;
+}
 
     // -------------------------------------
     //   Event-level jet veto map decision
@@ -2198,16 +2306,45 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
         btagJets.push_back(jSF);
     }
 
+    double btagEventWeight_L = 1.0;
+    double btagEventWeight_M = 1.0;
+
     // -------------------------------------
     //   Fill b-tag efficiency maps + count tags
     // -------------------------------------
     for (const auto& jb : btagJets) {
-        FILL_BTAG_EFF_HIST(hists.BTagEff_PreSelection, jb, pnetL, pnetM, Dataweight);
+        const float disc_dbg = jetBTagScore(jb);
 
-        const float disc = jb._btagPNetB;
-        if (disc >= pnetL) ++n_loose_bjets;
-        if (disc >= pnetM) ++n_medium_bjets;
-        if (disc >= pnetT) ++n_tight_bjets;
+        if (jb._pt <= 20.f) continue;
+        if (std::abs(jb._eta) >= 2.5f) continue;
+        if (!std::isfinite(disc_dbg) || disc_dbg < 0.f) continue;
+
+
+const int flav_dbg = (jb._hadronFlavour == 5 ? 5 : (jb._hadronFlavour == 4 ? 4 : 0));
+/*static int dbg_btag = 0;
+if (dbg_btag < 10) {
+std::cout
+<< "[BTAG DBG] pt="   << jb._pt
+<< " eta="            << jb._eta
+<< " flavRaw="        << int(jb._hadronFlavour)
+<< " flavCat="        << flav_dbg
+<< " btagB="          << jb._btagPNetB
+<< " btagL="          << btagL
+<< " btagM="          << btagM
+<< " passL="          << (jb._btagPNetB >= btagL)
+<< " passM="          << (jb._btagPNetB >= btagM)
+<< std::endl;
+++dbg_btag;
+}*/
+
+        FILL_BTAG_EFF_HIST(hists.BTagEff_PreSelection, jb, btagL, btagM, Dataweight);
+
+        btagEventWeight_L *= btagWeightJet(jb, "L");
+        btagEventWeight_M *= btagWeightJet(jb, "M");
+
+        if (disc_dbg >= btagL) ++n_loose_bjets;
+        if (disc_dbg >= btagM) ++n_medium_bjets;
+        if (disc_dbg >= btagT) ++n_tight_bjets;
     }
 
     pass_bjet_veto = !(n_medium_bjets >= 1 || n_loose_bjets >= 2);
@@ -2286,7 +2423,7 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
    
     float mu1_SF            = getMuonSF(mu1, __isMC);                                          // Leading Muon Scale-Factors
     float mu2_SF            = getMuonSF(mu2, __isMC);                                          // Sub-Leading Muon Scale-Factors
-    float btagjet_SF        = getBTagSF_PNet_WP_forVeto(btagJets, "L", "M", "central");        // B-Tagged Jets Scale-Factors 
+    double btagjet_SF       = btagEventWeight_M;                                               // B-Tagged Jegts Scale-Factors
     float totalWeight       = Dataweight * mu1_SF * mu2_SF * btagjet_SF;                       // Weight (MC)
     float noWeight          = 1.0;                                                             // No Weight (DATA)
 
@@ -2299,7 +2436,8 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     // -------------------------------------
     //          Z-PT REWEIGHTING  
     // -------------------------------------
-   
+
+    double w_zpt = 1.0;
     if (corr_p4dimuon.M() > 70 && corr_p4dimuon.M() < 110) {
         if (is0jet) {
             FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_Z0j, totalWeight); 
@@ -2321,7 +2459,7 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
       else if (is1jet) nj = 1;
       else nj = 2;
 
-      const double w_zpt = g_zptRW.eval(zpt, nj);
+      w_zpt = g_zptRW.eval(zpt, nj);
       totalWeight *= w_zpt;
     }
  
@@ -2330,7 +2468,7 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     // -------------------------------------
    
 static int DbgEvt = 0;
-const int maxDbgEvts = 10;
+const int maxDbgEvts = 1000;
 
 if (DbgEvt++ < maxDbgEvts) {
 std::cerr
@@ -2338,6 +2476,7 @@ std::cerr
 << " lumi=" << event._lumi
 << " evt=" << event._event
 << " | btagJets.size()=" << btagJets.size()
+<< " | Zpt=" << w_zpt
 << " | mu1_SF=" << mu1_SF
 << " | mu2_SF=" << mu2_SF
 << " | btagjet_SF=" << btagjet_SF
