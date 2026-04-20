@@ -214,6 +214,7 @@ bool __noMuCorr;
 bool g_disableJetCriteria    = false;  // if true, skip jet kinematic/ID/muon-cleaning cuts
 bool g_disableJetJERC        = false;  // if true, ignore JERC JSONs and use raw jet pT
 bool g_disableJetVeto        = false;  // if true, ignore jet veto maps
+bool g_disableJetID          = false;  // if true, ignore jet identification 
 bool g_disableBtagSF         = false;  // if true, ignore b-tag SFs (set them to 1)
 bool g_disableMuonScaleSmear = false;  // if true, ignore Scale/Smear json
 bool g_disableMuonSF         = false;  // if true, ignore muon SFs
@@ -224,11 +225,17 @@ bool g_disableZPtRW          = false;
 
 std::string g_zptRWFile      = "None";
 static ZPtReweighter g_zptRW;
+
+std::string g_btagEffFile    = "None";
+
 std::atomic<bool> __continueRunning = true;
 
 static bool g_disableBeamConstraint = false;  // if true, skip Beamspot Constrained Pt 
 static inline bool useBeamConstraintPt(const analysis::core::Muon& mu);
 static inline float baseMuonPtForCorrections(const analysis::core::Muon& mu);
+static inline double clampProb(double x);
+static inline double getBTagEff_WP_jet(const analysis::core::Jet& j, const std::string& wp);
+static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets);
 
 // MVA tree
 TTree* gMvaTree = nullptr;
@@ -508,7 +515,7 @@ std::shared_ptr<correction::CorrectionSet> jetCorrections   = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetVetoMaps      = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetIdCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> btagCorrections  = nullptr;
-std::unique_ptr<TFile> g_btagEffFile                        = nullptr;
+std::unique_ptr<TFile> g_btagEffFileHandle                  = nullptr;
 
 // b
 TH2* g_eff_b_L = nullptr;
@@ -640,6 +647,7 @@ static std::string btagFileForEra(const std::string& era) {
     return g_jmeDir + "/btagging" + era + ".json";
 }
 
+void loadBTagEffMaps(const std::string& filePath);
 void loadJetCorrections() {
     if (g_disableJetJERC) {
         std::cerr << "[Jet] JERC disabled via --noJERC; using raw jet pT (no JEC/JER).\n";
@@ -702,21 +710,28 @@ void loadJetCorrections() {
     std::cerr << "[Btag load ERROR] " << e.what() << std::endl;
     btagCorrections = nullptr;
   }
+  
+  if (g_btagEffFile != "None") {
+    loadBTagEffMaps(g_btagEffFile);
+  } else {
+    std::cerr << "[BTAG EFF] No btag efficiency ROOT file provided; maps not loaded.\n";
   }
+  }
+
 }
 
 // -------------------------------------
 //        B-TAG EFFICIENCY MAPS
 // -------------------------------------
 void loadBTagEffMaps(const std::string& filePath) {
-    g_btagEffFile.reset(TFile::Open(filePath.c_str(), "READ"));
-    if (!g_btagEffFile || g_btagEffFile->IsZombie()) {
+    g_btagEffFileHandle.reset(TFile::Open(filePath.c_str(), "READ"));
+    if (!g_btagEffFileHandle || g_btagEffFileHandle->IsZombie()) {
         std::cerr << "[BTAG EFF] ERROR opening " << filePath << "\n";
         return;
     }
 
     auto get = [&](const std::string& name) -> TH2* {
-        TH2* h = dynamic_cast<TH2*>(g_btagEffFile->Get(name.c_str()));
+        TH2* h = dynamic_cast<TH2*>(g_btagEffFileHandle->Get(name.c_str()));
         if (!h) {
             std::cerr << "[BTAG EFF] Missing histogram: " << name << "\n";
             return nullptr;
@@ -1311,6 +1326,13 @@ static inline bool useUParTAK4(const std::string& era) {
     return (era == "2024");
 }
 
+static inline double clampProb(double x) {
+    if (!std::isfinite(x)) return 0.0;
+    if (x < 0.0) return 0.0;
+    if (x > 1.0) return 1.0;
+    return x;
+}
+
 // Official Run 3 fixed WP cuts for the tagger used in each era.
 // 2022/2023: ParticleNet
 // 2024:      UParTAK4
@@ -1415,6 +1437,159 @@ static inline double btagSF_WP_jet(const Jet& j,
     std::cerr << "[BTAG] WARNING: missing SF correction for era=" << g_era
               << " wp=" << wp << " source=" << source << "\n";
     return 1.0;
+}
+
+static inline double getBTagEff_WP_jet(const Jet& j, const std::string& wp) {
+
+    const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
+
+    const double pt     = j._pt;
+    const double abseta = std::fabs(j._eta);
+
+    TH2* h = nullptr;
+
+    if (flav == 5)
+        h = (wp == "M" ? g_eff_b_M : g_eff_b_L);
+    else if (flav == 4)
+        h = (wp == "M" ? g_eff_c_M : g_eff_c_L);
+    else
+        h = (wp == "M" ? g_eff_l_M : g_eff_l_L);
+
+    if (!h) return 0.0;
+
+    int binx = h->GetXaxis()->FindBin(pt);
+    int biny = h->GetYaxis()->FindBin(abseta);
+
+    // clamp overflow/underflow into valid histogram range
+    if (binx < 1) binx = 1;
+    if (binx > h->GetNbinsX()) binx = h->GetNbinsX();
+    if (biny < 1) biny = 1;
+    if (biny > h->GetNbinsY()) biny = h->GetNbinsY();
+
+    return clampProb(h->GetBinContent(binx, biny));
+}
+
+static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets)
+{
+    // pass veto  <=>  no medium jets AND at most one loose jet
+    //
+    // Per jet, define three exclusive states:
+    //   0) not loose          : 1 - pL
+    //   1) loose but not med  : pL - pM
+    //   2) medium             : pM
+    //
+    // Allowed event configurations:
+    //   A) all jets in state 0
+    //   B) exactly one jet in state 1, all others in state 0
+    //
+    // Therefore:
+    //   P(pass) = Prod_j(1-pL_j) + Sum_i[(pL_i-pM_i) * Prod_{j!=i}(1-pL_j)]
+
+    if (!__isMC) return 1.0;        // no MC->data correction on data
+    if (g_disableBtagSF) return 1.0;
+
+    double A_mc   = 1.0;   // product of (1 - epsL)
+    double A_data = 1.0;   // product of (1 - SF_L * epsL)
+
+    std::vector<double> a_mc, b_mc;
+    std::vector<double> a_data, b_data;
+
+    a_mc.reserve(jets.size());
+    b_mc.reserve(jets.size());
+    a_data.reserve(jets.size());
+    b_data.reserve(jets.size());
+
+    for (const auto& j : jets) {
+        // use same phase space as your tag logic / efficiency maps
+        if (j._pt <= 20.f) continue;
+        if (std::abs(j._eta) >= 2.5f) continue;
+
+        const double disc = jetBTagScore(j);
+        if (!std::isfinite(disc) || disc < 0.0) continue;
+
+        const double epsL = clampProb(getBTagEff_WP_jet(j, "L"));
+        const double epsM = clampProb(getBTagEff_WP_jet(j, "M"));
+
+        // enforce nesting numerically: Medium must not exceed Loose
+        const double epsM_clamped = std::min(epsM, epsL);
+
+        const double sfL = btagSF_WP_jet(j, "L", "central");
+        const double sfM = btagSF_WP_jet(j, "M", "central");
+
+        const double pL_data = clampProb(sfL * epsL);
+        const double pM_data = clampProb(sfM * epsM_clamped);
+
+        // MC pieces
+        const double amc = std::max(0.0, 1.0 - epsL);
+        const double bmc = std::max(0.0, epsL - epsM_clamped);
+
+        // Data pieces
+        const double adata = std::max(0.0, 1.0 - pL_data);
+        const double bdata = std::max(0.0, pL_data - pM_data);
+
+        a_mc.push_back(amc);
+        b_mc.push_back(bmc);
+        a_data.push_back(adata);
+        b_data.push_back(bdata);
+
+        A_mc   *= amc;
+        A_data *= adata;
+    }
+
+    double sum_mc   = 0.0;
+    double sum_data = 0.0;
+
+    for (size_t i = 0; i < a_mc.size(); ++i) {
+        if (a_mc[i]   > 0.0) sum_mc   += b_mc[i]   / a_mc[i];
+        if (a_data[i] > 0.0) sum_data += b_data[i] / a_data[i];
+    }
+
+    const double P_mc   = A_mc   * (1.0 + sum_mc);
+    const double P_data = A_data * (1.0 + sum_data);
+
+    if (!std::isfinite(P_mc) || P_mc <= 0.0) return 1.0;
+    if (!std::isfinite(P_data)) return 1.0;
+
+    return P_data / P_mc;
+}
+
+// -------------------------------------
+//          JET IDENTIFICATION 
+// -------------------------------------
+
+static inline bool passJetIdTight_v12(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+
+    bool pass = false;
+    if (abseta <= 2.7f) {
+        pass = (j._jetId & (1 << 1));
+    } else if (abseta <= 3.0f) {
+        pass = (j._jetId & (1 << 1)) && (j._neHEF < 0.99f);
+    } else {
+        pass = (j._jetId & (1 << 1)) && (j._neEmEF < 0.4f);
+    }
+    return pass;
+}
+
+static inline bool passJetIdTightLepVeto_v12(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+    const bool passTight = passJetIdTight_v12(j);
+
+    if (abseta <= 2.7f) {
+        return passTight && (j._muEF < 0.8f) && (j._chEmEF < 0.8f);
+    }
+    return passTight;
+}
+
+static inline bool passJetID(const Jet& j) {
+    // NanoAODv12 special recipe
+    if (g_era == "12022" || g_era == "22022" || g_era == "12023" || g_era == "22023") {
+        return passJetIdTightLepVeto_v12(j);
+    }
+
+    // 2024 and beyond:
+    // for now keep your current bit-based fallback until you fully switch to JSON/manual multiplicity logic
+    return ((j._jetId & (1 << 2)) != 0);  // tightLepVeto bit
 }
 
 // -------------------------------------
@@ -1870,144 +2045,6 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
 //            B-TAGGED JETS 
 // -------------------------------------
 
-static inline double clampProb(double x) {
-    if (!std::isfinite(x)) return 0.0;
-    if (x < 0.0) return 0.0;
-    if (x > 1.0) return 1.0;
-    return x;
-}
-
-static inline double getEff(const Jet& j, const std::string& wp) {
-
-    const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
-
-    const double pt     = j._pt;
-    const double abseta = std::fabs(j._eta);
-
-    TH2* h = nullptr;
-
-    if (flav == 5)
-        h = (wp == "M" ? g_eff_b_M : g_eff_b_L);
-    else if (flav == 4)
-        h = (wp == "M" ? g_eff_c_M : g_eff_c_L);
-    else
-        h = (wp == "M" ? g_eff_l_M : g_eff_l_L);
-
-    if (!h) return 0.0;
-
-    int binx = h->GetXaxis()->FindBin(pt);
-    int biny = h->GetYaxis()->FindBin(abseta);
-
-    // clamp overflow/underflow into valid histogram range
-    if (binx < 1) binx = 1;
-    if (binx > h->GetNbinsX()) binx = h->GetNbinsX();
-    if (biny < 1) biny = 1;
-    if (biny > h->GetNbinsY()) biny = h->GetNbinsY();
-
-    return clampProb(h->GetBinContent(binx, biny));
-}
-
-static inline double btagWeightJet(const Jet& j, const std::string& wp) {
-
-    const double eps = getEff(j, wp);
-    const double SF  = btagSF_WP_jet(j, wp, "central");
-
-    const bool tagged = isTaggedBTag(j, wp);
-
-    if (tagged) {
-        return SF;
-    } else {
-        if (eps >= 1.0) return 1.0;
-        return (1.0 - SF * eps) / (1.0 - eps);
-    }
-}
-
-static inline double getBTagSF_PNet_WP_forVeto(const std::vector<const Jet*>& jets,
-                                               const std::string& looseWP  = "L",
-                                               const std::string& mediumWP = "M",
-                                               const std::string& syst     = "central")
-{
-    if (g_disableBtagSF) return 1.0;
-    if (!__isMC || !btagCorrections) return 1.0;
-
-    double w = 1.0;
-
-    for (const Jet* pj : jets) {
-        const Jet& j = *pj;
-
-        const bool passM = isTaggedBTag(j, mediumWP);
-        const bool passL = isTaggedBTag(j, looseWP);
-
-        const double epsM = clamp01(getEff(j, mediumWP));
-        const double epsL = clamp01(getEff(j, looseWP));
-
-        // sanity: by construction loose efficiency must be >= medium efficiency
-        const double epsLonly = std::max(0.0, epsL - epsM);
-
-        const double sfM = btagWeightJet(j, mediumWP);
-        const double sfL = btagWeightJet(j, looseWP);
-
-        double factor = 1.0;
-
-        if (passM) {
-            // tagged at medium
-            factor = sfM;
-        }
-        else if (passL) {
-            // tagged at loose but not medium
-            // BTV recommended multi-WP factor:
-            // (SF_L * epsL - SF_M * epsM) / (epsL - epsM)
-            const double denom = epsLonly;
-            const double numer = sfL * epsL - sfM * epsM;
-
-            // BTV warns this can become negative in corner cases.
-            // Recommended protection: set to unity if numerator < 0
-            // to avoid unphysical negative event weights.
-            if (!std::isfinite(denom) || denom <= 0.0) {
-                factor = 1.0;
-            } else if (!std::isfinite(numer) || numer < 0.0) {
-                factor = 1.0;
-            } else {
-                factor = numer / denom;
-            }
-        }
-        else {
-            // not tagged at loose
-            // (1 - SF_L * epsL) / (1 - epsL)
-            const double denom = 1.0 - epsL;
-            const double numer = 1.0 - sfL * epsL;
-
-            if (!std::isfinite(denom) || denom <= 0.0) {
-                factor = 1.0;
-            } else if (!std::isfinite(numer) || numer < 0.0) {
-                factor = 1.0;
-            } else {
-                factor = numer / denom;
-            }
-        }
-
-        if (!std::isfinite(factor) || factor <= 0.0) {
-            factor = 1.0;
-        }
-
-        w *= factor;
-    }
-
-    if (!std::isfinite(w) || w <= 0.0) return 1.0;
-    return w;
-}
-
-// wrapper for std::vector<Jet>
-static inline double getBTagSF_PNet_WP_forVeto(const std::vector<Jet>& jets,
-                                               const std::string& looseWP  = "L",
-                                               const std::string& mediumWP = "M",
-                                               const std::string& syst     = "central")
-{
-    std::vector<const Jet*> ptrs;
-    ptrs.reserve(jets.size());
-    for (const auto& j : jets) ptrs.push_back(&j);
-    return getBTagSF_PNet_WP_forVeto(ptrs, looseWP, mediumWP, syst);
-}
 
 //*******************************************************************
 //                         CATEGORIZE FUNCTION 
@@ -2247,7 +2284,7 @@ std::cerr
         ++jets_after_vetoMap;
 
         if (!g_disableJetCriteria) {
-            if (j._jetId < 4)
+            if (!passJetID(j))
                 continue;
             ++jets_after_id;
 
@@ -2306,9 +2343,6 @@ std::cerr
         btagJets.push_back(jSF);
     }
 
-    double btagEventWeight_L = 1.0;
-    double btagEventWeight_M = 1.0;
-
     // -------------------------------------
     //   Fill b-tag efficiency maps + count tags
     // -------------------------------------
@@ -2339,13 +2373,12 @@ std::cout
 
         FILL_BTAG_EFF_HIST(hists.BTagEff_PreSelection, jb, btagL, btagM, Dataweight);
 
-        btagEventWeight_L *= btagWeightJet(jb, "L");
-        btagEventWeight_M *= btagWeightJet(jb, "M");
-
         if (disc_dbg >= btagL) ++n_loose_bjets;
         if (disc_dbg >= btagM) ++n_medium_bjets;
         if (disc_dbg >= btagT) ++n_tight_bjets;
     }
+
+    double btagjet_SF = btagVetoWeightExact(btagJets);
 
     pass_bjet_veto = !(n_medium_bjets >= 1 || n_loose_bjets >= 2);
     if (!pass_bjet_veto) return;
@@ -2423,7 +2456,6 @@ std::cout
    
     float mu1_SF            = getMuonSF(mu1, __isMC);                                          // Leading Muon Scale-Factors
     float mu2_SF            = getMuonSF(mu2, __isMC);                                          // Sub-Leading Muon Scale-Factors
-    double btagjet_SF       = btagEventWeight_M;                                               // B-Tagged Jegts Scale-Factors
     float totalWeight       = Dataweight * mu1_SF * mu2_SF * btagjet_SF;                       // Weight (MC)
     float noWeight          = 1.0;                                                             // No Weight (DATA)
 
@@ -2466,16 +2498,26 @@ std::cout
     // -------------------------------------
     //          B-TAG REWEIGHTING  
     // -------------------------------------
-   
+
+static int dbg_btag_evt = 0;
+if (dbg_btag_evt < 10) {
+std::cout << "[BTAG EVT DBG] era=" << g_era
+<< " btagJets.size()=" << btagJets.size()
+<< " nLoose=" << n_loose_bjets
+<< " nMedium=" << n_medium_bjets
+<< " btagjet_SF=" << btagjet_SF
+<< std::endl;
+++dbg_btag_evt;
+}
+
 static int DbgEvt = 0;
-const int maxDbgEvts = 1000;
+const int maxDbgEvts = 10;
 
 if (DbgEvt++ < maxDbgEvts) {
 std::cerr
 << "[WEIGHT DBG] run=" << event._run
 << " lumi=" << event._lumi
 << " evt=" << event._event
-<< " | btagJets.size()=" << btagJets.size()
 << " | Zpt=" << w_zpt
 << " | mu1_SF=" << mu1_SF
 << " | mu2_SF=" << mu2_SF
@@ -3636,6 +3678,7 @@ int main(int argc, char** argv)
         ("dijetMass_VBF",   po::value<double>(&_dijetMass_VBF)->default_value(_dijetMass_VBF),  "DiJet Mass VBF-Category Cut")
         ("dijetdEta_VBF",   po::value<double>(&_dijetdEta_VBF)->default_value(_dijetdEta_VBF),  "DiJet deta VBF-Category Cut")
 	    ("zptRWFile",       po::value<std::string>(&g_zptRWFile)->default_value("None"),        "ROOT file containing ZpT TF1s (f_combined)")
+        ("btagEffFile",     po::value<std::string>(&g_btagEffFile)->default_value("None"),      "Path to b-tag efficiency ROOT file")
         ("weights",         po::value<std::string>(&g_weightsFile)->default_value("None"),      "path to weights config (key=value)")
         ("sample",          po::value<std::string>(&g_sampleName)->default_value("DATA"),       "sample name (e.g. DY, TT, WZ, VBF, DATA)")
         ("era",             po::value<std::string>(&g_era)->default_value("12022"),             "Era section from weights.ini (e.g. 12022, 22022, 12023, 22023)")

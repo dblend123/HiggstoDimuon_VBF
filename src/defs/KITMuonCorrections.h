@@ -191,8 +191,12 @@ inline double pt_resol_num(const correction::CorrectionSet& cset,
 }
 
 inline double basePt(const analysis::core::Muon& mu) {
-  const double bs = mu._bsConstrainedPt;
-  if (std::isfinite(bs) && bs > 0.0) return bs;
+  if (std::isfinite(mu._bsConstrainedChi2) &&
+      mu._bsConstrainedChi2 < 30.0 &&
+      std::isfinite(mu._bsConstrainedPt) &&
+      mu._bsConstrainedPt > 0.0) {
+    return mu._bsConstrainedPt;
+  }
   return std::max(1e-3, (double)mu._pt);
 }
 
