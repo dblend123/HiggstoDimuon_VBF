@@ -1,37 +1,39 @@
 #!/bin/bash
 
-# Prompt for multiple JSON files
-read -p "Enter the path(s) to your JSON file(s), separated by space: " -a json_files
+# Usage:
+#   ./output_lumi_JSONfiles.sh 2025/*Golden.json
+# or:
+#   ./output_lumi_JSONfiles.sh 2025/Cert_*.json
 
-# Loop over each JSON file
-for json_file in "${json_files[@]}"; do
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 path/to/*.json"
+    exit 1
+fi
 
+mkdir -p lumi_outputs
+
+for json_file in "$@"; do
     echo ""
     echo "📁 Processing: $json_file"
 
-    # Check if file exists
     if [[ ! -f "$json_file" ]]; then
         echo "❌ Error: File '$json_file' not found! Skipping..."
         continue
     fi
 
-    # Derive output filename
     base_name=$(basename "$json_file" .json)
-    output_file="${base_name}_lumi.txt"
+    output_file="lumi_outputs/${base_name}_lumi.txt"
 
-    # Run brilcalc and save output
     brilcalc lumi \
       --normtag /cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_BRIL.json \
       -u /fb \
       -i "$json_file" | tee "$output_file"
 
-    # Extract total lumi
-    total_lumi=$(grep -vE '^\s*#' "$output_file" | tail -n 1 | awk '{print $10}')
+    total_lumi=$(awk -F'|' '
+        /totrecorded/ {getline; getline; print $6}
+    ' "$output_file" | xargs)
 
-    # Display result
     echo "✅ Output saved to: $output_file"
     echo "➡️  Total recorded luminosity: ${total_lumi} /fb"
     echo "---------------------------------------------"
-
 done
-

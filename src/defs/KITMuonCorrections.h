@@ -224,8 +224,10 @@ inline double pt_scale(const correction::CorrectionSet& cset,
 {
   const std::string dtmc = is_data ? "data" : "mc";
 
-  const double a = cset.at("a_" + dtmc)->evaluate({eta, phi, std::string("nom")});
-  const double m = cset.at("m_" + dtmc)->evaluate({eta, phi, std::string("nom")});
+ const double abseta = std::abs(eta);
+
+ const double a = cset.at("a_" + dtmc)->evaluate({abseta, phi, "nom"});
+ const double m = cset.at("m_" + dtmc)->evaluate({abseta, phi, "nom"});
 
   if (pt < low_pt_threshold) return pt;
   return 1.0 / (m / pt + charge * a);
@@ -235,9 +237,11 @@ inline double pt_scale_var(const correction::CorrectionSet& cset,
                            double pt, double eta, double phi,
                            int charge, const std::string& updn)
 {
-  const double stat_a   = cset.at("a_mc")->evaluate({eta, phi, std::string("stat")});
-  const double stat_m   = cset.at("m_mc")->evaluate({eta, phi, std::string("stat")});
-  const double stat_rho = cset.at("m_mc")->evaluate({eta, phi, std::string("rho_stat")});
+  const double abseta = std::abs(eta);
+
+  const double stat_a   = cset.at("a_mc")->evaluate({abseta, phi, std::string("stat")});
+  const double stat_m   = cset.at("m_mc")->evaluate({abseta, phi, std::string("stat")});
+  const double stat_rho = cset.at("m_mc")->evaluate({abseta, phi, std::string("rho_stat")});
 
   const double unc =
       pt * pt * std::sqrt(stat_m * stat_m / (pt * pt) +

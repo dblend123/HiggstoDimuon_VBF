@@ -254,7 +254,8 @@ int main(int argc, char* argv[])
       //"Jet_*",
       "Jet_pt","Jet_eta","Jet_phi","Jet_mass","Jet_jetId",
       "Jet_btagDeepFlavB","Jet_area","Jet_chHEF","Jet_neHEF","Jet_chEmEF","Jet_neEmEF","Jet_muEF",
-      "Jet_genJetIdx", "Jet_btagPNetB", "Jet_hadronFlavour",
+      "Jet_genJetIdx", "Jet_btagPNetB", "Jet_hadronFlavour", "Jet_rawFactor", 
+      "Jet_btagUParTAK4B","Jet_chMultiplicity", "Jet_neMultiplicity",
 
       // gen jets
       "nGenJet","GenJet_pt","GenJet_eta","GenJet_phi","GenJet_mass",

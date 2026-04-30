@@ -49,7 +49,9 @@ namespace analysis
                 hDiMuoneta          = new TH1F("DiMuoneta", "DiMuoneta", 50, -2.5, 2.5);
                 hDiMuonrapidity     = new TH1F("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
                 hCollinsSoper       = new TH1F("CollinsSoper","CollinsSoper", 30, -3.2, 3.2);
-                hcosCollinsSoper    = new TH1F("cosCollinsSoper","cosCollinsSoper", 30, -3.2, 3.2);
+                hcosCollinsSoper    = new TH1F("cosCollinsSoper","cosCollinsSoper", 10, -1.0, 1.0);
+                hPtBalance          = new TH1F("PtBalance", "PtBalance", 30, 0, 1.5);
+                hZeppenfeld         = new TH1F("Zeppenfeld", "Zeppenfeld", 20, -5, 5);
 
                 // -----  Muon Plots  -----
 				hMuon1pt = new TH1F("Muon1pt", "Muon1pt", 50, 0, 200);
@@ -75,7 +77,9 @@ namespace analysis
                 TH1F *hDiMuonrapidity;
                 TH1F *hCollinsSoper;
                 TH1F *hcosCollinsSoper;
-                
+                TH1F *hPtBalance;
+                TH1F *hZeppenfeld;
+
                 // -----  Muon  -----
                 TH1F *hMuon1pt;
                 TH1F *hMuon2pt;

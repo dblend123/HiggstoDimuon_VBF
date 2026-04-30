@@ -120,18 +120,26 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
 
   TH1* h_data_draw = (TH1*)h_data->Clone(("h_data_draw_"+TString(var.c_str())).Data());
   h_data_draw->SetDirectory(nullptr);
-  if (doBlindMass && var=="DiMuonMass") {
-    const int bmin = h_data_draw->FindBin(110.0);
-    const int bmax = h_data_draw->FindBin(150.0);
+
+  // Blinding windows:
+  //   - Inclusive mass plot: hide the full Higgs search region [110,150] GeV.
+  //   - Dedicated Higgs plot: hide only the signal window [115,135] GeV,
+  //     leaving the sidebands [110,115) and (135,150] visible.
+  const bool blind = (doBlindMass && (var=="DiMuonMass" || var=="DiMuonMass_Higgs"));
+  const double blindMin = (var=="DiMuonMass_Higgs" ? 115.0 : 110.0);
+  const double blindMax = (var=="DiMuonMass_Higgs" ? 135.0 : 150.0);
+
+  if (blind) {
+    const int bmin = h_data_draw->FindBin(blindMin);
+    const int bmax = h_data_draw->FindBin(blindMax);
     for (int i=bmin;i<=bmax;++i){ h_data_draw->SetBinContent(i,0); h_data_draw->SetBinError(i,0); }
   }
 
-  // integrals (exclude blinded window for both Data/MC if DiMuonMass)
-  const bool blind = (doBlindMass && var=="DiMuonMass");
+  // integrals (exclude blinded window for both Data/MC when blinding is active)
   auto iNoUF = [](TH1* h){ return h ? h->Integral(1,h->GetNbinsX()) : 0.0; };
-  auto iMC   = [&](TH1* h){ return blind ? integralExcluding(h,110.0,150.0) : iNoUF(h); };
+  auto iMC   = [&](TH1* h){ return blind ? integralExcluding(h,blindMin,blindMax) : iNoUF(h); };
 
-  const double data_int = blind ? integralExcluding(h_data,110.0,150.0) : iNoUF(h_data);
+  const double data_int = blind ? integralExcluding(h_data,blindMin,blindMax) : iNoUF(h_data);
   const double dy_int   = iMC(h_DY);
   const double ewk_int  = iMC(h_EWK);
   const double tt_int   = iMC(h_TT);
@@ -151,7 +159,7 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   if (summary && *summary) {
     (*summary) << std::fixed << std::setprecision(6)
                << "Variable: " << var << "\n"
-               << "Blinded: " << (blind ? "yes [110,150] GeV" : "no") << "\n"
+               << "Blinded: " << (blind ? Form("yes [%.0f,%.0f] GeV", blindMin, blindMax) : "no") << "\n"
                << "Data: " << data_int << "\n"
                << "MC: "   << mc_int
                << "  (DY=" << dy_int << ", EWK=" << ewk_int << ", TT=" << tt_int
@@ -201,8 +209,8 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
     double y0 = gPad->GetUymin();
     double y1 = gPad->GetUymax();
 
-    TLine* v1 = new TLine(110.0, y0, 110.0, y1);
-    TLine* v2 = new TLine(150.0, y0, 150.0, y1);
+    TLine* v1 = new TLine(blindMin, y0, blindMin, y1);
+    TLine* v2 = new TLine(blindMax, y0, blindMax, y1);
     v1->SetLineStyle(2); v2->SetLineStyle(2);
     v1->SetLineWidth(3); v2->SetLineWidth(3);
     v1->SetLineColor(kGray+2); v2->SetLineColor(kGray+2);
@@ -237,7 +245,7 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   }
   h_ratio->Divide(h_mctot);
   if (blind) {
-    const int bmin = h_ratio->FindBin(110.0), bmax = h_ratio->FindBin(150.0);
+    const int bmin = h_ratio->FindBin(blindMin), bmax = h_ratio->FindBin(blindMax);
     for (int i=bmin;i<=bmax;++i){ h_ratio->SetBinContent(i,0); h_ratio->SetBinError(i,0); }
   }
 
@@ -249,7 +257,7 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   h_ratio->GetXaxis()->SetLabelSize(0.12);
   h_ratio->GetXaxis()->SetTitleSize(0.12);
   h_ratio->GetXaxis()->SetTitle(xTitle);
-  h_ratio->SetMinimum(0.95);
+  h_ratio->SetMinimum(0.90);
   h_ratio->SetMaximum(1.05);
   h_ratio->SetLineColor(kBlack);
   h_ratio->SetMarkerStyle(20);
@@ -273,8 +281,8 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
     double rymin = gPad->GetUymin();
     double rymax = gPad->GetUymax();
 
-    TLine* v1r = new TLine(110.0, rymin, 110.0, rymax);
-    TLine* v2r = new TLine(150.0, rymin, 150.0, rymax);
+    TLine* v1r = new TLine(blindMin, rymin, blindMin, rymax);
+    TLine* v2r = new TLine(blindMax, rymin, blindMax, rymax);
     v1r->SetLineStyle(2); v2r->SetLineStyle(2);
     v1r->SetLineWidth(3); v2r->SetLineWidth(3);
     v1r->SetLineColor(kGray+2); v2r->SetLineColor(kGray+2);
@@ -336,9 +344,9 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   }
 
   const std::vector<std::string> vars = {
-    "DiMuonMass","DiMuonMass_Z","DiMuonpt","DiMuoneta","DiMuonrapidity",
+    "DiMuonMass","DiMuonMass_Z","DiMuonMass_Higgs","DiMuonpt","DiMuoneta","DiMuonrapidity",
     "Muon1pt","Muon2pt","Muon1eta","Muon2eta",
-    "Muon1PTdDM","Muon2PTdDM","CollinsSoper","cosCollinsSoper","pt_balance"
+    "Muon1PTdDM","Muon2PTdDM","CollinsSoper","cosCollinsSoper","PtBalance","Zeppenfeld"
   };
   //const std::string dir = "corr_DM_VBF/";
   const std::string dir = "corr_DM_Pre-Selection/";
@@ -380,9 +388,10 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   std::ofstream summary((outdir + "OverlayRatios_All.txt").Data());
 
   for (const auto& v : vars) {
-    const bool doBlind = (v == "DiMuonMass");
+    const bool doBlind = (v == "DiMuonMass" || v == "DiMuonMass_Higgs");
     const char* xlab = (v=="DiMuonMass") ? "m_{#mu#mu} [GeV]" :
                        (v=="DiMuonMass_Z") ? "m_{#mu#mu} [GeV]" :
+                       (v=="DiMuonMass_Higgs") ? "m_{#mu#mu} [GeV]" :
                        (v=="DiMuonpt") ? "p_{T}(#mu#mu) [GeV]" :
                        (v=="DiMuoneta") ? "#eta(#mu#mu)" :
                        (v=="DiMuonrapidity") ? "y(#mu#mu)" :
@@ -394,7 +403,8 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
                        (v=="Muon2PTdDM") ? "p_{T}(#mu_{2}) / m_{#mu#mu}" :
                        (v=="CollinsSoper") ? "#phi_{CS}" :
                        (v=="cosCollinsSoper") ? "cos#theta_{CS}" :
-                       (v=="pt_balance") ? "R_{T}" : v.c_str();
+                       (v=="PtBalance") ? "p_{T}^{balance}" :
+                       (v=="Zeppenfeld") ? "z^{*}" : v.c_str();
 
     draw_one(outdir, dir, v,
              f_data.get(), f_DY.get(), f_EWK.get(), f_TT.get(),

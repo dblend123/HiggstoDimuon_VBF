@@ -1,0 +1,28 @@
+== Job started: Thu Apr 30 08:35:19 PM CEST 2026
+Host: b9g34p5473.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2025/Data_listfiles/Muon1/Muon1_Fpart014.list'  tag='Muon1_014DataRun2025'  sample='DATA_2025_Muon1'
+ERA (4th arg): '2025'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1436592
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2025/Data_listfiles/Muon1/Muon1_Fpart014.list' -> using local: '/pool/condor/dir_1436592/Muon1_Fpart014.list'
+Using Condor proxy: /pool/condor/dir_1436592/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1436592/Muon1_Fpart014.list
+Input list has 100 lines
+root://cms-xrd-global.cern.ch//store/data/Run2025F/Muon1/NANOAOD/PromptReco-v1/000/397/456/00000/b5a849db-272a-4ba8-a0ca-caaca9527408.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2025F/Muon1/NANOAOD/PromptReco-v1/000/397/209/00000/211d936b-03f1-45a4-ac5d-b521d8200b92.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2025F/Muon1/NANOAOD/PromptReco-v1/000/396/892/00000/177da7bc-5e7c-4102-b408-e65287ff3ac1.root ...
+Using skimmer: my_skim
+abefe743dc8f9c9a82f8364349e03ca5  ./my_skim
+ 0x000000000000000f (RPATH)              Library rpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: Muon1_014DataRun2025
+Running: ./my_skim '/pool/condor/dir_1436592/Muon1_Fpart014.list' '-1'
+---- last 50 lines of skim.stdout.log ----
+Requested ALL events
+
+Done. Files skimmed: 100  |  Events kept: 0
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_014DataRun2025
+Found 0 skim files.
+WARNING: no skim outputs found

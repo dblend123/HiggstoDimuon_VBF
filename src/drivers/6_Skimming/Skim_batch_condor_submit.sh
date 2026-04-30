@@ -40,11 +40,12 @@ ERA="$1"; shift
 #   queue inputList, tag from $(path)/Data_input_lists/Muon22022E.txt
 data_samples_for_era(){
   case "$1" in
-    12022) echo "DATA_12022_C DATA_12022_D" ;;
+    12022) echo "DATA_12022_C DATA_12022_D" "DATA_12022_SINGLEMUON_C";;
     22022) echo "DATA_22022_E DATA_22022_F DATA_22022_G" ;;
     12023) echo "DATA_12023_Muon0 DATA_12023_Muon1" ;;
     22023) echo "DATA_22023_Muon0 DATA_22023_Muon1" ;;
     2024)  echo "DATA_2024_Muon0 DATA_2024_Muon1" ;;
+    2025)  echo "DATA_2025_Muon0 DATA_2025_Muon1" ;;
     *)     echo "" ;;
   esac
 }

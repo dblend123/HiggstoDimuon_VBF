@@ -87,6 +87,8 @@
     set.hMuon2PTdDM->Fill(PTdDM2, weight); \
     set.hCollinsSoper->Fill(phiCS, weight); \
     set.hcosCollinsSoper->Fill(cosThetaCS, weight); \
+    set.hPtBalance->Fill(g_ptBalance, weight); \
+    set.hZeppenfeld->Fill(g_z, weight); \
 
 #define FILL_CORR_MUON_HIST(set, weight) FILL_MUON_HIST(set, weight)
 
@@ -212,6 +214,7 @@ bool __useKIT;
 bool __useRochester;
 bool __noMuCorr;
 bool g_disableJetCriteria    = false;  // if true, skip jet kinematic/ID/muon-cleaning cuts
+bool g_disableJER            = false;  // if true, apply JEC only, skip JER smearing
 bool g_disableJetJERC        = false;  // if true, ignore JERC JSONs and use raw jet pT
 bool g_disableJetVeto        = false;  // if true, ignore jet veto maps
 bool g_disableJetID          = false;  // if true, ignore jet identification 
@@ -346,13 +349,13 @@ static std::string g_rochKeyMC  = "kScaleMC";
 
 static std::string muSFFileForEra(const std::string& era) {
     if (g_muSFJSON != "auto") return g_muSFJSON;
-    // Example naming: muon_Z12022.json, muon_Z22022.json, muon_Z12023.json, muon_Z22023.json, muon_Z2024.json
+    // Example naming: muon_Z12022.json, muon_Z22022.json, muon_Z12023.json, muon_Z22023.json, muon_Z2024.json, muon_Z2025.json
     return g_muDir + "/muon_Z" + era + ".json";
 }
 
 static std::string rochFileForEra(const std::string& era) {
     if (g_rochJSON != "auto") return g_rochJSON;
-    // Example naming: RoccoR12022.json, RoccoR22022.json, RoccoR12023.json, RoccoR22023.json, RoccoR2024.json
+    // Example naming: RoccoR12022.json, RoccoR22022.json, RoccoR12023.json, RoccoR22023.json
     return g_muDir + "/RoccoR" + era + ".json";
 }
 
@@ -443,23 +446,54 @@ void loadRochesterCorrections() {
     }
 }
 
+static void probeKITScaleScan() {
+    if (!kitCorrections) return;
+
+    std::vector<double> etas = {0.2, 1.1, 2.0};
+    std::vector<double> phis = {-2.4, -0.8, 0.6, 2.2};
+
+    std::cerr << "\n[KIT SCALE SCAN] ===== Begin =====\n";
+    for (double abseta : etas) {
+        for (double phi : phis) {
+            try {
+                double a_ep = kitCorrections->at("a_mc")->evaluate({abseta, phi, std::string("nom")});
+                double m_ep = kitCorrections->at("m_mc")->evaluate({abseta, phi, std::string("nom")});
+
+                double a_pe = kitCorrections->at("a_mc")->evaluate({phi, abseta, std::string("nom")});
+                double m_pe = kitCorrections->at("m_mc")->evaluate({phi, abseta, std::string("nom")});
+
+                std::cerr << "[KIT SCALE SCAN] abseta=" << abseta
+                          << " phi=" << phi
+                          << " | (eta,phi): a=" << a_ep << " m=" << m_ep
+                          << " | (phi,eta): a=" << a_pe << " m=" << m_pe
+                          << "\n";
+            } catch (const std::exception& e) {
+                std::cerr << "[KIT SCALE SCAN] FAIL: " << e.what() << "\n";
+            }
+        }
+    }
+    std::cerr << "[KIT SCALE SCAN] ===== End =====\n\n";
+}
+
 void loadKITCorrections() {
     if (__noMuCorr) {
         std::cerr << "[MUON] Skipping KIT corrections (--muCorr none).\n";
-        muoncorrections = nullptr;
+        kitCorrections = nullptr;
         return;
     }
     try {
         const std::string kitPath = kitFileForEra(g_era);
-        
-        // Load (or reload if null). If you want forced reload per era, you can reset to nullptr first.
-        if (!kitCorrections)    kitCorrections = correction::CorrectionSet::from_file(kitPath);
-        
+
+        if (!kitCorrections)
+            kitCorrections = correction::CorrectionSet::from_file(kitPath);
+
         std::cerr << "[MUON] Loaded KIT params from " << kitPath << "\n";
-        
+
         (void) kitCorrections->at("cb_params");
-        // optional: KIT sets also provide "poly_params" in 2023 and BPix jsons
-        // (void) kitCorrections->at("poly_params");
+
+        // Probe argument conventions once right after load
+        probeKITScaleScan();
+
     } catch (const std::exception& e) {
         std::cerr << "[KIT load ERROR] " << e.what() << std::endl;
         kitCorrections = nullptr;
@@ -621,6 +655,15 @@ static JecEraConfig jecConfigForEra(const std::string& era, const std::string& i
             "Summer24Prompt24_RunBCDEFGHI_V1"
         };
     }
+    if (era == "2025") {
+    return {
+        "Summer24Prompt24_V1", 
+        "RunBCDEFG",          
+        "Summer24Prompt24_JRV1_MC_ScaleFactor_AK4PFPuppi",
+        "Summer24Prompt24_JRV1_MC_PtResolution_AK4PFPuppi",
+        "Summer24Prompt24_RunBCDEFGHI_V1"
+        };
+    }
     return {
         "Summer22_22Sep2023_V2","RunCD",
         "Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",
@@ -648,76 +691,111 @@ static std::string btagFileForEra(const std::string& era) {
 }
 
 void loadBTagEffMaps(const std::string& filePath);
+
 void loadJetCorrections() {
+
+    // --- JERC loading ---
     if (g_disableJetJERC) {
-        std::cerr << "[Jet] JERC disabled via --noJERC; using raw jet pT (no JEC/JER).\n";
+        std::cerr << "[Jet] JERC disabled via --noJERC; using stored jet pT/mass from input file.\n";
         jetCorrections = nullptr;
     } else {
         try {
-        if (!jetCorrections)
-        jetCorrections = correction::CorrectionSet::from_file(jercFileForEra(g_era));
+            if (!jetCorrections)
+                jetCorrections = correction::CorrectionSet::from_file(jercFileForEra(g_era));
+
+            if (g_disableJER) {
+                std::cerr << "[Jet] JER disabled via --noJER; applying JEC only (no smearing).\n";
+            } else {
+                std::cerr << "[Jet] Applying full JEC + JER corrections.\n";
+            }
+
         } catch (const std::exception& e) {
             std::cerr << "[Jet JERC load ERROR] " << e.what() << std::endl;
             jetCorrections = nullptr;
         }
-        }
+    }
+
     if (g_disableJetVeto) {
         std::cerr << "[Jet] Veto maps disabled via --noJetVeto; no jets will be vetoed by maps.\n";
         jetVetoMaps = nullptr;
     } else {
         try {
-        if (!jetVetoMaps)
-        jetVetoMaps = correction::CorrectionSet::from_file(vetoFileForEra(g_era));
+            if (!jetVetoMaps)
+                jetVetoMaps = correction::CorrectionSet::from_file(vetoFileForEra(g_era));
         } catch (const std::exception& e) {
             std::cerr << "[Jet veto map load ERROR] " << e.what() << std::endl;
             jetVetoMaps = nullptr;
         }
-        }
-  try {
-    if (!jetIdCorrections)
-      jetIdCorrections = correction::CorrectionSet::from_file(jetIdFileForEra(g_era));
-  } catch (const std::exception& e) {
-    std::cerr << "[JetID load ERROR] " << e.what() << std::endl;
-    jetIdCorrections = nullptr;
-  }
-  if (g_disableBtagSF) {
-    std::cerr << "[BTAG] Skipping b-tag SF JSON loading (--noBtagSF).\n";
-    btagCorrections = nullptr;
-  } else {
-  try {
-    if (!btagCorrections)
-      btagCorrections = correction::CorrectionSet::from_file(btagFileForEra(g_era));
-
-    if (btagCorrections) {
-      auto has = [&](const char* name){
-        try { (void)btagCorrections->at(name); return true; } catch (...) { return false; }
-      };
-      // Probe the names we actually use
-      const bool has_wp      = has("particleNet_wp_values") || has("ParticleNet_wp_values");
-      const bool has_comb    = has("particleNet_comb")      || has("ParticleNet_comb");
-      const bool has_shape   = has("particleNet_shape")     || has("ParticleNet_shape");
-      const bool has_light   = has("particleNet_light")     || has("ParticleNet_light");
-
-      std::cerr << "[BTAG] Loaded from " << btagFileForEra(g_era)
-                << " | keys: "
-                << (has_wp    ? "wp "    : "")
-                << (has_comb  ? "comb "  : "")
-                << (has_shape ? "shape " : "")
-                << (has_light ? "light " : "")
-                << "\n";
     }
-  } catch (std::exception& e) {
-    std::cerr << "[Btag load ERROR] " << e.what() << std::endl;
-    btagCorrections = nullptr;
-  }
-  
-  if (g_btagEffFile != "None") {
-    loadBTagEffMaps(g_btagEffFile);
-  } else {
-    std::cerr << "[BTAG EFF] No btag efficiency ROOT file provided; maps not loaded.\n";
-  }
-  }
 
+    if (!g_disableJetID && (g_era == "2024" || g_era == "2025")) {
+        try {
+            if (!jetIdCorrections)
+                jetIdCorrections = correction::CorrectionSet::from_file(jetIdFileForEra(g_era));
+        } catch (const std::exception& e) {
+            std::cerr << "[JetID load ERROR] " << e.what() << " ; will use manual JetID fallback.\n";
+            jetIdCorrections = nullptr;
+        }
+    }
+    
+    if (g_disableBtagSF) {
+        std::cerr << "[BTAG] Skipping b-tag SF JSON loading (--noBtagSF).\n";
+        btagCorrections = nullptr;
+    } else {
+        try {
+            if (!btagCorrections)
+                btagCorrections = correction::CorrectionSet::from_file(btagFileForEra(g_era));
+
+            if (btagCorrections) {
+                auto has = [&](const char* name){
+                    try { (void)btagCorrections->at(name); return true; }
+                    catch (...) { return false; }
+                };
+
+                const bool has_wp =
+                    has("particleNet_wp_values") || has("ParticleNet_wp_values") ||
+                    has("UParTAK4_wp_values")    || has("uParTAK4_wp_values");
+
+                const bool has_comb =
+                    has("particleNet_comb") || has("ParticleNet_comb") ||
+                    has("UParTAK4_comb")    || has("uParTAK4_comb");
+
+                const bool has_light =
+                    has("particleNet_light") || has("ParticleNet_light") ||
+                    has("UParTAK4_light")    || has("uParTAK4_light");
+
+                const bool has_shape =
+                    has("particleNet_shape") || has("ParticleNet_shape") ||
+                    has("UParTAK4_shape")    || has("uParTAK4_shape");
+
+                std::cerr << "[BTAG] Loaded from " << btagFileForEra(g_era)
+                          << " | keys: "
+                          << (has_wp    ? "wp "    : "")
+                          << (has_comb  ? "comb "  : "")
+                          << (has_shape ? "shape " : "")
+                          << (has_light ? "light " : "")
+                          << "\n";
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[Btag load ERROR] " << e.what() << std::endl;
+            btagCorrections = nullptr;
+        }
+
+        if (g_btagEffFile != "None") {
+            loadBTagEffMaps(g_btagEffFile);
+        } else {
+            std::cerr << "[BTAG EFF] No btag efficiency ROOT file provided; maps not loaded.\n";
+        }
+    }
+
+    static bool printedJERMode = false;
+    if (!printedJERMode) {
+        std::cerr << "[JERC] Mode: "
+                  << (g_disableJetJERC ? "stored jets (no JEC/JER)" :
+                      (g_disableJER ? "JEC only" : "JEC + JER"))
+                  << "\n";
+        printedJERMode = true;
+    }
 }
 
 // -------------------------------------
@@ -767,7 +845,10 @@ std::string g_puKey   = "auto";  // "auto" => pick key by era via map below
 
 static std::string puFileForEra(const std::string& era) {
   if (g_puJSON != "auto") return g_puJSON;
-  // convention: puWeights<era>.json sitting in g_puDir
+
+   // temporary recommendation: use 2024 PU for 2025
+  if (era == "2025") return g_puDir + "/puWeights2024.json";
+
   return g_puDir + "/puWeights" + era + ".json";
 }
 
@@ -780,6 +861,7 @@ static std::string puKeyForEra(const std::string& era) {
   if (era == "12023") return "Collisions2023_366403_369802_eraBC_GoldenJson";
   if (era == "22023") return "Collisions2023_369803_370790_eraD_GoldenJson";
   if (era == "2024")  return "Collisions24_CDEFGHI_goldenJSON";
+  if (era == "2025")  return "Collisions24_CDEFGHI_goldenJSON";
 
   return "weights";  // try a generic name if your files have only one correction
 }
@@ -867,6 +949,7 @@ static std::string goldenFileForEra(const std::string& era) {
   if (era == "12023") return g_goldenDir + "/Cert_Collisions2023_366442_370790_Golden.json";
   if (era == "22023") return g_goldenDir + "/Cert_Collisions2023_366442_370790_Golden.json";
   if (era == "2024")  return g_goldenDir + "/Cert_Collisions2024_378981_386951_Golden.json";
+  if (era == "2025")  return g_goldenDir + "/Cert_Collisions2025_391658_398903_Golden.json";
 
   // Fallback
   return g_goldenDir + "/Cert_Collisions2023_13p6TeV_Golden.json";
@@ -1120,27 +1203,7 @@ float getMuonScaleSmear(const Muon& mu, bool isMC) {
 //             JEC/JER 
 // -------------------------------------
     
-// Build the vector<correction::Variable::Type> that correctionlib expects
-template <typename... Args>
-static inline std::vector<correction::Variable::Type> _corrVals(Args&&... args) {
-std::vector<correction::Variable::Type> v;
-    v.reserve(sizeof...(Args));
-    (v.emplace_back(correction::Variable::Type(std::forward<Args>(args))), ...);
-    return v;
-}
-
-// Safe evaluate with fallback
-template <typename... Args>
-static inline double tryEval(const std::string& key, double fallback, Args&&... args) {
-    try {
-    return jetCorrections->at(key)->evaluate(_corrVals(std::forward<Args>(args)...));
-    } catch (...) {
-        return fallback;
-    }
-}
-
 // JET HORN MITIGATION HELPERS
-
 static inline bool isHFHorn(float abseta) {
     return (abseta > 3.0f && abseta < 5.0f);
 }
@@ -1177,145 +1240,235 @@ static inline float hornMitigatedJetPtCut(float eta, const std::string& era) {
     return 25.f; // your current default jet threshold
 }
 
-static inline float getDataResidualFactor(float eta, float pt, int run) {
+// JERC HELPERS
+template <typename... Args>
+static inline std::vector<correction::Variable::Type> makeCorrVals(Args&&... args) {
+    std::vector<correction::Variable::Type> v;
+    v.reserve(sizeof...(Args));
+    (v.emplace_back(correction::Variable::Type(std::forward<Args>(args))), ...);
+    return v;
+}
+
+template <typename... Args>
+static inline double tryEvalJetCorr(const std::string& key, double fallback, Args&&... args) {
+    if (!jetCorrections) return fallback;
+    try {
+        return jetCorrections->at(key)->evaluate(
+            makeCorrVals(std::forward<Args>(args)...)
+        );
+    } catch (...) {
+        return fallback;
+    }
+}
+
+template <typename... Args>
+static inline double tryEvalJetCompound(const std::string& key, double fallback, Args&&... args) {
+    if (!jetCorrections) return fallback;
+    try {
+        return jetCorrections->compound().at(key)->evaluate(
+            makeCorrVals(std::forward<Args>(args)...)
+        );
+    } catch (...) {
+        return fallback;
+    }
+}
+
+// Deterministic integer hash for stochastic JER smearing
+static inline uint64_t mix64(uint64_t x) {
+    x ^= x >> 30;
+    x *= 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27;
+    x *= 0x94d049bb133111ebULL;
+    x ^= x >> 31;
+    return x;
+}
+
+static inline double uniform01_from_seed(uint64_t seed) {
+    const uint64_t h = mix64(seed);
+    // map top 53 bits into [0,1)
+    return (h >> 11) * (1.0 / 9007199254740992.0);
+}
+
+static inline double gauss_from_seed(uint64_t seed) {
+    const double u1 = std::max(1e-12, uniform01_from_seed(seed));
+    const double u2 = uniform01_from_seed(seed ^ 0x9e3779b97f4a7c15ULL);
+    return std::sqrt(-2.0 * std::log(u1)) * std::cos(2.0 * M_PI * u2);
+}
+
+static inline float getRawJetPt(const Jet& j) {
+    return std::max(0.1f, j._pt * (1.f - j._rawFactor));
+}
+
+static inline float getRawJetMass(const Jet& j) {
+    return std::max(0.0f, j._mass * (1.f - j._rawFactor));
+}
+
+static inline float getDataResidualFactor(int run, float eta, float pt) {
     if (!jetCorrections) return 1.f;
 
     const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
-    const std::string jecBase = cfg.prefixBase;
+    const std::string dataTag = cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA";
+    const std::string key = dataTag + "_L2L3Residual_AK4PFPuppi";
 
-    float res = (float)tryEval(jecBase + "_DATA_L2L3Residual_AK4PFPuppi",
-                             0.0, (double)run, (double)eta, (double)pt);
-
-    if (res == 0.0f)
-        res = (float)tryEval(jecBase + "_DATA_L2L3Residual_AK4PFPuppi",
-                             0.0, (double)eta, (double)pt);
-
-    if (res == 0.0f)
-        res = (float)tryEval(jecBase + "_DATA_L2L3Res_AK4PFPuppi",
-                             0.0, (double)run, (double)eta, (double)pt);
-
-    if (res == 0.0f)
-        res = (float)tryEval(jecBase + "_DATA_L2L3Res_AK4PFPuppi",
-                             1.0, (double)eta, (double)pt);
+    float res = (float)tryEvalJetCorr(
+        key, 0.0,
+        (double)run,
+        (double)eta,
+        (double)pt
+    );
 
     return (res > 0.f ? res : 1.f);
 }
 
-float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run) {
-  if (!jetCorrections) {
-    static int n = 0;
-    if (n < 3) {
-      std::cerr << "[ERROR] Jet corrections not loaded!\n";
-      if (++n == 3) std::cerr << "[ERROR] (Further jet correction warnings suppressed...)\n";
+float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run, unsigned int lumi = 0, unsigned long long eventNumber = 0, int jetIndex = 0) {
+    if (!jetCorrections) {
+        static int n = 0;
+        if (n < 3) {
+            std::cerr << "[JERC] ERROR: jet corrections not loaded!\n";
+            if (++n == 3) {
+                std::cerr << "[JERC] Further warnings suppressed.\n";
+            }
+        }
+        return jet._pt;
     }
-    return jet._pt;
-  }
 
-  const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
+    const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
 
-  // Canonical inputs
-  const float eta  = std::clamp(jet._eta, -5.191f, 5.191f);
-  const float phi  = TVector2::Phi_mpi_pi(jet._phi);
-  const float area = std::max(0.f, jet._area);
-  const float pt0  = std::max(0.1f, jet._pt);
+    // Canonical sanitized inputs
+    const float eta  = std::clamp(jet._eta, -5.191f, 5.191f);
+    const float phi  = TVector2::Phi_mpi_pi(jet._phi);
+    const float area = std::max(0.f, jet._area);
+    const float abseta = std::abs(eta);
 
-  const float abseta = std::abs(eta);
-  const std::string jecBase = cfg.prefixBase;
+    // IMPORTANT: JEC should start from RAW jet pt
+    const float rawPt = getRawJetPt(jet);
 
-  float jec = 1.f;
+    float jec = 1.f;
 
-  if (!isMC) {
-    // Prefer compound key
-    const std::string compA = jecBase + "_DATA_L1L2L3Res_AK4PFPuppi";
-    const std::string compB = jecBase + "_DATA_L1L2L3Residual_AK4PFPuppi";
+    if (isMC) {
+        // Prefer official compound MC JEC
+        const std::string comp = cfg.prefixBase + "_MC_L1L2L3Res_AK4PFPuppi";
 
-    double comp = 0.0;
-    comp = tryEval(compA, 0.0, (double)area, (double)eta, (double)pt0, (double)rho, (double)phi, (double)run);
-    if (comp == 0.0) comp = tryEval(compA, 0.0, (double)area, (double)eta, (double)pt0, (double)rho, (double)run);
-    if (comp == 0.0) comp = tryEval(compA, 0.0, (double)area, (double)eta, (double)pt0, (double)rho, (double)phi);
-    if (comp == 0.0) comp = tryEval(compA, 0.0, (double)area, (double)eta, (double)pt0, (double)rho);
-    if (comp == 0.0) comp = tryEval(compB, 0.0, (double)area, (double)eta, (double)pt0, (double)rho, (double)phi, (double)run);
-    if (comp == 0.0) comp = tryEval(compB, 0.0, (double)area, (double)eta, (double)pt0, (double)rho, (double)run);
-    if (comp == 0.0) comp = tryEval(compB, 0.0, (double)area, (double)eta, (double)pt0, (double)rho, (double)phi);
-    if (comp == 0.0) comp = tryEval(compB, 0.0, (double)area, (double)eta, (double)pt0, (double)rho);
+        double jec_comp = tryEvalJetCompound(
+            comp, 0.0,
+            (double)area, (double)eta, (double)rawPt, (double)rho
+        );
 
-    if (comp > 0.0) {
-      jec = (float)comp;
+        if (jec_comp > 0.0) {
+            jec = (float)jec_comp;
+        } else {
+            // Explicit fallback: L1 * L2 * L3
+            const std::string kL1 = cfg.prefixBase + "_MC_L1FastJet_AK4PFPuppi";
+            const std::string kL2 = cfg.prefixBase + "_MC_L2Relative_AK4PFPuppi";
+            const std::string kL3 = cfg.prefixBase + "_MC_L3Absolute_AK4PFPuppi";
+
+            const float L1 = (float)tryEvalJetCorr(kL1, 1.0,
+                (double)area, (double)eta, (double)rawPt, (double)rho);
+
+            const float L2 = (float)tryEvalJetCorr(kL2, 1.0,
+                (double)eta, (double)rawPt);
+
+            const float L3 = (float)tryEvalJetCorr(kL3, 1.0,
+                (double)eta, (double)rawPt);
+
+            jec = L1 * L2 * L3;
+        }
     } else {
-      // Piecewise: L1 * L2 * L3 * Residual
-      const std::string kL1 = jecBase + "_DATA_L1FastJet_AK4PFPuppi";
-      const std::string kL2 = jecBase + "_DATA_L2Relative_AK4PFPuppi";
-      const std::string kL3 = jecBase + "_DATA_L3Absolute_AK4PFPuppi";
+        // Data: use correct data run tag in the compound key
+        const std::string dataTag = cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA";
+        const std::string compA   = dataTag + "_L1L2L3Res_AK4PFPuppi";
+        const std::string compB   = dataTag + "_L1L2L3Residual_AK4PFPuppi";
 
-      const float l1  = (float)tryEval(kL1, 1.0, (double)area, (double)eta, (double)pt0, (double)rho);
-      const float l2a = (float)tryEval(kL2, 0.0, (double)eta, (double)phi, (double)pt0);
-      const float l2b = (float)tryEval(kL2, 0.0, (double)eta, (double)pt0);
-      const float l3a = (float)tryEval(kL3, 0.0, (double)eta, (double)phi, (double)pt0);
-      const float l3b = (float)tryEval(kL3, 0.0, (double)eta, (double)pt0);
-      const float L2  = (l2a > 0.f ? l2a : (l2b > 0.f ? l2b : 1.f));
-      const float L3  = (l3a > 0.f ? l3a : (l3b > 0.f ? l3b : 1.f));
+        double jec_comp = tryEvalJetCompound(
+            compA, 0.0,
+            (double)area, (double)eta, (double)rawPt, (double)rho
+        );
+        if (jec_comp <= 0.0) {
+            jec_comp = tryEvalJetCompound(
+                compB, 0.0,
+                (double)area, (double)eta, (double)rawPt, (double)rho
+            );
+        }
 
-      float res = getDataResidualFactor(eta, pt0, run);
-      jec = l1 * L2 * L3 * res;
+        if (jec_comp > 0.0) {
+            jec = (float)jec_comp;
+        } else {
+            // Explicit fallback: L1 * L2 * L3 * residual
+            const std::string kL1  = dataTag + "_L1FastJet_AK4PFPuppi";
+            const std::string kL2  = dataTag + "_L2Relative_AK4PFPuppi";
+            const std::string kL3  = dataTag + "_L3Absolute_AK4PFPuppi";
+            const std::string kRes = dataTag + "_L2L3Residual_AK4PFPuppi";
+
+            const float L1 = (float)tryEvalJetCorr(kL1, 1.0,
+                (double)area, (double)eta, (double)rawPt, (double)rho);
+
+            const float L2 = (float)tryEvalJetCorr(kL2, 1.0,
+                (double)eta, (double)rawPt);
+
+            const float L3 = (float)tryEvalJetCorr(kL3, 1.0,
+                (double)eta, (double)rawPt);
+
+            float Res = (float)tryEvalJetCorr(
+                kRes, 0.0,
+                (double)run,
+                (double)eta,
+                (double)(rawPt * L1 * L2 * L3));
+
+            if (Res <= 0.f) {
+                Res = (float)tryEvalJetCorr(dataTag + "_L2L3Res_AK4PFPuppi", 1.0,
+                    (double)eta, (double)(rawPt * L1 * L2 * L3));
+            }
+
+            if (Res <= 0.f) Res = 1.f;
+
+            jec = L1 * L2 * L3 * Res;
+        }
     }
-  } else {
-    // MC: L1*L2*L3 (no residual)
-    const std::string kL1 = jecBase + "_MC_L1FastJet_AK4PFPuppi";
-    const std::string kL2 = jecBase + "_MC_L2Relative_AK4PFPuppi";
-    const std::string kL3 = jecBase + "_MC_L3Absolute_AK4PFPuppi";
 
-    const float l1  = (float)tryEval(kL1, 1.0, (double)area, (double)eta, (double)pt0, (double)rho);
-    const float l2a = (float)tryEval(kL2, 0.0, (double)eta, (double)phi, (double)pt0);
-    const float l2b = (float)tryEval(kL2, 0.0, (double)eta, (double)pt0);
-    const float l3a = (float)tryEval(kL3, 0.0, (double)eta, (double)phi, (double)pt0);
-    const float l3b = (float)tryEval(kL3, 0.0, (double)eta, (double)pt0);
-    const float L2  = (l2a > 0.f ? l2a : (l2b > 0.f ? l2b : 1.f));
-    const float L3  = (l3a > 0.f ? l3a : (l3b > 0.f ? l3b : 1.f));
+    float corrPt = std::max(0.f, rawPt * jec);
 
-    jec = l1 * L2 * L3;
-  }
-
-  float pt = std::max(0.f, pt0 * jec);
-
-  // 2024 mitigation in 2.0 < |eta| < 2.5:
-  // if corrected pT falls below 30 GeV, freeze the residual to its value at 30 GeV
-  if (!isMC && g_era == "2024" && isTransitionHorn2024(abseta) && pt < 30.f) {
-    const float res_at_pt = getDataResidualFactor(eta, std::max(pt, 1.f), run);
-    const float res_at_30 = getDataResidualFactor(eta, 30.f, run);
-
-    if (res_at_pt > 0.f && res_at_30 > 0.f) {
-      pt *= (res_at_30 / res_at_pt);
+    // 2024 transition-region mitigation that you already wanted to keep
+    if (!isMC && g_era == "2024" && isTransitionHorn2024(abseta) && corrPt < 30.f) {
+        const float res_at_pt = getDataResidualFactor(run, eta, std::max(corrPt, 1.f));
+        const float res_at_30 = getDataResidualFactor(run, eta, 30.f);
+        if (res_at_pt > 0.f && res_at_30 > 0.f) {
+            corrPt *= (res_at_30 / res_at_pt);
+        }
     }
-  }
 
-  // ---- JER (MC only) ----
-  if (isMC) {
-    const double sf1   = tryEval(cfg.jerScaleKey, 1.0, (double)eta, (double)pt, std::string("nom"));
-    const double sf2   = tryEval(cfg.jerScaleKey, 1.0, (double)eta, std::string("nom"));
-    const double jerSF = (sf1 != 1.0 ? sf1 : sf2);
+    // JER: MC only, after full JEC
+    if (isMC && !g_disableJER) {
+        const double jerSF = tryEvalJetCorr(cfg.jerScaleKey, 1.0,
+            (double)eta, (double)corrPt, std::string("nom"));
 
-    const bool he_genmatched_only =
-        isHEHorn(abseta) &&
-        (g_era == "12022" || g_era == "22022" ||
-         g_era == "12023" || g_era == "22023" ||
-         g_era == "2024");
+        const double jerRes = tryEvalJetCorr(cfg.jerResKey, 0.0,
+            (double)eta, (double)corrPt, (double)rho);
 
-    if (hasGenJet && genJetPt > 0.f) {
-      const double newPt = (double)genJetPt + jerSF * ((double)pt - (double)genJetPt);
-      pt = (float)std::max(0.0, newPt);
-    } else if (!he_genmatched_only && jerSF > 1.0) {
-      const double r3     = tryEval(cfg.jerResKey, 0.0, (double)eta, (double)pt, (double)rho);
-      const double r2     = tryEval(cfg.jerResKey, 0.0, (double)eta, (double)pt);
-      const double jerRes = (r3 > 0.0 ? r3 : r2);
+        const bool he_genmatched_only =
+            isHEHorn(abseta) &&
+            (g_era == "12022" || g_era == "22022" ||
+             g_era == "12023" || g_era == "22023" ||
+             g_era == "2024");
 
-      if (jerRes > 0.0) {
-        const double sigma = std::sqrt(std::max(0.0, jerSF*jerSF - 1.0)) * jerRes;
-        pt = std::max(0.f, pt * (float)g_rng.Gaus(1.0, sigma));
-      }
+        if (hasGenJet && genJetPt > 0.f) {
+            const double smearedPt = genJetPt + jerSF * (corrPt - genJetPt);
+            corrPt = (float)std::max(0.0, smearedPt);
+        } else if (!he_genmatched_only && jerSF > 1.0 && jerRes > 0.0) {
+            const double sigma = jerRes * std::sqrt(std::max(0.0, jerSF * jerSF - 1.0));
+
+            uint64_t seed = 0;
+            seed ^= (uint64_t)(unsigned)run + 0x9e3779b97f4a7c15ULL;
+            seed ^= ((uint64_t)(unsigned)lumi << 20);
+            seed ^= ((uint64_t)eventNumber << 1);
+            seed ^= ((uint64_t)(jetIndex & 0xffff) << 48);
+
+            const double gaus = gauss_from_seed(seed);
+            const double factor = std::max(0.0, 1.0 + sigma * gaus);
+
+            corrPt = (float)std::max(0.0, corrPt * factor);
+        }
     }
-  }
-
-  return pt;
+    return corrPt;
 }
 
 // -------------------------------------
@@ -1323,7 +1476,7 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
 // -------------------------------------
 
 static inline bool useUParTAK4(const std::string& era) {
-    return (era == "2024");
+    return (era == "2024" || era == "2025");
 }
 
 static inline double clampProb(double x) {
@@ -1364,7 +1517,7 @@ static inline float btagWPThreshold(const std::string& wp) {
     // -------------------------
     // 2024 : UParTAK4
     // -------------------------
-    else if (g_era == "2024") {
+    else if (g_era == "2024" || g_era == "2025") {
         if (wp == "L") return 0.0246f;
         if (wp == "M") return 0.1272f;
         if (wp == "T") return 0.4648f;
@@ -1376,12 +1529,8 @@ static inline float btagWPThreshold(const std::string& wp) {
 }
 
 static inline float jetBTagScore(const Jet& j) {
-    // 2022/2023 currently use ParticleNet branch
-    // 2024 should use the UParTAK4 discriminator branch once available in Jet
-    if (g_era == "2024") {
-        // Replace this with your actual Jet member for 2024 UParTAK4 once added.
-        // Example: return j._btagUParTAK4B;
-        return j._btagPNetB;  // temporary placeholder ONLY if you're forced to test
+    if (g_era == "2024" || g_era == "2025") {
+        return j._btagUParTAK4B;
     }
 
     return j._btagPNetB;
@@ -1420,7 +1569,7 @@ static inline double btagSF_WP_jet(const Jet& j,
     const std::string source = (flav == 5 || flav == 4) ? "comb" : "light";
 
     std::vector<std::string> prefixes;
-    if (g_era == "2024") {
+    if (g_era == "2024" || g_era == "2025") {
         prefixes = {"UParTAK4_", "uParTAK4_", "upartAK4_"};
     } else {
         prefixes = {"particleNet_", "ParticleNet_"};
@@ -1554,42 +1703,123 @@ static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>&
 }
 
 // -------------------------------------
-//          JET IDENTIFICATION 
+//          JET IDENTIFICATION
 // -------------------------------------
 
 static inline bool passJetIdTight_v12(const Jet& j) {
     const float abseta = std::fabs(j._eta);
 
-    bool pass = false;
-    if (abseta <= 2.7f) {
-        pass = (j._jetId & (1 << 1));
-    } else if (abseta <= 3.0f) {
-        pass = (j._jetId & (1 << 1)) && (j._neHEF < 0.99f);
-    } else {
-        pass = (j._jetId & (1 << 1)) && (j._neEmEF < 0.4f);
-    }
-    return pass;
+    if (abseta <= 2.7f)
+        return (j._jetId & (1 << 1));
+
+    if (abseta <= 3.0f)
+        return (j._jetId & (1 << 1)) && (j._neHEF < 0.99f);
+
+    return (j._jetId & (1 << 1)) && (j._neEmEF < 0.4f);
 }
 
 static inline bool passJetIdTightLepVeto_v12(const Jet& j) {
     const float abseta = std::fabs(j._eta);
     const bool passTight = passJetIdTight_v12(j);
 
-    if (abseta <= 2.7f) {
+    if (abseta <= 2.7f)
         return passTight && (j._muEF < 0.8f) && (j._chEmEF < 0.8f);
-    }
+
     return passTight;
 }
 
+static inline bool passJetIdTight_v15Manual(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+
+    const int chMult = (int)j._chMultiplicity;
+    const int neMult = (int)j._neMultiplicity;
+    const int mult   = chMult + neMult;
+
+    if (abseta <= 2.6f) {
+        return (j._neHEF < 0.99f) &&
+               (j._neEmEF < 0.90f) &&
+               (mult > 1) &&
+               (j._chHEF > 0.01f) &&
+               (chMult > 0);
+    }
+
+    if (abseta <= 2.7f) {
+        return (j._neHEF < 0.90f) &&
+               (j._neEmEF < 0.99f);
+    }
+
+    if (abseta <= 3.0f) {
+        return (j._neHEF < 0.99f);
+    }
+
+    return (neMult >= 2) &&
+           (j._neEmEF < 0.40f);
+}
+
+static inline bool passJetIdTightLepVeto_v15Manual(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+    const bool passTight = passJetIdTight_v15Manual(j);
+
+    if (abseta <= 2.7f)
+        return passTight && (j._muEF < 0.8f) && (j._chEmEF < 0.8f);
+
+    return passTight;
+}
+
+static inline bool passJetID_JSON(const Jet& j,
+                                  const std::string& key = "AK4PUPPI_TightLeptonVeto")
+{
+    if (!jetIdCorrections) return false;
+
+    const int chMult = (int)j._chMultiplicity;
+    const int neMult = (int)j._neMultiplicity;
+    const int mult   = chMult + neMult;
+
+    try {
+        const auto& c = jetIdCorrections->at(key);
+        const double result = c->evaluate({
+            (double)j._eta,
+            (double)j._chHEF,
+            (double)j._neHEF,
+            (double)j._chEmEF,
+            (double)j._neEmEF,
+            (double)j._muEF,
+            chMult,
+            neMult,
+            mult
+        });
+        return result > 0.5;
+    } catch (const std::exception& e) {
+        static int nWarn = 0;
+        if (nWarn++ < 5) {
+            std::cerr << "[JetID JSON] failed key=" << key
+                      << " era=" << g_era
+                      << " error=" << e.what()
+                      << " ; falling back to manual recipe.\n";
+        }
+        return false;
+    }
+}
+
 static inline bool passJetID(const Jet& j) {
-    // NanoAODv12 special recipe
-    if (g_era == "12022" || g_era == "22022" || g_era == "12023" || g_era == "22023") {
+    if (g_disableJetID) return true;
+
+    // 2022/2023 NanoAODv12 special recipe
+    if (g_era == "12022" || g_era == "22022" ||
+        g_era == "12023" || g_era == "22023") {
         return passJetIdTightLepVeto_v12(j);
     }
 
-    // 2024 and beyond:
-    // for now keep your current bit-based fallback until you fully switch to JSON/manual multiplicity logic
-    return ((j._jetId & (1 << 2)) != 0);  // tightLepVeto bit
+    // 2024/2025 NanoAODv15-style: prefer JSON, fallback to manual
+    if (g_era == "2024" || g_era == "2025") {
+        if (passJetID_JSON(j, "AK4PUPPI_TightLeptonVeto"))
+            return true;
+
+        return passJetIdTightLepVeto_v15Manual(j);
+    }
+
+    // final fallback
+    return ((j._jetId & (1 << 2)) != 0);
 }
 
 // -------------------------------------
@@ -1598,7 +1828,7 @@ static inline bool passJetID(const Jet& j) {
     
 inline bool passesJetVetoMapMinimalSelection(const Jet& j, float corr_pt) {
     if (corr_pt <= 15.f) return false;
-    if ((j._jetId & 4) == 0) return false; 
+    if (!passJetID(j)) return false;
     if ((j._chEmEF + j._neEmEF) >= 0.9f) return false;
     return true;
 }
@@ -1704,39 +1934,95 @@ static inline float baseMuonPtForCorrections(const Muon& mu) {
   return useBeamConstraintPt(mu) ? mu._bsConstrainedPt : mu._pt;
 }
 
+enum class KITDebugMode {
+    kCurrent = 0,            // your current behavior, but with threshold passed explicitly
+    kScaleOnly = 1,          // no smearing at all
+    kScaleThenSmearScaled = 2 // smear starting from pt_scaled, not from pt0
+};
+
+// Change this by hand while testing:
+static KITDebugMode g_kitDebugMode = KITDebugMode::kScaleOnly;
+//static KITDebugMode g_kitDebugMode = KITDebugMode::kScaleThenSmearScaled;
+
+// Use 0.0 while debugging to remove the discontinuity at 26 GeV.
+// Later you can revisit whether KIT really wants a threshold here.
+static double g_kitLowPtThreshold = 0.0;
+
 inline float muCorrScale(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t lumi = 0) {
     if (__noMuCorr) return 1.0f;
-
-    float scale = 1.0f;
 
     if (__useKIT) {
         if (!kitCorrections) return 1.0f;
 
         const double pt0 = baseMuonPtForCorrections(mu);
-        if (pt0 <= 0.0) return 1.0f;
+        if (!std::isfinite(pt0) || pt0 <= 0.0) return 1.0f;
 
         const bool is_data = !isMC;
         const int q = (mu._charge > 0 ? +1 : -1);
-
         const double eta = mu._eta;
         const double phi = mu._phi;
+        const float nL = kit::nLayers(mu);
 
-        // Scale (data + MC)
-        const double pt_scaled = kit::pt_scale(*kitCorrections, is_data, pt0, eta, phi, q);
+        // Step 1: scale
+        const double pt_scaled =
+            kit::pt_scale(*kitCorrections, is_data, pt0, eta, phi, q, g_kitLowPtThreshold);
 
-        // Smear (MC only), applied as a ratio wrt basePt
-        double pt_final = pt_scaled;
-        if (isMC) {
-            const double pt_smeared_from_base = kit::pt_resol(*kitCorrections, mu, evt, lumi);
-            const double smear_ratio = pt_smeared_from_base / pt0;
-            pt_final = pt_scaled * smear_ratio;
+        if (!std::isfinite(pt_scaled) || pt_scaled <= 0.0) return 1.0f;
+
+        // DATA: no smearing
+        if (!isMC) {
+            return static_cast<float>(pt_scaled / pt0);
         }
 
-        return (float)(pt_final / pt0);
+        // -----------------------------
+        // Debug mode A: scale only
+        // -----------------------------
+        if (g_kitDebugMode == KITDebugMode::kScaleOnly) {
+            return static_cast<float>(pt_scaled / pt0);
+        }
+
+        // -----------------------------
+        // Debug mode B: current behavior
+        // -----------------------------
+        if (g_kitDebugMode == KITDebugMode::kCurrent) {
+            const double pt_smeared_from_base =
+                kit::pt_resol(*kitCorrections, mu, evt, lumi, g_kitLowPtThreshold);
+
+            if (!std::isfinite(pt_smeared_from_base) || pt_smeared_from_base <= 0.0) {
+                return static_cast<float>(pt_scaled / pt0);
+            }
+
+            const double smear_ratio = pt_smeared_from_base / pt0;
+            const double pt_final = pt_scaled * smear_ratio;
+
+            if (!std::isfinite(pt_final) || pt_final <= 0.0) {
+                return static_cast<float>(pt_scaled / pt0);
+            }
+
+            return static_cast<float>(pt_final / pt0);
+        }
+
+        // -----------------------------
+        // Debug mode C: scale, then smear from scaled pT
+        // -----------------------------
+        if (g_kitDebugMode == KITDebugMode::kScaleThenSmearScaled) {
+            const double pt_smeared =
+                kit::pt_resol_num(*kitCorrections, pt_scaled, eta, phi, nL, evt, lumi,
+                                  g_kitLowPtThreshold);
+
+            if (!std::isfinite(pt_smeared) || pt_smeared <= 0.0) {
+                return static_cast<float>(pt_scaled / pt0);
+            }
+
+            return static_cast<float>(pt_smeared / pt0);
+        }
+
+        // Fallback
+        return static_cast<float>(pt_scaled / pt0);
     }
 
     if (__useRochester) {
-        scale = getMuonRochester(mu, isMC);
+        float scale = getMuonRochester(mu, isMC);
         if (!g_disableMuonScaleSmear) {
             scale *= getMuonScaleSmear(mu, isMC);
         }
@@ -1926,67 +2212,6 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs, uint32_t evt,
     return true;
 }
 
-// -------------------------------------
-//          JET IDENTIFICATION
-// -------------------------------------
-
-/*enum class JetAlgo { AK4PUPPI, AK4CHS, AK8PUPPI };
-enum class JetIDWP { Tight, TightLeptonVeto };
-
-inline const char* jetIdCorrectionName(JetAlgo algo, JetIDWP wp) {
-    switch (algo) {
-        case JetAlgo::AK4PUPPI:
-            return (wp == JetIDWP::TightLeptonVeto) ? "AK4PUPPI_TightLeptonVeto" : "AK4PUPPI_Tight";
-        case JetAlgo::AK4CHS:
-            return (wp == JetIDWP::TightLeptonVeto) ? "AK4CHS_TightLeptonVeto" : "AK4CHS_Tight";
-        case JetAlgo::AK8PUPPI:
-            return (wp == JetIDWP::TightLeptonVeto) ? "AK8PUPPI_TightLeptonVeto" : "AK8PUPPI_Tight";
-    }
-    return "AK4PUPPI_Tight";
-}
-
-bool passJetIDfromJSON(const Jet& jet,
-                       JetAlgo algo = JetAlgo::AK4PUPPI,
-                       JetIDWP wp   = JetIDWP::Tight)
-{
-    if (!jetIdCorrections) {
-        std::cerr << "[WARN] JetID corrections not loaded, falling back to NanoAOD jetId bits.\n";
-        // NanoAOD: 2=loose, 4=tight, 6=tightLepVeto. Keep your previous behavior:
-        if (wp == JetIDWP::TightLeptonVeto) return ( (jet._jetId & 4) == 4 );
-        return ( (jet._jetId & 2) == 2 ); // Tight
-    }
-
-    try {
-        const auto& corr = jetIdCorrections->at(jetIdCorrectionName(algo, wp));
-
-        // Inputs expected by the JSON:
-        //   eta, chHEF, neHEF, chEmEF, neEmEF, muEF,
-        //   chMultiplicity, neMultiplicity, multiplicity (= ch + ne)
-        const int chMult = static_cast<int>(jet._chMult);
-        const int neMult = static_cast<int>(jet._neMult);
-        const int mult   = chMult + neMult;
-
-        // Evaluate → 1.0 if passes, 0.0 otherwise
-        const double result = corr->evaluate({
-            (double)jet._eta,
-            (double)jet._chHEF,
-            (double)jet._neHEF,
-            (double)jet._chEmEF,
-            (double)jet._neEmEF,
-            (double)jet._muEF,
-            chMult,
-            neMult,
-            mult
-        });
-
-        return (result >= 0.5);
-    } catch (const std::exception& e) {
-        std::cerr << "[ERROR] JetID evaluate failed: " << e.what()
-                  << "  (eta=" << jet._eta << ")\n";
-        // Be conservative on error:
-        return false;
-    }
-}*/
 
 //*******************************************************************
 //                          SCALE FACTORS
@@ -2081,13 +2306,27 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     // -------------------------------------
     //             MUONS 
     // -------------------------------------
-    
+   
+static int kitSeedDbg = 0;
+if (kitSeedDbg < 10) {
+std::cerr << "[KIT SEED DBG] "
+<< "run="  << event._run
+<< " lumi=" << lumi
+<< " evt="  << evt
+<< " mu1_eta=" << mu1._eta
+<< " mu1_phi=" << mu1._phi
+<< " mu2_eta=" << mu2._eta
+<< " mu2_phi=" << mu2._phi
+<< "\n";
+++kitSeedDbg;
+}
+
     // --- KIT, Rochester, noMuCorr Dimuon Set ---
     const float sf1 = muCorrScale(mu1, __isMC, evt, lumi);
     const float sf2 = muCorrScale(mu2, __isMC, evt, lumi); 
-
-    const float pt1_base = (mu1._bsConstrainedPt > 0.f ? mu1._bsConstrainedPt : mu1._pt);
-    const float pt2_base = (mu2._bsConstrainedPt > 0.f ? mu2._bsConstrainedPt : mu2._pt);
+    
+    const float pt1_base = baseMuonPtForCorrections(mu1);
+    const float pt2_base = baseMuonPtForCorrections(mu2);
 
     // Raw (base) TLVs
     TLorentzVector p4m1, p4m2;
@@ -2211,8 +2450,8 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     p4jets.reserve(jets->size());
     btagJets.reserve(jets->size());
 
-static int dbg_btag_wp = 0;
-if (dbg_btag_wp < 2) {
+/*static int dbg_btag_wp = 0;
+if (dbg_btag_wp < 10) {
 std::cerr
 << "[BTAG WP DBG]"
 << " era=" << g_era
@@ -2221,7 +2460,7 @@ std::cerr
 << " T=" << btagT
 << "\n";
 ++dbg_btag_wp;
-}
+}*/
 
     // -------------------------------------
     //   Event-level jet veto map decision
@@ -2229,7 +2468,9 @@ std::cerr
     bool eventFailsJetVetoMap = false;
 
     if (!g_disableJetVeto) {
-        for (const auto& j : *jets) {
+        for (size_t ijet = 0; ijet < jets->size(); ++ijet) {
+            const auto& j = jets->at(ijet);
+
             float genJetPt_veto = 0.f;
             bool hasGenJet_veto = false;
 
@@ -2240,8 +2481,17 @@ std::cerr
             }
 
             const int runNum_veto = __isMC ? 0 : static_cast<int>(event._run);
+
             const float corr_pt_veto = getCorrectedJetPt(
-                j, rho, __isMC, genJetPt_veto, hasGenJet_veto, runNum_veto
+                j,
+                rho,
+                __isMC,
+                genJetPt_veto,
+                hasGenJet_veto,
+                runNum_veto,
+                static_cast<unsigned int>(event._lumi),
+                static_cast<unsigned long long>(event._event),
+                static_cast<int>(ijet)
             );
 
             if (!passesJetVetoMapMinimalSelection(j, corr_pt_veto))
@@ -2251,7 +2501,7 @@ std::cerr
                 eventFailsJetVetoMap = true;
                 break;
             }
-        }
+        } 
     }
 
     if (eventFailsJetVetoMap) return;
@@ -2259,77 +2509,103 @@ std::cerr
     // -------------------------------------
     //       Main selected-jet loop
     // -------------------------------------
-    for (const auto& j : *jets) {
-        ++jets_in;
+    for (size_t ijet = 0; ijet < jets->size(); ++ijet) {
+    const auto& j = jets->at(ijet);
+    ++jets_in;
 
-        // Gen matching for JER
-        float genJetPt = 0.f;
-        bool hasGenJet = false;
+    float genJetPt = 0.f;
+    bool hasGenJet = false;
 
-        if (__isMC && j._genJetIdx >= 0 && j._genJetIdx < (int)genjets->size()) {
-            const auto& gj = genjets->at(j._genJetIdx);
-            genJetPt = gj._pt;
-            hasGenJet = true;
+    if (__isMC && j._genJetIdx >= 0 && j._genJetIdx < (int)genjets->size()) {
+        const auto& gj = genjets->at(j._genJetIdx);
+        genJetPt = gj._pt;
+        hasGenJet = true;
+    }
+
+    const int runNum = __isMC ? 0 : static_cast<int>(event._run);
+
+    const float corr_pt = getCorrectedJetPt(
+        j,
+        rho,
+        __isMC,
+        genJetPt,
+        hasGenJet,
+        runNum,
+        static_cast<unsigned int>(event._lumi),
+        static_cast<unsigned long long>(event._event),
+        static_cast<int>(ijet)
+    );
+
+    const float raw_mass = getRawJetMass(j);
+    const float raw_pt   = getRawJetPt(j);
+    const float corr_mass = (raw_pt > 0.f ? raw_mass * (corr_pt / raw_pt) : raw_mass);
+
+    ++jets_after_vetoMap;
+
+    if (!g_disableJetCriteria) {
+        if (!passJetID(j))
+            continue;
+        ++jets_after_id;
+
+        const float abseta = std::abs(j._eta);
+
+        if (corr_pt <= 25.f)
+            continue;
+        ++jets_after_pt_default;
+
+        if (isHFHorn(abseta) && eraNeedsHF50(g_era)) {
+            if (corr_pt <= 50.f)
+                continue;
+            ++jets_after_pt_hf;
         }
 
-        const int runNum = __isMC ? 0 : static_cast<int>(event._run);
-        const float corr_pt = getCorrectedJetPt(
-            j, rho, __isMC, genJetPt, hasGenJet, runNum
-        );
-
-        const float raw_pt_safe = std::max(1e-6f, j._pt);
-        const float corr_mass   = j._mass * (corr_pt / raw_pt_safe);
-
-        // This counter means the event survived the earlier event-level veto stage
-        ++jets_after_vetoMap;
-
-        if (!g_disableJetCriteria) {
-            if (!passJetID(j))
+        if (isHEHorn(abseta) && eraNeedsHE50(g_era)) {
+            if (corr_pt <= 50.f)
                 continue;
-            ++jets_after_id;
-
-            const float abseta = std::abs(j._eta);
-
-            // Default pt cut
-            if (corr_pt <= 25.f)
-                continue;
-            ++jets_after_pt_default;
-
-            // HF horn mitigation
-            if (isHFHorn(abseta) && eraNeedsHF50(g_era)) {
-                if (corr_pt <= 50.f)
-                    continue;
-                ++jets_after_pt_hf;
-            }
-
-            // HE horn mitigation
-            if (isHEHorn(abseta) && eraNeedsHE50(g_era)) {
-                if (corr_pt <= 50.f)
-                    continue;
-                ++jets_after_pt_he;
-            }
-
-            ++jets_after_pt;
-
-            if (abseta >= 4.7f)
-                continue;
-            ++jets_after_eta;
-
-            if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) <= 0.4)
-                continue;
-            ++jets_after_dR1;
-
-            if (jetMuondR(j._eta, j._phi, mu2._eta, mu2._phi) <= 0.4)
-                continue;
-            ++jets_after_dR2;
+            ++jets_after_pt_he;
         }
 
-        ++jets_pass;
+        ++jets_after_pt;
+
+        if (abseta >= 4.7f)
+            continue;
+        ++jets_after_eta;
+
+        if (jetMuondR(j._eta, j._phi, mu1._eta, mu1._phi) <= 0.4)
+            continue;
+        ++jets_after_dR1;
+
+        if (jetMuondR(j._eta, j._phi, mu2._eta, mu2._phi) <= 0.4)
+            continue;
+        ++jets_after_dR2;
+    }
+
+    ++jets_pass;
 
         // Save corrected four-vector for later dijet kinematics
         TLorentzVector p4;
         p4.SetPtEtaPhiM(corr_pt, j._eta, j._phi, corr_mass);
         p4jets.push_back(p4);
+
+static int jerc_dbg = 0;
+if (jerc_dbg < 20) {
+std::cerr << "[JERC DBG]"
+<< " era=" << g_era
+<< " pt=" << j._pt
+<< " rawFactor=" << j._rawFactor
+<< " raw_pt=" << raw_pt
+<< " corr_pt=" << corr_pt
+<< " mass=" << j._mass
+<< " raw_mass=" << raw_mass
+<< " corr_mass=" << corr_mass
+<< " eta=" << j._eta
+<< " phi=" << j._phi
+<< " raw/corr=" << (raw_pt > 0 ? corr_pt/raw_pt : -1.0)
+<< " hasGenJet=" << hasGenJet
+<< " genJetPt=" << genJetPt
+<< "\n";
+++jerc_dbg;
+}
 
         // Save corrected jet copy for b-tag efficiency / veto logic
         analysis::core::Jet jSF = j;
@@ -2339,6 +2615,10 @@ std::cerr
         jSF._phi           = j._phi;
         jSF._btagPNetB     = j._btagPNetB;
         jSF._hadronFlavour = j._hadronFlavour;
+        
+        if (g_era == "2024") {
+            jSF._btagUParTAK4B = j._btagUParTAK4B;
+        }
 
         btagJets.push_back(jSF);
     }
@@ -2499,7 +2779,7 @@ std::cout
     //          B-TAG REWEIGHTING  
     // -------------------------------------
 
-static int dbg_btag_evt = 0;
+/*static int dbg_btag_evt = 0;
 if (dbg_btag_evt < 10) {
 std::cout << "[BTAG EVT DBG] era=" << g_era
 << " btagJets.size()=" << btagJets.size()
@@ -2508,7 +2788,7 @@ std::cout << "[BTAG EVT DBG] era=" << g_era
 << " btagjet_SF=" << btagjet_SF
 << std::endl;
 ++dbg_btag_evt;
-}
+}*/
 
 static int DbgEvt = 0;
 const int maxDbgEvts = 10;
@@ -2655,7 +2935,7 @@ std::cerr
                 g_deta_mumu_jj       = std::fabs(corr_p4dimuon.Eta() - dijet.Eta());
 
                 // Zeppenfeld variable
-                g_z             = std::fabs(g_y_mumu - 0.5f*(g_y_j1 + g_y_j2));
+                g_z                  = static_cast<float>(g_y_mumu - 0.5f*(g_y_j1 + g_y_j2));
 
                 // Pt-balance ratio
                 const double px_sum     =  corr_p4dimuon.Px() + p4lead.Px() + p4sub.Px();
@@ -3157,8 +3437,9 @@ void process()
     SET_BRANCH_UCHAR_ARRAY(Jet_jetId);
     SET_BRANCH_FLOAT_ARRAY(Jet_btagDeepFlavB);
     SET_BRANCH_FLOAT_ARRAY(Jet_btagPNetB);
-    SET_BRANCH_FLOAT_ARRAY(Jet_btagRobustParTAK4B);
+    SET_BRANCH_FLOAT_ARRAY(Jet_btagUParTAK4B);
     SET_BRANCH_UCHAR_ARRAY(Jet_hadronFlavour);
+    SET_BRANCH_FLOAT_ARRAY(Jet_rawFactor);
     SET_BRANCH_FLOAT_ARRAY(Jet_area);
     SET_BRANCH_FLOAT_ARRAY(Jet_chHEF);
     SET_BRANCH_FLOAT_ARRAY(Jet_neHEF);
@@ -3166,6 +3447,8 @@ void process()
     SET_BRANCH_FLOAT_ARRAY(Jet_neEmEF);
     SET_BRANCH_FLOAT_ARRAY(Jet_muEF);
     SET_BRANCH_USHORT_ARRAY(Jet_genJetIdx);
+    SET_BRANCH_UCHAR_ARRAY(Jet_chMultiplicity);
+    SET_BRANCH_UCHAR_ARRAY(Jet_neMultiplicity);
 
     //Setting Branch Array for GenJet Properties
     SET_BRANCH_UINT(nGenJet);
@@ -3389,9 +3672,10 @@ long long n_afterPair   = 0;
             jet._mass 				= Jet_mass[i];
             jet._jetId 				= Jet_jetId[i];
             jet._btagDeepFlavB		= Jet_btagDeepFlavB[i];
+            jet._btagUParTAK4B      = Jet_btagUParTAK4B[i];
             jet._btagPNetB 			= Jet_btagPNetB[i];
-            jet._btagRobustParTAK4B	= Jet_btagRobustParTAK4B[i];
             jet._hadronFlavour 		= Jet_hadronFlavour[i];
+            jet._rawFactor   		= Jet_rawFactor[i];
             jet._area 				= Jet_area[i];
             jet._chHEF 				= Jet_chHEF[i];
             jet._neHEF 				= Jet_neHEF[i];
@@ -3399,6 +3683,8 @@ long long n_afterPair   = 0;
             jet._neEmEF 			= Jet_neEmEF[i];
             jet._muEF 				= Jet_muEF[i];
             jet._genJetIdx 			= Jet_genJetIdx[i];
+            jet._chMultiplicity     = Jet_chMultiplicity[i];
+            jet._neMultiplicity     = Jet_neMultiplicity[i];
 
             jets->push_back(std::move(jet));
         }
@@ -3546,7 +3832,7 @@ std::cout << std::setprecision(10)
        }
        ++n_afterGolden;
 
-        static int dbg = 0;
+/*static int dbg = 0;
 if (!__isMC && !g_lumiMask.empty() && dbg < 10) {
 unsigned run  = static_cast<unsigned>(event->_run);
 unsigned lumi = static_cast<unsigned>(event->_lumi);
@@ -3554,7 +3840,7 @@ std::cout << "[GOLDEN DBG] run=" << run
 << " lumi=" << lumi
 << " pass=" << passGolden(run, lumi) << "\n";
 ++dbg;
-}
+}*/
 
 /*static int flagDbg = 0;
 if (flagDbg < 10 && flags && !flags->empty()) {
@@ -3654,8 +3940,9 @@ int main(int argc, char** argv)
 		("isMC",            po::value<bool>(),                                                  "type of data: DATA vs MC")
         ("muCorr",          po::value<std::string>(&muCorrOpt)->default_value("roch"),          "'roch' (Rochester), 'kit' (KIT smearing), 'none' (NoMuCorr)")
         ("output",          po::value<std::string>(),                                           "output file name")
-        ("noJetCriteria",  po::bool_switch(&g_disableJetCriteria)->default_value(false),        "Disable jet kinematic/ID/muon-cleaning cuts")
+        ("noJetCriteria",   po::bool_switch(&g_disableJetCriteria)->default_value(false),       "Disable jet kinematic/ID/muon-cleaning cuts")
         ("noJERC",          po::bool_switch(&g_disableJetJERC)->default_value(false),           "Disable jet JEC/JER from jet_jerc*.json (use raw jet pT)")
+        ("noJER",           po::bool_switch(&g_disableJER),                                     "disable JER smearing but keep JEC")
         ("noJetVeto",       po::bool_switch(&g_disableJetVeto)->default_value(false),           "Disable jet veto maps (keep all jets; ignore jet_veto_maps JSON)")
         ("noBtagSF",        po::bool_switch(&g_disableBtagSF)->default_value(false),            "Disable b-tagging scale factors (event btag weight = 1)")
         ("noMuonSF",        po::bool_switch(&g_disableMuonSF)->default_value(false),            "Disable muon ID/ISO/trigger scale factors (muon SF = 1)")

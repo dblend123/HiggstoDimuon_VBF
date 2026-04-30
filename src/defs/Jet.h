@@ -65,16 +65,19 @@ namespace analysis
                     _jetId 				= 0;
                     _btagDeepFlavB 		= 0;
                     _btagPNetB     		= 0;
-                    _btagRobustParTAK4B = 0;
+                    _btagUParTAK4B      = 0;
                     _hadronFlavour      = 0;
                     _area 			    = 0;
-                    
+                    _rawFactor          = 0;
+
                     _chHEF 			    = 0;
                     _neHEF 			    = 0;
                     _chEmEF 		    = 0;
                     _neEmEF 		    = 0;
                     _muEF 			    = 0;
-                
+                    
+                    _chMultiplicity     = 0;
+                    _neMultiplicity     = 0;
                 }
 
 				float _px;
@@ -114,7 +117,6 @@ namespace analysis
                 double _pt_downAK5;
                 double _pt_downAK4;
 
-				//	
 				GenJet _genjet;
 				bool _genMatched;
 				float _genemf;
@@ -126,8 +128,9 @@ namespace analysis
                 unsigned char  _jetId;
                 float _btagDeepFlavB;
                 float _btagPNetB;
-                float _btagRobustParTAK4B;
+                float _btagUParTAK4B;
                 unsigned char   _hadronFlavour;
+                float _rawFactor;
                 float _area;
 
                 float _chHEF;
@@ -135,6 +138,9 @@ namespace analysis
                 float _chEmEF;
                 float _neEmEF;
                 float _muEF;
+
+                unsigned char _chMultiplicity;
+                unsigned char _neMultiplicity;
 		};
 		
         typedef std::vector<analysis::core::Jet> Jets;
