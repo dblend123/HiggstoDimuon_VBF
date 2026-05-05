@@ -50,7 +50,7 @@ namespace analysis
                 hDiMuonrapidity     = new TH1F("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
                 hCollinsSoper       = new TH1F("CollinsSoper","CollinsSoper", 30, -3.2, 3.2);
                 hcosCollinsSoper    = new TH1F("cosCollinsSoper","cosCollinsSoper", 10, -1.0, 1.0);
-                hPtBalance          = new TH1F("PtBalance", "PtBalance", 30, 0, 1.5);
+                hPtBalance          = new TH1F("PtBalance", "PtBalance", 30, 0, 1.0);
                 hZeppenfeld         = new TH1F("Zeppenfeld", "Zeppenfeld", 20, -5, 5);
 
                 // -----  Muon Plots  -----

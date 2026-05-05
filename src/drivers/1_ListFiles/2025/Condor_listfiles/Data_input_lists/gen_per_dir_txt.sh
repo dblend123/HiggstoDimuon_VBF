@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
+
+#Example: ./gen_per_dir_txt.sh /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2025/Data_listfiles
+
 set -euo pipefail
 
-# Base dir that contains per-process folders (each with part*.list)
-# Pass as arg 1, or it’ll use this default.
 BASEDIR="${1:-/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2025/Data_listfiles}"
-
-# Optional: suffix appended to each tag (leave empty for none)
-# Example values: MCRun2022EE, MCRun23C, MCRun24v15, etc.
 SUFFIX="${SUFFIX:-DataRun2025}"
 
-# Optional: alias map (folder name -> short tag prefix).
-# If a folder isn’t listed here, its folder name is used as-is.
 declare -A ALIAS=(
   ["Muon0"]="Muon0"
   ["Muon1"]="Muon1"
@@ -24,38 +20,52 @@ fi
 echo "Scanning process folders in: $BASEDIR"
 shopt -s nullglob
 
-# Iterate immediate subdirectories (process folders)
 for procdir in "$BASEDIR"/*/; do
   [[ -d "$procdir" ]] || continue
+
   procbase="$(basename "$procdir")"
+
+  # Skip helper dirs like latest_only if present
+  if [[ "$procbase" != "Muon0" && "$procbase" != "Muon1" ]]; then
+    echo "Skipping non-data folder: $procbase"
+    continue
+  fi
+
   alias="${ALIAS[$procbase]:-$procbase}"
   outfile="${BASEDIR}/${procbase}.txt"
 
   echo "→ Building ${outfile}"
   : > "$outfile"
 
-  # Find *.list files and write lines: "<full_path> <TAG>"
-  # Natural sort so part000, part001, ..., part010
   find "$procdir" -maxdepth 1 -type f -name '*.list' -print0 \
     | sort -zV \
     | while IFS= read -r -d '' f; do
         base="$(basename "$f" .list)"
+        # Example base: Muon0_Cpart017
 
-        # Extract trailing number for index (defaults to 0 if missing)
-        idx="$(grep -oE '[0-9]+' <<< "$base" | tail -n1 || true)"
-        [[ -z "$idx" ]] && idx="0"
+        run_letter="$(sed -E 's/^.*_([A-Z])part[0-9]+.*$/\1/' <<< "$base")"
+        idx="$(sed -E 's/^.*part([0-9]+).*$/\1/' <<< "$base")"
 
-        # Optional "_Ext" marker if filename mentions Ext (case-insensitive)
+        if [[ -z "$run_letter" || "$run_letter" == "$base" ]]; then
+          echo "WARNING: could not extract run letter from $base; using X" >&2
+          run_letter="X"
+        fi
+
+        if [[ -z "$idx" || "$idx" == "$base" ]]; then
+          echo "WARNING: could not extract part index from $base; using 000" >&2
+          idx="000"
+        fi
+
         ext=""
         [[ "$base" =~ [Ee][Xx][Tt] ]] && ext="_Ext"
 
-        # Compose tag. Matches your style: e.g. DY_0MCRun22CD (no extra underscore)
-        tag="${alias}_${idx}${ext}${SUFFIX:+$SUFFIX}"
+        # Old: Muon0_017DataRun2025
+        # New: Muon0_C017DataRun2025
+        tag="${alias}_${run_letter}${idx}${ext}${SUFFIX:+$SUFFIX}"
 
         printf "%s %s\n" "$f" "$tag" >> "$outfile"
       done
 
-  # If no lines were written, remove the empty file
   if [[ ! -s "$outfile" ]]; then
     echo "  (no .list files found in $procdir — skipping)"
     rm -f "$outfile"
@@ -65,4 +75,3 @@ for procdir in "$BASEDIR"/*/; do
 done
 
 echo "Done."
-

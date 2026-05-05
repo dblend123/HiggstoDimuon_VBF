@@ -547,7 +547,6 @@ static void initZPtRW() {
 // Global Pointers
 std::shared_ptr<correction::CorrectionSet> jetCorrections   = nullptr;
 std::shared_ptr<correction::CorrectionSet> jetVetoMaps      = nullptr;
-std::shared_ptr<correction::CorrectionSet> jetIdCorrections = nullptr;
 std::shared_ptr<correction::CorrectionSet> btagCorrections  = nullptr;
 std::unique_ptr<TFile> g_btagEffFileHandle                  = nullptr;
 
@@ -656,12 +655,12 @@ static JecEraConfig jecConfigForEra(const std::string& era, const std::string& i
         };
     }
     if (era == "2025") {
-    return {
-        "Summer24Prompt24_V1", 
-        "RunBCDEFG",          
-        "Summer24Prompt24_JRV1_MC_ScaleFactor_AK4PFPuppi",
-        "Summer24Prompt24_JRV1_MC_PtResolution_AK4PFPuppi",
-        "Summer24Prompt24_RunBCDEFGHI_V1"
+        return {
+            "Summer24Prompt24_V1", 
+            "RunBCDEFG",          
+            "Summer24Prompt24_JRV1_MC_ScaleFactor_AK4PFPuppi",
+            "Summer24Prompt24_JRV1_MC_PtResolution_AK4PFPuppi",
+            "Winter25Prompt25_RunCDEFG_V1"
         };
     }
     return {
@@ -680,20 +679,102 @@ static std::string vetoFileForEra(const std::string& era) {
   if (g_jetVetoJSON != "auto") return g_jetVetoJSON;
   return g_jmeDir + "/jetvetomaps" + era + ".json";
 }
-static std::string jetIdFileForEra(const std::string& era) {
-  if (g_jetIdJSON != "auto") return g_jetIdJSON;
-  return g_jmeDir + "/jetid" + era + ".json";
-}
 
 static std::string btagFileForEra(const std::string& era) {
     if (g_btagJSON != "auto") return g_btagJSON;
     return g_jmeDir + "/btagging" + era + ".json";
 }
 
+static void printJetCorrectionTagsOnce() {
+    static bool printed = false;
+    if (printed) return;
+    printed = true;
+
+    const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
+
+    const std::string mcTag   = cfg.prefixBase + "_MC";
+    const std::string dataTag = cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA";
+
+    std::cerr << "\n========== JET / BTAG CORRECTION TAGS ==========\n";
+    std::cerr << "[ERA] " << g_era << "\n";
+
+    std::cerr << "\n[JERC JSON] " << jercFileForEra(g_era) << "\n";
+    std::cerr << "[JEC MC]   " << mcTag << "_L1FastJet_AK4PFPuppi\n";
+    std::cerr << "[JEC MC]   " << mcTag << "_L2Relative_AK4PFPuppi\n";
+    std::cerr << "[JEC MC]   " << mcTag << "_L3Absolute_AK4PFPuppi\n";
+    std::cerr << "[JEC MC]   " << mcTag << "_L1L2L3Res_AK4PFPuppi\n";
+
+    std::cerr << "[JEC DATA] " << dataTag << "_L1FastJet_AK4PFPuppi\n";
+    std::cerr << "[JEC DATA] " << dataTag << "_L2Relative_AK4PFPuppi\n";
+    std::cerr << "[JEC DATA] " << dataTag << "_L3Absolute_AK4PFPuppi\n";
+    std::cerr << "[JEC DATA] " << dataTag << "_L2L3Residual_AK4PFPuppi\n";
+    std::cerr << "[JEC DATA] " << dataTag << "_L1L2L3Res_AK4PFPuppi\n";
+
+    std::cerr << "[JER SF]   " << cfg.jerScaleKey << "\n";
+    std::cerr << "[JER Res]  " << cfg.jerResKey << "\n";
+
+    std::cerr << "\n[JET VETO JSON] " << vetoFileForEra(g_era) << "\n";
+    std::cerr << "[JET VETO KEY]  " << cfg.vetoMapKey << "\n";
+
+    std::cerr << "\n[BTAG JSON] " << btagFileForEra(g_era) << "\n";
+    if (g_era == "2024" || g_era == "2025") {
+        std::cerr << "[BTAG WP]   UParTAK4_wp_values\n";
+        std::cerr << "[BTAG SF]   UParTAK4_comb / UParTAK4_light / UParTAK4_shape\n";
+        std::cerr << "[BTAG DISC] Jet_btagUParTAK4B\n";
+    } else {
+        std::cerr << "[BTAG WP]   particleNet_wp_values or ParticleNet_wp_values\n";
+        std::cerr << "[BTAG SF]   particleNet_comb / particleNet_light / particleNet_shape\n";
+        std::cerr << "[BTAG DISC] Jet_btagPNetB\n";
+    }
+
+    std::cerr << "[BTAG WPs]  L=" << btagWPThreshold("L")
+              << " M=" << btagWPThreshold("M")
+              << " T=" << btagWPThreshold("T") << "\n";
+    std::cerr << "================================================\n\n";
+}
+
+static inline void printBTagCallingNamesOnce() {
+    static bool printed = false;
+    if (printed) return;
+    printed = true;
+
+    const bool isUParT = (g_era == "2024" || g_era == "2025");
+
+    std::cerr << "\n========== BTAG CALLING NAMES ==========\n";
+    std::cerr << "[BTAG JSON] " << btagFileForEra(g_era) << "\n";
+    std::cerr << "[ERA]       " << g_era << "\n";
+    std::cerr << "[TAGGER]    " << (isUParT ? "UParTAK4" : "ParticleNet") << "\n";
+    std::cerr << "[DISC]      " << (isUParT ? "Jet_btagUParTAK4B" : "Jet_btagPNetB") << "\n";
+
+    if (isUParT) {
+        std::cerr << "[WP KEY]    UParTAK4_wp_values\n";
+        std::cerr << "[SF b/c]    UParTAK4_comb\n";
+        std::cerr << "[SF light]  UParTAK4_light\n";
+        std::cerr << "[SF shape]  UParTAK4_shape\n";
+    } else {
+        std::cerr << "[WP KEY]    particleNet_wp_values / ParticleNet_wp_values\n";
+        std::cerr << "[SF b/c]    particleNet_comb / ParticleNet_comb\n";
+        std::cerr << "[SF light]  particleNet_light / ParticleNet_light\n";
+        std::cerr << "[SF shape]  particleNet_shape / ParticleNet_shape\n";
+    }
+
+    std::cerr << "[CALL]      correction->evaluate({syst, wp, flav, abseta, pt})\n";
+    std::cerr << "[SYST]      central\n";
+    std::cerr << "[WP]        L, M, T\n";
+    std::cerr << "[FLAV]      b=5, c=4, light=0\n";
+    std::cerr << "[WPs]       L=" << btagWPThreshold("L")
+              << " M=" << btagWPThreshold("M")
+              << " T=" << btagWPThreshold("T") << "\n";
+    std::cerr << "========================================\n\n";
+}
+
 void loadBTagEffMaps(const std::string& filePath);
 
 void loadJetCorrections() {
 
+    printJetCorrectionTagsOnce();
+    printBTagCallingNamesOnce();
+    
     // --- JERC loading ---
     if (g_disableJetJERC) {
         std::cerr << "[Jet] JERC disabled via --noJERC; using stored jet pT/mass from input file.\n";
@@ -728,16 +809,6 @@ void loadJetCorrections() {
         }
     }
 
-    if (!g_disableJetID && (g_era == "2024" || g_era == "2025")) {
-        try {
-            if (!jetIdCorrections)
-                jetIdCorrections = correction::CorrectionSet::from_file(jetIdFileForEra(g_era));
-        } catch (const std::exception& e) {
-            std::cerr << "[JetID load ERROR] " << e.what() << " ; will use manual JetID fallback.\n";
-            jetIdCorrections = nullptr;
-        }
-    }
-    
     if (g_disableBtagSF) {
         std::cerr << "[BTAG] Skipping b-tag SF JSON loading (--noBtagSF).\n";
         btagCorrections = nullptr;
@@ -1555,9 +1626,7 @@ static inline void logBTagWPsOnce() {
     }
 }
 
-static inline double btagSF_WP_jet(const Jet& j,
-                                   const std::string& wp,
-                                   const std::string& syst = "central")
+static inline double btagSF_WP_jet(const Jet& j, const std::string& wp, const std::string& syst = "central")
 {
     if (g_disableBtagSF) return 1.0;
     if (!__isMC || !btagCorrections) return 1.0;
@@ -1766,41 +1835,6 @@ static inline bool passJetIdTightLepVeto_v15Manual(const Jet& j) {
     return passTight;
 }
 
-static inline bool passJetID_JSON(const Jet& j,
-                                  const std::string& key = "AK4PUPPI_TightLeptonVeto")
-{
-    if (!jetIdCorrections) return false;
-
-    const int chMult = (int)j._chMultiplicity;
-    const int neMult = (int)j._neMultiplicity;
-    const int mult   = chMult + neMult;
-
-    try {
-        const auto& c = jetIdCorrections->at(key);
-        const double result = c->evaluate({
-            (double)j._eta,
-            (double)j._chHEF,
-            (double)j._neHEF,
-            (double)j._chEmEF,
-            (double)j._neEmEF,
-            (double)j._muEF,
-            chMult,
-            neMult,
-            mult
-        });
-        return result > 0.5;
-    } catch (const std::exception& e) {
-        static int nWarn = 0;
-        if (nWarn++ < 5) {
-            std::cerr << "[JetID JSON] failed key=" << key
-                      << " era=" << g_era
-                      << " error=" << e.what()
-                      << " ; falling back to manual recipe.\n";
-        }
-        return false;
-    }
-}
-
 static inline bool passJetID(const Jet& j) {
     if (g_disableJetID) return true;
 
@@ -1810,15 +1844,12 @@ static inline bool passJetID(const Jet& j) {
         return passJetIdTightLepVeto_v12(j);
     }
 
-    // 2024/2025 NanoAODv15-style: prefer JSON, fallback to manual
+    // 2024/2025 NanoAODv15-style manual recipe
     if (g_era == "2024" || g_era == "2025") {
-        if (passJetID_JSON(j, "AK4PUPPI_TightLeptonVeto"))
-            return true;
-
         return passJetIdTightLepVeto_v15Manual(j);
     }
 
-    // final fallback
+    // fallback
     return ((j._jetId & (1 << 2)) != 0);
 }
 

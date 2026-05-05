@@ -36,10 +36,10 @@ job_lease_duration = 7200
 
 +JobFlavour             = "tomorrow"
 request_cpus            = 1
-request_memory          = 2000
+request_memory          = 10000
 request_disk            = 4000
 
-era       = 2025
+era       = 2024
 # era       = X
 # era       = X
 # era       = X
@@ -161,8 +161,8 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
-# sample    = DATA_2024_Muon1
-# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+sample    = DATA_2024_Muon1
+queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
 
 # ===== 2025 DATA queue =====
 
@@ -171,6 +171,6 @@ path = /afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/$(era)/C
 # queue inputList, tag from $(path)/Data_input_lists/Muon0.txt
 
 # # Muon1
-sample    = DATA_2025_Muon1
-queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
+# sample    = DATA_2025_Muon1
+# queue inputList, tag from $(path)/Data_input_lists/Muon1.txt
 

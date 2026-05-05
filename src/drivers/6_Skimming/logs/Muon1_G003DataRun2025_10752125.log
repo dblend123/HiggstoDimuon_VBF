@@ -1,0 +1,125 @@
+000 (10752125.031.000) 05/05 01:22:47 Job submitted from host: <137.138.55.115:9618?addrs=137.138.55.115-9618+[2001-1458-d00-17--12a]-9618&alias=bigbird23.cern.ch&noUDP&sock=schedd_2059_e197>
+...
+022 (10752125.031.000) 05/05 02:51:52 Job disconnected, attempting to reconnect
+    Socket between submit and execute hosts closed unexpectedly
+    Trying to reconnect to slot1_14@b9p18p8103.cern.ch <188.185.215.163:9618?addrs=188.185.215.163-9618+[2001-1458-303-26--100-1f]-9618&alias=b9p18p8103.cern.ch&noUDP&sock=startd_3055_0deb>
+...
+024 (10752125.031.000) 05/05 02:52:00 Job reconnection failed
+    Job not found at execution machine
+    Can not reconnect to slot1_14@b9p18p8103.cern.ch, rescheduling job
+...
+004 (10752125.031.000) 05/05 02:52:00 Job was evicted.
+	(0) CPU times
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+	0  -  Run Bytes Sent By Job
+	0  -  Run Bytes Received By Job
+	Job not found at execution machine
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :                 4           
+	   Disk (KB)            :      225     4000      6833 
+	   GPUs                 :                           0 
+	   Memory (MB)          :             12000     12000 
+...
+022 (10752125.031.000) 05/05 02:55:13 Job disconnected, attempting to reconnect
+    Socket between submit and execute hosts closed unexpectedly
+    Trying to reconnect to slot1_4@b9p18p8103.cern.ch <188.185.215.163:9618?addrs=188.185.215.163-9618+[2001-1458-303-26--100-1f]-9618&alias=b9p18p8103.cern.ch&noUDP&sock=startd_3055_0deb>
+...
+024 (10752125.031.000) 05/05 02:55:22 Job reconnection failed
+    Job not found at execution machine
+    Can not reconnect to slot1_4@b9p18p8103.cern.ch, rescheduling job
+...
+004 (10752125.031.000) 05/05 02:55:22 Job was evicted.
+	(0) CPU times
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+	0  -  Run Bytes Sent By Job
+	0  -  Run Bytes Received By Job
+	Job not found at execution machine
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :                 4           
+	   Disk (KB)            :      225     4000      6833 
+	   GPUs                 :                           0 
+	   Memory (MB)          :             12000     12000 
+...
+040 (10752125.031.000) 05/05 02:59:08 Started transferring input files
+	Transferring to host: <188.185.214.14:9618?addrs=188.185.214.14-9618+[2001-1458-303-1c--100-a]-9618&alias=b9p29p1220.cern.ch&noUDP&sock=slot1_8_4531_3fd1_242613>
+...
+040 (10752125.031.000) 05/05 02:59:08 Finished transferring input files
+...
+001 (10752125.031.000) 05/05 02:59:08 Job executing on host: <188.185.214.14:9618?addrs=188.185.214.14-9618+[2001-1458-303-1c--100-a]-9618&alias=b9p29p1220.cern.ch&noUDP&sock=startd_3848_fc85>
+	SlotName: slot1_8@b9p29p1220.cern.ch
+	CondorScratchDir = "/pool/condor/dir_3959786"
+	Cpus = 4
+	Disk = 6724
+	GPUs = 0
+	Memory = 12000
+...
+006 (10752125.031.000) 05/05 02:59:22 Image size of job updated: 98384
+	97  -  MemoryUsage of job (MB)
+	98384  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:04:23 Image size of job updated: 188100
+	184  -  MemoryUsage of job (MB)
+	188020  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:09:24 Image size of job updated: 189140
+	185  -  MemoryUsage of job (MB)
+	189140  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:14:24 Image size of job updated: 189732
+	185  -  MemoryUsage of job (MB)
+	189140  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:19:25 Image size of job updated: 190032
+	186  -  MemoryUsage of job (MB)
+	190032  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:24:26 Image size of job updated: 190900
+	187  -  MemoryUsage of job (MB)
+	190900  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:29:26 Image size of job updated: 190988
+	187  -  MemoryUsage of job (MB)
+	190988  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:44:28 Image size of job updated: 191696
+	188  -  MemoryUsage of job (MB)
+	191696  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:49:29 Image size of job updated: 191700
+	188  -  MemoryUsage of job (MB)
+	191700  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 03:54:30 Image size of job updated: 191704
+	188  -  MemoryUsage of job (MB)
+	191700  -  ResidentSetSize of job (KB)
+...
+006 (10752125.031.000) 05/05 04:14:32 Image size of job updated: 224928
+	188  -  MemoryUsage of job (MB)
+	192068  -  ResidentSetSize of job (KB)
+...
+040 (10752125.031.000) 05/05 04:21:40 Started transferring output files
+...
+040 (10752125.031.000) 05/05 04:21:40 Finished transferring output files
+...
+005 (10752125.031.000) 05/05 04:21:40 Job terminated.
+	(1) Normal termination (return value 0)
+		Usr 0 00:38:59, Sys 0 00:00:55  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+		Usr 0 00:38:59, Sys 0 00:00:55  -  Total Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Total Local Usage
+	20798  -  Run Bytes Sent By Job
+	203238  -  Run Bytes Received By Job
+	20798  -  Total Bytes Sent By Job
+	203238  -  Total Bytes Received By Job
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :        0        4         4 
+	   Disk (KB)            :  2833950     4000      6724 
+	   GPUs                 :                           0 
+	   Memory (MB)          :      188    12000     12000 
+	   TimeExecute (s)      :     4952                    
+	   TimeSlotBusy (s)     :     4953                    
+
+	Job terminated of its own accord at 2026-05-05T02:21:40Z with exit-code 0.
+...

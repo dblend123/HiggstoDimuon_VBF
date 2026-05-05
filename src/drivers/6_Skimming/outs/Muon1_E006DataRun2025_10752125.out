@@ -1,0 +1,51 @@
+== Job started: Tue May  5 02:55:23 AM CEST 2026
+Host: b9p18p2899.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2025/Data_listfiles/Muon1/Muon1_Epart006.list'  tag='Muon1_E006DataRun2025'  sample='DATA_2025_Muon1'
+ERA (4th arg): '2025'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_80111
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2025/Data_listfiles/Muon1/Muon1_Epart006.list' -> using local: '/pool/condor/dir_80111/Muon1_Epart006.list'
+Using Condor proxy: /pool/condor/dir_80111/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_80111/Muon1_Epart006.list
+Input list has 11 lines
+root://cms-xrd-global.cern.ch//store/data/Run2025E/Muon1/NANOAOD/PromptReco-v1/000/396/372/00000/6aa6c65d-f4c3-4191-94e0-356c780dfde9.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2025E/Muon1/NANOAOD/PromptReco-v1/000/396/180/00000/bbc6461f-2c12-4a58-9aac-67acb7522623.root ...
+root://cms-xrd-global.cern.ch//store/data/Run2025E/Muon1/NANOAOD/PromptReco-v1/000/396/405/00000/44298834-669c-44ec-880e-8ccbdbaba307.root ...
+Using skimmer: my_skim
+abefe743dc8f9c9a82f8364349e03ca5  ./my_skim
+ 0x000000000000000f (RPATH)              Library rpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: Muon1_E006DataRun2025
+Running: ./my_skim '/pool/condor/dir_80111/Muon1_Epart006.list' '-1'
+---- last 50 lines of skim.stdout.log ----
+Requested ALL events
+Writing: ./skims/Skimmed_6aa6c65d-f4c3-4191-94e0-356c780dfde9.root
+Writing: ./skims/Skimmed_bbc6461f-2c12-4a58-9aac-67acb7522623.root
+Writing: ./skims/Skimmed_44298834-669c-44ec-880e-8ccbdbaba307.root
+Writing: ./skims/Skimmed_abfc5c6f-9cab-4b0a-872d-e7fdd1c6db9b.root
+Writing: ./skims/Skimmed_4df6f90f-6c0f-4106-a0ba-04e931cf4956.root
+Writing: ./skims/Skimmed_a43e15ec-88a8-4eb2-beb5-e8b2de28dc25.root
+Writing: ./skims/Skimmed_d60a94f9-1dda-4e11-bc53-dadab9ed0e6b.root
+Writing: ./skims/Skimmed_1b1852c0-918e-42e4-b1eb-2dbd4d082ce0.root
+Writing: ./skims/Skimmed_c1bcd36f-d81f-4f14-8098-3f7baf7f81f8.root
+Writing: ./skims/Skimmed_5ac8337b-7cd9-443d-b3ec-d16dd247bdee.root
+Writing: ./skims/Skimmed_fe61d877-d50c-4c41-b64c-ef5498a4dabf.root
+
+Done. Files skimmed: 11  |  Events kept: 1045997
+Staging to: root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025
+Found 11 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_1b1852c0-918e-42e4-b1eb-2dbd4d082ce0.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_44298834-669c-44ec-880e-8ccbdbaba307.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_4df6f90f-6c0f-4106-a0ba-04e931cf4956.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_5ac8337b-7cd9-443d-b3ec-d16dd247bdee.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_6aa6c65d-f4c3-4191-94e0-356c780dfde9.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_a43e15ec-88a8-4eb2-beb5-e8b2de28dc25.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_abfc5c6f-9cab-4b0a-872d-e7fdd1c6db9b.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_bbc6461f-2c12-4a58-9aac-67acb7522623.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_c1bcd36f-d81f-4f14-8098-3f7baf7f81f8.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_d60a94f9-1dda-4e11-bc53-dadab9ed0e6b.root
+xrdcp -> root://eosuser.cern.ch//eos/user/d/dblend/SkimmedFiles/2025/DATA_2025_Muon1/Muon1_E006DataRun2025/Skimmed_fe61d877-d50c-4c41-b64c-ef5498a4dabf.root
+Done staging.
+== Job finished: Tue May  5 03:12:21 AM CEST 2026
