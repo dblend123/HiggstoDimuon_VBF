@@ -226,8 +226,8 @@ inline double pt_scale(const correction::CorrectionSet& cset,
 
  const double abseta = std::abs(eta);
 
- const double a = cset.at("a_" + dtmc)->evaluate({abseta, phi, "nom"});
- const double m = cset.at("m_" + dtmc)->evaluate({abseta, phi, "nom"});
+ const double a = cset.at("a_" + dtmc)->evaluate({eta, phi, std::string("nom")});
+ const double m = cset.at("m_" + dtmc)->evaluate({eta, phi, std::string("nom")});
 
   if (pt < low_pt_threshold) return pt;
   return 1.0 / (m / pt + charge * a);

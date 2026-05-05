@@ -239,6 +239,7 @@ static inline float baseMuonPtForCorrections(const analysis::core::Muon& mu);
 static inline double clampProb(double x);
 static inline double getBTagEff_WP_jet(const analysis::core::Jet& j, const std::string& wp);
 static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets);
+static inline float btagWPThreshold(const std::string& wp);
 
 // MVA tree
 TTree* gMvaTree = nullptr;
