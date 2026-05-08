@@ -257,8 +257,8 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   h_ratio->GetXaxis()->SetLabelSize(0.12);
   h_ratio->GetXaxis()->SetTitleSize(0.12);
   h_ratio->GetXaxis()->SetTitle(xTitle);
-  h_ratio->SetMinimum(0.90);
-  h_ratio->SetMaximum(1.05);
+  h_ratio->SetMinimum(0.60);
+  h_ratio->SetMaximum(1.4);
   h_ratio->SetLineColor(kBlack);
   h_ratio->SetMarkerStyle(20);
   h_ratio->Draw("E1");

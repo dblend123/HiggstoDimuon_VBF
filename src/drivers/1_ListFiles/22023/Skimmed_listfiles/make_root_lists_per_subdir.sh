@@ -20,7 +20,7 @@
     #
     set -euo pipefail
 
-    BASE_DIR="${1:-/eos/user/d/dblend/SkimmedFiles/22023}"
+    BASE_DIR="${1:-/eos/user/d/dblend/SkimmedFiles/2024}"
     OUT_DIR="${2:-.}"
 
     if [[ ! -d "${BASE_DIR}" ]]; then
