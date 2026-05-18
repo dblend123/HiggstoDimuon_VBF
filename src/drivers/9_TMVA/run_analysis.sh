@@ -5,11 +5,22 @@ export MPLBACKEND=Agg
 OUT=src/drivers/9_TMVA/Outputs
 DIAG_SCRIPT=src/drivers/9_TMVA/vbf_bdt/bdt_validation.py
 CAT_SCRIPT=src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py
+ALL_ERAS=(12022 22022 12023 22023 2024 2025)
+
+# Parse optional -e flag to run a single era; default is all eras
+ERAS=("${ALL_ERAS[@]}")
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -e|--era) ERAS=("$2"); shift 2 ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
 
 # ------------------------------------------------------------------
 # Step 1: Per-era diagnostic reports (KS folds, ROC, feature checks)
 # ------------------------------------------------------------------
-for era in 12022 22022 12023 22023 2024 2025; do
+for era in "${ERAS[@]}"; do
+  echo ">>> [Diagnostics] era=${era}"
   ODIR="$OUT/VBFValidation/$era"
   mkdir -p "$ODIR"
   python3 "$DIAG_SCRIPT" \
@@ -20,13 +31,30 @@ for era in 12022 22022 12023 22023 2024 2025; do
 done
 
 # ------------------------------------------------------------------
-# Step 2: Multi-era categorization, category optimisation, blinded
-#         sideband validation report (the primary analysis output)
+# Step 2: Per-era categorization report
 # ------------------------------------------------------------------
-CATDIR="$OUT/Categorization"
-mkdir -p "$CATDIR"
-python3 "$CAT_SCRIPT" \
-  --eras 12022 22022 12023 22023 2024 2025 \
-  --outputs-dir "$OUT" \
-  --outdir "$CATDIR" \
-  --log-level INFO |& tee "$CATDIR/run.log"
+for era in "${ERAS[@]}"; do
+  echo ">>> [Categorization] era=${era}"
+  CATDIR="$OUT/Categorization/$era"
+  mkdir -p "$CATDIR"
+  python3 "$CAT_SCRIPT" \
+    --eras "$era" \
+    --outputs-dir "$OUT" \
+    --outdir "$CATDIR" \
+    --log-level INFO |& tee "$CATDIR/run.log"
+done
+
+# ------------------------------------------------------------------
+# Step 3: Combined multi-era categorization (all eras together)
+#         Skipped when running a single era
+# ------------------------------------------------------------------
+if [[ ${#ERAS[@]} -gt 1 ]]; then
+  echo ">>> [Categorization] combined all eras"
+  CATDIR="$OUT/Categorization/combined"
+  mkdir -p "$CATDIR"
+  python3 "$CAT_SCRIPT" \
+    --eras "${ALL_ERAS[@]}" \
+    --outputs-dir "$OUT" \
+    --outdir "$CATDIR" \
+    --log-level INFO |& tee "$CATDIR/run.log"
+fi
