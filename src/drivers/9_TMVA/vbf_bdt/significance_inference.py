@@ -1050,7 +1050,7 @@ def iterative_greedy_category_scan(
     hwhm_mass_lo: float = 0.0,
     hwhm_mass_hi: float = float("inf"),
     logger=None,
-) -> Tuple[np.ndarray, List[Tuple[int, float]]]:
+) -> Tuple[np.ndarray, List[Tuple[int, float]], List[dict]]:
     """Iterative greedy VBF BDT category optimisation.
 
     Scans candidate boundaries at signal quantile positions (1% steps in the
@@ -1075,6 +1075,19 @@ def iterative_greedy_category_scan(
     -------
     edges : 1-D array of optimised BDT score boundaries in [0, 1].
     scan_history : list of (n_categories, Z_asimov) tuples for plotting.
+    step_scan_data : list of per-step dicts used to reproduce AN Fig. 32
+        (significance vs. scan boundary position at each optimisation step).
+        Each dict contains:
+          "step"            - step number (1-based)
+          "fixed_t"         - interior boundaries already locked (atanh space)
+          "fixed_sig_eff"   - signal efficiency above each fixed boundary
+          "cands_t"         - candidate t values tried at this step (sorted)
+          "cands_sig_eff"   - signal efficiency above each candidate (sorted)
+          "cands_z"         - combined Asimov Z for each candidate
+          "best_t"          - chosen boundary (atanh space)
+          "best_sig_eff"    - signal efficiency above the chosen boundary
+          "best_z"          - combined Asimov Z at chosen boundary
+          "accepted"        - True if boundary was adopted (gain >= threshold)
     """
     sig_scores  = np.asarray(sig_scores,  dtype=np.float64)
     bkg_scores  = np.asarray(bkg_scores,  dtype=np.float64)
@@ -1102,6 +1115,13 @@ def iterative_greedy_category_scan(
     cands = np.unique(np.quantile(t_sig, q_levels))
     cands = cands[(cands > t_lo) & (cands < t_hi)]
 
+    # Pre-compute total signal weight for signal-efficiency conversion
+    total_sig_w = max(float(np.sum(sig_weights)), 1e-12)
+
+    def _sig_eff_above(t_val: float) -> float:
+        """Fraction of weighted signal events with t_sig >= t_val."""
+        return float(np.sum(sig_weights[t_sig >= t_val])) / total_sig_w
+
     def _get_yields(trial_edges):
         if use_hwhm:
             s_yields = _bin_yields_t_hwhm(
@@ -1118,15 +1138,24 @@ def iterative_greedy_category_scan(
     baseline_edges = np.array([t_lo, t_hi])
     prev_z = _combined_asimov_z(*_get_yields(baseline_edges))
     scan_history: List[Tuple[int, float]] = [(1, prev_z)]
+    step_scan_data: List[dict] = []
     current_interior: List[float] = []
 
     for step in range(max_n - 1):
-        remaining = set(cands.tolist()) - set(current_interior)
-        if not remaining:
+        remaining_set = set(cands.tolist()) - set(current_interior)
+        if not remaining_set:
             break
+
+        # Sort candidates by t value (ascending) for smooth per-step curves
+        remaining_sorted = sorted(remaining_set)
         best_cand_t = None
         best_z = -1.0
-        for ct in remaining:
+
+        step_cands_t: List[float] = []
+        step_cands_sig_eff: List[float] = []
+        step_cands_z: List[float] = []
+
+        for ct in remaining_sorted:
             trial_interior = sorted(current_interior + [ct])
             trial_edges = np.array([t_lo] + trial_interior + [t_hi])
             s_yields, b_yields = _get_yields(trial_edges)
@@ -1135,14 +1164,34 @@ def iterative_greedy_category_scan(
             if np.any(s_full < min_sig) or np.any(b_full < min_bkg):
                 continue
             z = _combined_asimov_z(s_yields, b_yields)
+            step_cands_t.append(ct)
+            step_cands_sig_eff.append(_sig_eff_above(ct))
+            step_cands_z.append(z)
             if z > best_z:
                 best_z = z
                 best_cand_t = ct
 
+        # Determine acceptance
+        rel_gain = (best_z - prev_z) / max(prev_z, 1e-12) if best_cand_t is not None else -1.0
+        accepted = (best_cand_t is not None) and (rel_gain >= min_improvement)
+
+        # Record per-step scan data (always, even for rejected steps)
+        step_scan_data.append({
+            "step": step + 1,
+            "fixed_t": list(current_interior),
+            "fixed_sig_eff": [_sig_eff_above(b) for b in current_interior],
+            "cands_t": np.array(step_cands_t, dtype=np.float64),
+            "cands_sig_eff": np.array(step_cands_sig_eff, dtype=np.float64),
+            "cands_z": np.array(step_cands_z, dtype=np.float64),
+            "best_t": float(best_cand_t) if best_cand_t is not None else float("nan"),
+            "best_sig_eff": _sig_eff_above(best_cand_t) if best_cand_t is not None else float("nan"),
+            "best_z": float(best_z),
+            "accepted": accepted,
+        })
+
         if best_cand_t is None:
             break
-        rel_gain = (best_z - prev_z) / max(prev_z, 1e-12)
-        if rel_gain < min_improvement:
+        if not accepted:
             if logger:
                 logger.info(
                     "  Step %d: gain %.2f%% < threshold; stopping at n=%d.",
@@ -1165,8 +1214,8 @@ def iterative_greedy_category_scan(
             )
 
     if not current_interior:
-        return np.array([0.0, 1.0], dtype=np.float64), scan_history
+        return np.array([0.0, 1.0], dtype=np.float64), scan_history, step_scan_data
     interior_orig = _bdt_inverse(np.array(current_interior))
     edges_orig = np.concatenate([[0.0], np.sort(interior_orig), [1.0]])
     edges_orig = np.unique(np.clip(edges_orig, 0.0, 1.0))
-    return edges_orig, scan_history
+    return edges_orig, scan_history, step_scan_data
