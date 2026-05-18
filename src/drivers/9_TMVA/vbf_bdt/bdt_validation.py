@@ -69,6 +69,7 @@ from bdt_analysis import (
     multi_bin_asimov_z,
     ks_2samp,
     compute_roc,
+    sanitize_weights,
 )
 
 
