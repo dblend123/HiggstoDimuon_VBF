@@ -3,9 +3,9 @@
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_9999) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[INFO]   Step 1: added t'=2.0740 -> n=2 cats, Z=0.1421 (gain +208.65%)
-[INFO]   Step 2: added t'=2.7896 -> n=3 cats, Z=0.1691 (gain +19.00%)
-[INFO]   Step 3: added t'=3.0499 -> n=4 cats, Z=0.2347 (gain +38.77%)
+[INFO]   Step 1: added t'=1.8672 -> n=2 cats, Z=0.1544 (gain +128.71%)
+[INFO]   Step 2: added t'=2.3991 -> n=3 cats, Z=0.2588 (gain +67.58%)
+[INFO]   Step 3: added t'=1.9952 -> n=4 cats, Z=0.2646 (gain +2.25%)
 [INFO] MC normalization: lumi-weighted (scale = 1.0, following AN2019_090_UCSD)
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
@@ -13,10 +13,12 @@
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[INFO] Display plot normalization (sideband scale): 0.141180
+[INFO] Display plot normalization (sideband scale): 0.319152
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_999) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+/eos/home-m/memmad/HiggstoDimuon_VBF/src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py:2005: RuntimeWarning: divide by zero encountered in divide
+  s_over_sqrtb = np.where(sqrtb > 0.0, s_per_bin / sqrtb, 0.0)
 /eos/home-m/memmad/HiggstoDimuon_VBF/src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py:2053: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   fig.tight_layout(rect=[0, 0, 1, 0.99])
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
@@ -85,7 +87,8 @@
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_3) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[WARNING] Cat 2: B_HWHM=0.212 < 1.0 (low stats ★).
+[WARNING] Cat 1: B_HWHM=0.149 < 1.0 (low stats ★).
+[WARNING] Cat 2: B_HWHM=0.266 < 1.0 (low stats ★).
 /eos/home-m/memmad/HiggstoDimuon_VBF/src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py:2515: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   fig.tight_layout(rect=[0, 0, 1, 0.97])
 [INFO] Wrote improved report PDF: /eos/home-m/memmad/HiggstoDimuon_VBF/src/drivers/9_TMVA/Outputs/Categorization/12022/bdt_validation_report_12022.pdf

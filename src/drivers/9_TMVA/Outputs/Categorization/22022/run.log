@@ -3,9 +3,9 @@
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_9999) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[INFO]   Step 1: added t'=2.9898 -> n=2 cats, Z=0.5520 (gain +507.75%)
-[INFO]   Step 2: added t'=2.4629 -> n=3 cats, Z=0.6345 (gain +14.96%)
-[INFO]   Step 3: added t'=1.5964 -> n=4 cats, Z=0.6556 (gain +3.32%)
+[INFO]   Step 1: added t'=2.6790 -> n=2 cats, Z=0.4819 (gain +292.74%)
+[INFO]   Step 2: added t'=1.7386 -> n=3 cats, Z=0.5426 (gain +12.58%)
+[INFO]   Step 3: added t'=1.3351 -> n=4 cats, Z=0.5506 (gain +1.49%)
 [INFO] MC normalization: lumi-weighted (scale = 1.0, following AN2019_090_UCSD)
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
@@ -13,12 +13,17 @@
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[INFO] Display plot normalization (sideband scale): 0.142440
+[INFO] Top category [0.981, 1.000) Z=0.1340 < prev [0.880, 0.981) Z=0.1559 — non-monotone; merging top two.
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+[INFO] Display plot normalization (sideband scale): 0.395643
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_999) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-/eos/home-m/memmad/HiggstoDimuon_VBF/src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py:2005: RuntimeWarning: divide by zero encountered in divide
-  s_over_sqrtb = np.where(sqrtb > 0.0, s_per_bin / sqrtb, 0.0)
 /eos/home-m/memmad/HiggstoDimuon_VBF/src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py:2053: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   fig.tight_layout(rect=[0, 0, 1, 0.99])
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
@@ -64,6 +69,12 @@
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_1) Calculating sum-of-weights-squared correction matrix for covariance matrix
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
+[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_2) Calculating sum-of-weights-squared correction matrix for covariance matrix
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
+[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
@@ -71,21 +82,6 @@
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
 [#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_2) Calculating sum-of-weights-squared correction matrix for covariance matrix
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
-[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_3) Calculating sum-of-weights-squared correction matrix for covariance matrix
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
-[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_0) Calculating sum-of-weights-squared correction matrix for covariance matrix
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
-[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_1) Calculating sum-of-weights-squared correction matrix for covariance matrix
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
-[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_2) Calculating sum-of-weights-squared correction matrix for covariance matrix
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
-[#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: activating const optimization
-[#1] INFO:Fitting -- RooAbsPdf::fitTo(dcb_sdcb_3) Calculating sum-of-weights-squared correction matrix for covariance matrix
 [#1] INFO:Minimization -- RooAbsMinimizerFcn::setOptimizeConst: deactivating const optimization
 /eos/home-m/memmad/HiggstoDimuon_VBF/src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py:2515: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
   fig.tight_layout(rect=[0, 0, 1, 0.97])
