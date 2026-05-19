@@ -1,195 +1,91 @@
 #!/bin/bash
+# run_full.sh — End-to-end BDT pipeline (prepare → train → test → score) for one era.
+#
+# Usage:
+#   ./run_full.sh -e <era> [--base <path>] [--skip-training] [--skip-testing] [--skip-scoring]
+#
+# Defaults:
+#   --base = /eos/user/d/dblend/Analyzed_SkimmedFiles/<era>/Rochester/noScaleSmear_noBtagSF
 
-# Comprehensive TMVA BDT Training and Analysis Script
-# This script runs the complete BDT workflow for a specified era
+set -e
 source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
-voms-proxy-init -voms cms
-# Function to display usage
-usage() {
-    echo "Usage: $0 -e <era> [--base <path>] [--skip-training] [--skip-testing] [--skip-scoring] [--skip-analysis]"
-    echo "  -e, --era       : Era (e.g., 2024, 12022, etc.)"
-    echo "  --base          : Base path to analyzed skimmed files for this era"
-    echo "                    (default: /eos/user/d/dblend/Analyzed_SkimmedFiles/{era}/Rochester/noScaleSmear_noBtagSF)"
-    echo "  --skip-training : Skip BDT training step"
-    echo "  --skip-testing  : Skip BDT testing step"
-    echo "  --skip-scoring  : Skip scoring step"
-    echo "  --help          : Display this help message"
-    exit 1
-}
+voms-proxy-init -voms cms || true
 
-# Parse command line arguments
-ERA=""
-BASE_PATH=""
-SKIP_TRAINING=false
-SKIP_TESTING=false
-SKIP_SCORING=false
+ERA=""; BASE_PATH=""
+SKIP_TRAINING=false; SKIP_TESTING=false; SKIP_SCORING=false
+
+usage() { sed -n '1,12p' "$0"; exit 1; }
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -e|--era)
-            ERA="$2"
-            shift 2
-            ;;
-        --base)
-            BASE_PATH="$2"
-            shift 2
-            ;;
-        --skip-training)
-            SKIP_TRAINING=true
-            shift
-            ;;
-        --skip-testing)
-            SKIP_TESTING=true
-            shift
-            ;;
-        --skip-scoring)
-            SKIP_SCORING=true
-            shift
-            ;;
-        --help)
-            usage
-            ;;
-        *)
-            echo "Unknown option: $1"
-            usage
-            ;;
+        -e|--era)         ERA="$2";   shift 2 ;;
+        --base)           BASE_PATH="$2"; shift 2 ;;
+        --skip-training)  SKIP_TRAINING=true; shift ;;
+        --skip-testing)   SKIP_TESTING=true;  shift ;;
+        --skip-scoring)   SKIP_SCORING=true;  shift ;;
+        --help|-h)        usage ;;
+        *) echo "Unknown option: $1"; usage ;;
     esac
 done
+[[ -z "$ERA" ]] && { echo "ERROR: --era is required"; usage; }
+[[ -z "$BASE_PATH" ]] && BASE_PATH="/eos/user/d/dblend/Analyzed_SkimmedFiles/${ERA}/Rochester/noScaleSmear_noBtagSF"
 
-# Check if era is provided
-if [ -z "$ERA" ]; then
-    echo "ERROR: Era must be specified!"
-    usage
-fi
-
-# Set default base path if not provided
-if [ -z "$BASE_PATH" ]; then
-    BASE_PATH="/eos/user/d/dblend/Analyzed_SkimmedFiles/${ERA}/Rochester/noScaleSmear_noBtagSF"
-fi
+DPREP="DataPreparation_Files/${ERA}"
+MODELDIR="Outputs/Training/${ERA}"
+SCOREDIR="Outputs/${ERA}"
+mkdir -p "$MODELDIR" "$SCOREDIR"
 
 echo "========================================="
-echo "Starting TMVA BDT workflow for era: ${ERA}"
+echo "TMVA BDT workflow — era ${ERA}"
+echo "  base    = ${BASE_PATH}"
 echo "========================================="
 
-#Prepare data for TMVA training and testing
-python3 tmva100_DataPreparation.py --era ${ERA} --base "${BASE_PATH}" --signal-subdir VBF --treename-in mva --make-all --keep-branches "m_mumu,Muon_pt,Muon_eta,Muon_phi,Muon_charge,Muon_tightId,Jet_btagDeepFlavB,Pileup_nTrueInt,run,luminosityBlock,event"
+# Step 0: Build the per-era snapshots used by everything downstream
+python3 tmva100_DataPreparation.py \
+    --era "${ERA}" --base "${BASE_PATH}" \
+    --signal-subdir VBF --treename-in mva --make-all \
+    --keep-branches "m_mumu,Muon_pt,Muon_eta,Muon_phi,Muon_charge,Muon_tightId,Jet_btagDeepFlavB,Pileup_nTrueInt,run,luminosityBlock,event"
 
-# Create necessary directories if they don't exist
-mkdir -p Outputs/Training/${ERA}
-mkdir -p Outputs/${ERA}
-
-# ------------------------------------------------------------------
-# Step 1: Train single combined BDT
-# ------------------------------------------------------------------
-if [ "$SKIP_TRAINING" = false ]; then
-    echo ""
-    echo "Step 1: Training BDT for era ${ERA}"
-    echo "----------------------------------------"
-    
-    # Train single combined BDT
-    echo "# Train single combined BDT"
-    python3 tmva101_Training.py --era ${ERA} \
-      --base-dir DataPreparation_Files/${ERA} \
-      --bkg-cats background
-    
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Training failed!"
-        exit 1
-    fi
-    echo "✓ Training completed"
+# Step 1: Train one BDT against the merged background
+if [[ "$SKIP_TRAINING" = false ]]; then
+    echo ">>> [1/3] Training BDT"
+    python3 tmva101_Training.py --era "${ERA}" --base-dir "${DPREP}" --bkg-cats background
+    echo "✓ training done"
 else
-    echo "Step 1: Skipping training (--skip-training)"
+    echo ">>> [1/3] training skipped"
 fi
 
-# ------------------------------------------------------------------
-# Step 2: Test the trained BDT
-# ------------------------------------------------------------------
-if [ "$SKIP_TESTING" = false ]; then
-    echo ""
-    echo "Step 2: Testing BDT for era ${ERA}"
-    echo "----------------------------------------"
-    
-    python3 tmva102_Testing.py --era ${ERA} \
-      --dir DataPreparation_Files/${ERA} \
-      --model Outputs/Training/${ERA}/${ERA}_tmva101_background.root
-    
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Testing failed!"
-        exit 1
-    fi
-    echo "✓ Testing completed"
+MODEL="${MODELDIR}/${ERA}_tmva101_background.root"
+
+# Step 2: ROC / AUC on held-out fold==3
+if [[ "$SKIP_TESTING" = false ]]; then
+    echo ">>> [2/3] Testing"
+    python3 tmva102_Testing.py --era "${ERA}" --dir "${DPREP}" --model "${MODEL}"
+    echo "✓ testing done"
 else
-    echo "Step 2: Skipping testing (--skip-testing)"
+    echo ">>> [2/3] testing skipped"
 fi
 
-# ------------------------------------------------------------------
-# Step 3: Apply BDT to score all samples
-# ------------------------------------------------------------------
-if [ "$SKIP_SCORING" = false ]; then
-    echo ""
-    echo "Step 3: Scoring all samples for era ${ERA}"
-    echo "----------------------------------------"
-    
-    MODEL_FILE="Outputs/Training/${ERA}/${ERA}_tmva101_background.root"
-    
-    # 1. Score signal
-    echo "# 1. Score signal"
-    python3 tmva103_Application.py \
-        --input DataPreparation_Files/${ERA}/${ERA}_all_signal.root \
-        --output Outputs/${ERA}/${ERA}_scored_signal.root \
-        --treename mva \
-        --model-file ${MODEL_FILE} \
-        --model-name myBDT
-    echo "✓ Signal scoring completed"
-    
-    # 2. Score combined background
-    echo ""
-    echo "# 2. Score combined background"
-    python3 tmva103_Application.py \
-        --input DataPreparation_Files/${ERA}/${ERA}_all_background.root \
-        --output Outputs/${ERA}/${ERA}_scored_background.root \
-        --treename mva \
-        --model-file ${MODEL_FILE} \
-        --model-name myBDT
-    echo "✓ Combined background scoring completed"
-    
-    # 3. Score each background category separately
-    echo ""
-    echo "# 3. Score each background category separately"
+# Step 3: Score signal, per-cat backgrounds, merged background, and data
+if [[ "$SKIP_SCORING" = false ]]; then
+    echo ">>> [3/3] Scoring all samples"
+    score() {
+        local in="$1" out="$2"
+        python3 tmva103_Application.py --input "$in" --output "$out" \
+            --treename mva --model-file "${MODEL}" --model-name myBDT
+    }
+    score "${DPREP}/${ERA}_all_signal.root"     "${SCOREDIR}/${ERA}_scored_signal.root"
+    score "${DPREP}/${ERA}_all_background.root" "${SCOREDIR}/${ERA}_scored_background.root"
     for cat in DY EWK TT VV VVV; do
-        echo "   Scoring ${cat}..."
-        python3 tmva103_Application.py \
-            --input DataPreparation_Files/${ERA}/${ERA}_all_${cat}.root \
-            --output Outputs/${ERA}/${ERA}_scored_${cat}.root \
-            --treename mva \
-            --model-file ${MODEL_FILE} \
-            --model-name myBDT
-        echo "   Finished scoring ${cat}"
+        in="${DPREP}/${ERA}_all_${cat}.root"
+        [[ -f "$in" ]] && score "$in" "${SCOREDIR}/${ERA}_scored_${cat}.root"
     done
-    echo "✓ All background category scoring completed"
-    
-    # 4. Score real data
-    echo ""
-    echo "# 4. Score real data"
-    python3 tmva103_Application.py \
-        --input ${BASE_PATH}/DATA/DATA_all.root \
-        --output Outputs/${ERA}/${ERA}_data_scored.root \
-        --treename mva \
-        --model-file ${MODEL_FILE} \
-        --model-name myBDT
-    echo "✓ Real data scoring completed"
-    
+    score "${BASE_PATH}/DATA/DATA_all.root" "${SCOREDIR}/${ERA}_data_scored.root"
+    echo "✓ scoring done"
 else
-    echo "Step 3: Skipping scoring (--skip-scoring)"
+    echo ">>> [3/3] scoring skipped"
 fi
 
-
-echo ""
 echo "========================================="
-echo "✓ TMVA BDT workflow for era ${ERA} completed successfully!"
-echo "========================================="
-echo ""
-echo "Output files are located in:"
-echo "  - Models:      Outputs/Training/${ERA}/"
-echo "  - Scored data: Outputs/${ERA}/"
+echo "✓ done.  Models: ${MODELDIR}/   Scored: ${SCOREDIR}/"
 echo "========================================="
