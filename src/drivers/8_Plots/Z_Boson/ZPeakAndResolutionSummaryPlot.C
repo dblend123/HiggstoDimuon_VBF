@@ -49,6 +49,7 @@ static TString eraLumiText(const char* era) {
   else if (e == "12023") return "18.7 fb^{-1} (13.6 TeV)";
   else if (e == "22023") return "9.7 fb^{-1} (13.6 TeV)";
   else if (e == "2024")  return "104.8 fb^{-1} (13.6 TeV)";
+  else if (e == "2025")  return "110.7 fb^{-1} (13.6 TeV)";
   return TString(era);
 }
 
@@ -385,7 +386,7 @@ void ZPeakAndResolutionSummaryPlot(const char* txtFile,
   TString outPath = txtFile;
   TString outDir = gSystem->DirName(outPath);
   TString suffix = useRatioBottom ? "_ratio" : "_diffMeV";
-  TString outBase = outDir + "/ZPeakAndResolutionSummaryPlot_" + TString(era) + "_" + metric + suffix;
+  TString outBase = outDir + "/ZPeakAndResolutionSummaryPlot_" + metric + suffix;
 
   c->SaveAs(outBase + ".pdf");
   c->SaveAs(outBase + ".png");

@@ -54,7 +54,7 @@
 #include <TLeaf.h>
 #include <random>   
 #include <cstdint>
-
+#include <iomanip>
 
 //*******************************************************************
 //                   HISTOGRAM MACROS
@@ -362,7 +362,7 @@ static std::string rochFileForEra(const std::string& era) {
 
 static std::string kitFileForEra(const std::string& era) {
     if (g_kitJSON != "auto") return g_kitJSON;
-    // Example naming: KIT12022.json, KIT22022.json, KIT12023.json, KIT22023.json, KIT2024.json
+    // Example naming: KIT12022.json, KIT22022.json, KIT12023.json, KIT22023.json, KIT2024.json, KIT2025.json
     return g_muDir + "/KIT" + era + ".json";
 }
 
@@ -659,8 +659,8 @@ static JecEraConfig jecConfigForEra(const std::string& era, const std::string& i
         return {
             "Summer24Prompt24_V1", 
             "RunBCDEFG",          
-            "Summer24Prompt24_JRV1_MC_ScaleFactor_AK4PFPuppi",
-            "Summer24Prompt24_JRV1_MC_PtResolution_AK4PFPuppi",
+            "Winter25Prompt25_JRV1_MC_ScaleFactor_AK4PFPuppi",
+            "Winter25Prompt25_JRV1_MC_PtResolution_AK4PFPuppi",
             "Winter25Prompt25_RunCDEFG_V1"
         };
     }
@@ -696,9 +696,8 @@ static void printJetCorrectionTagsOnce() {
     const std::string mcTag   = cfg.prefixBase + "_MC";
     const std::string dataTag = cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA";
 
-    std::cerr << "\n========== JET / BTAG CORRECTION TAGS ==========\n";
-    std::cerr << "[ERA] " << g_era << "\n";
-
+    std::cerr << "\n========== JET CORRECTION TAGS ==========\n";
+    
     std::cerr << "\n[JERC JSON] " << jercFileForEra(g_era) << "\n";
     std::cerr << "[JEC MC]   " << mcTag << "_L1FastJet_AK4PFPuppi\n";
     std::cerr << "[JEC MC]   " << mcTag << "_L2Relative_AK4PFPuppi\n";
@@ -717,20 +716,6 @@ static void printJetCorrectionTagsOnce() {
     std::cerr << "\n[JET VETO JSON] " << vetoFileForEra(g_era) << "\n";
     std::cerr << "[JET VETO KEY]  " << cfg.vetoMapKey << "\n";
 
-    std::cerr << "\n[BTAG JSON] " << btagFileForEra(g_era) << "\n";
-    if (g_era == "2024" || g_era == "2025") {
-        std::cerr << "[BTAG WP]   UParTAK4_wp_values\n";
-        std::cerr << "[BTAG SF]   UParTAK4_comb / UParTAK4_light / UParTAK4_shape\n";
-        std::cerr << "[BTAG DISC] Jet_btagUParTAK4B\n";
-    } else {
-        std::cerr << "[BTAG WP]   particleNet_wp_values or ParticleNet_wp_values\n";
-        std::cerr << "[BTAG SF]   particleNet_comb / particleNet_light / particleNet_shape\n";
-        std::cerr << "[BTAG DISC] Jet_btagPNetB\n";
-    }
-
-    std::cerr << "[BTAG WPs]  L=" << btagWPThreshold("L")
-              << " M=" << btagWPThreshold("M")
-              << " T=" << btagWPThreshold("T") << "\n";
     std::cerr << "================================================\n\n";
 }
 
@@ -741,9 +726,8 @@ static inline void printBTagCallingNamesOnce() {
 
     const bool isUParT = (g_era == "2024" || g_era == "2025");
 
-    std::cerr << "\n========== BTAG CALLING NAMES ==========\n";
+    std::cerr << "\n========== BTAG CORRECTION TAGS ==========\n";
     std::cerr << "[BTAG JSON] " << btagFileForEra(g_era) << "\n";
-    std::cerr << "[ERA]       " << g_era << "\n";
     std::cerr << "[TAGGER]    " << (isUParT ? "UParTAK4" : "ParticleNet") << "\n";
     std::cerr << "[DISC]      " << (isUParT ? "Jet_btagUParTAK4B" : "Jet_btagPNetB") << "\n";
 
@@ -917,10 +901,6 @@ std::string g_puKey   = "auto";  // "auto" => pick key by era via map below
 
 static std::string puFileForEra(const std::string& era) {
   if (g_puJSON != "auto") return g_puJSON;
-
-   // temporary recommendation: use 2024 PU for 2025
-  if (era == "2025") return g_puDir + "/puWeights2024.json";
-
   return g_puDir + "/puWeights" + era + ".json";
 }
 
@@ -1394,13 +1374,6 @@ static inline float getDataResidualFactor(int run, float eta, float pt) {
 
 float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run, unsigned int lumi = 0, unsigned long long eventNumber = 0, int jetIndex = 0) {
     if (!jetCorrections) {
-        static int n = 0;
-        if (n < 3) {
-            std::cerr << "[JERC] ERROR: jet corrections not loaded!\n";
-            if (++n == 3) {
-                std::cerr << "[JERC] Further warnings suppressed.\n";
-            }
-        }
         return jet._pt;
     }
 
@@ -1645,16 +1618,28 @@ static inline double btagSF_WP_jet(const Jet& j, const std::string& wp, const st
         prefixes = {"particleNet_", "ParticleNet_"};
     }
 
-    for (const auto& base : prefixes) {
-        const std::string name = base + source;
-        try {
-            const auto& c = btagCorrections->at(name);
+     for (const auto& base : prefixes) {
+         const std::string name = base + source;
+         try {
+             const auto& c = btagCorrections->at(name);
             return c->evaluate({syst, wp, flav, abseta, pt});
         } catch (...) {}
+   }
+
+    static int warnCount = 0;
+
+     if (warnCount < 10) {
+        std::cerr << "[BTAG] WARNING: missing SF correction for era=" << g_era
+                  << " wp=" << wp
+                  << " source=" << source << "\n";
+
+        ++warnCount;
+
+        if (warnCount == 10) {
+           std::cerr << "[BTAG] Further missing SF warnings suppressed.\n";
+        }
     }
 
-    std::cerr << "[BTAG] WARNING: missing SF correction for era=" << g_era
-              << " wp=" << wp << " source=" << source << "\n";
     return 1.0;
 }
 
@@ -2254,23 +2239,9 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs, uint32_t evt,
 // -------------------------------------
 
 float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
-    static int errorCount = 0;
     if (g_disableMuonSF) return 1.0f;
-    if (!isMC) {
-        if (errorCount < 5) {
-            std::cerr << "This is Data!\n";
-        }
-        ++errorCount;
-        return 1.0;
-    }
-
-    if (!corrections) {
-        if (errorCount < 5) {
-            std::cerr << "[ERROR] Correction set not initialized!\n";
-        }
-        ++errorCount;
-        return 1.0;
-    }
+    if (!isMC) return 1.0;
+    if (!corrections) return 1.0;
 
     float eta = std::abs(mu._eta);
     float pt = mu._pt;
@@ -2340,7 +2311,7 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     // -------------------------------------
    
 static int kitSeedDbg = 0;
-if (kitSeedDbg < 10) {
+if (kitSeedDbg < 5) {
 std::cerr << "[KIT SEED DBG] "
 << "run="  << event._run
 << " lumi=" << lumi
@@ -2619,24 +2590,35 @@ std::cerr
         p4.SetPtEtaPhiM(corr_pt, j._eta, j._phi, corr_mass);
         p4jets.push_back(p4);
 
+
 static int jerc_dbg = 0;
-if (jerc_dbg < 20) {
-std::cerr << "[JERC DBG]"
-<< " era=" << g_era
-<< " pt=" << j._pt
-<< " rawFactor=" << j._rawFactor
-<< " raw_pt=" << raw_pt
-<< " corr_pt=" << corr_pt
-<< " mass=" << j._mass
-<< " raw_mass=" << raw_mass
-<< " corr_mass=" << corr_mass
-<< " eta=" << j._eta
-<< " phi=" << j._phi
-<< " raw/corr=" << (raw_pt > 0 ? corr_pt/raw_pt : -1.0)
-<< " hasGenJet=" << hasGenJet
-<< " genJetPt=" << genJetPt
-<< "\n";
+if (jerc_dbg < 5) {
+
+const double ratio = (raw_pt > 0.0 ? corr_pt / raw_pt : -1.0);
+
+std::cerr << "\n";
+std::cerr << "====================== JERC DEBUG ======================\n";
+
+std::cerr << std::left
+<< std::setw(20) << "Jet pT"        << " : " << j._pt       << "\n"
+<< std::setw(20) << "Raw factor"    << " : " << j._rawFactor << "\n"
+<< std::setw(20) << "Raw pT"        << " : " << raw_pt      << "\n"
+<< std::setw(20) << "Corrected pT"  << " : " << corr_pt     << "\n"
+<< std::setw(20) << "Raw mass"      << " : " << raw_mass    << "\n"
+<< std::setw(20) << "Corrected mass"<< " : " << corr_mass   << "\n"
+<< std::setw(20) << "Raw/Corr ratio"<< " : " << ratio       << "\n"
+<< std::setw(20) << "Eta"           << " : " << j._eta      << "\n"
+<< std::setw(20) << "Phi"           << " : " << j._phi      << "\n"
+<< std::setw(20) << "Has gen jet"   << " : " << std::boolalpha << hasGenJet << "\n"
+<< std::setw(20) << "Gen jet pT"    << " : " << genJetPt    << "\n";
+
+std::cerr << "========================================================\n";
+
 ++jerc_dbg;
+
+if (jerc_dbg == 5) {
+std::cerr << "[JERC DBG] Further debug messages suppressed.\n";
+}
 }
 
         // Save corrected jet copy for b-tag efficiency / veto logic
@@ -2648,7 +2630,7 @@ std::cerr << "[JERC DBG]"
         jSF._btagPNetB     = j._btagPNetB;
         jSF._hadronFlavour = j._hadronFlavour;
         
-        if (g_era == "2024") {
+        if (g_era == "2024" || g_era == "2025") {
             jSF._btagUParTAK4B = j._btagUParTAK4B;
         }
 
@@ -2823,21 +2805,20 @@ std::cout << "[BTAG EVT DBG] era=" << g_era
 }*/
 
 static int DbgEvt = 0;
-const int maxDbgEvts = 10;
-
-if (DbgEvt++ < maxDbgEvts) {
-std::cerr
-<< "[WEIGHT DBG] run=" << event._run
-<< " lumi=" << event._lumi
-<< " evt=" << event._event
-<< " | Zpt=" << w_zpt
-<< " | mu1_SF=" << mu1_SF
-<< " | mu2_SF=" << mu2_SF
-<< " | btagjet_SF=" << btagjet_SF
-<< " | Dataweight=" << Dataweight
-<< " | totalWeight=" << totalWeight
-<< " | totalWeight_noPU=" << totalWeight_noPU
-<< " | totalWeight_PU=" << totalWeight_PU
+if (DbgEvt++ < 5) {
+std::cerr << "[WEIGHT DBG]\n"
+<< "  run/lumi/event : "
+<< event._run << " / "
+<< event._lumi << " / "
+<< event._event << "\n"
+<< "  Zpt            : " << w_zpt << "\n"
+<< "  mu1_SF         : " << mu1_SF << "\n"
+<< "  mu2_SF         : " << mu2_SF << "\n"
+<< "  btagjet_SF     : " << btagjet_SF << "\n"
+<< "  Dataweight     : " << Dataweight << "\n"
+<< "  totalWeight    : " << totalWeight << "\n"
+<< "  totalWeight_noPU :" << totalWeight_noPU << "\n"
+<< "  totalWeight_PU   :" << totalWeight_PU << "\n"
 << "\n";
 }
 
@@ -3954,6 +3935,41 @@ void sigHandler(int sig)
 	__continueRunning = false;
 }
 
+static void printAnalyzerConfig(const std::string& muCorrMode)
+{
+    std::cerr << "\n";
+    std::cerr << "============================================================\n";
+    std::cerr << "                 ANALYZER CONFIGURATION                    \n";
+    std::cerr << "============================================================\n";
+
+    std::cerr << std::left;
+    std::cerr << std::setw(24) << "Sample"          << " : " << g_sampleName << "\n";
+    std::cerr << std::setw(24) << "Era"             << " : " << g_era << "\n";
+    std::cerr << std::setw(24) << "isMC"            << " : " << std::boolalpha << __isMC << "\n";
+    std::cerr << std::setw(24) << "Muon correction" << " : " << muCorrMode << "\n";
+    std::cerr << std::setw(24) << "Output file"     << " : " << __outputfilename << "\n";
+
+    std::cerr << "------------------------------------------------------------\n";
+    std::cerr << "Toggle states: true = DISABLED, false = ENABLED\n";
+    std::cerr << "------------------------------------------------------------\n";
+
+    std::cerr << std::setw(24) << "noJERC"           << " : " << g_disableJetJERC << "\n";
+    std::cerr << std::setw(24) << "noJER"            << " : " << g_disableJER << "\n";
+    std::cerr << std::setw(24) << "noJetCriteria"    << " : " << g_disableJetCriteria << "\n";
+    std::cerr << std::setw(24) << "noJetVeto"        << " : " << g_disableJetVeto << "\n";
+    std::cerr << std::setw(24) << "noBtagSF"         << " : " << g_disableBtagSF << "\n";
+    std::cerr << std::setw(24) << "noScaleSmear"     << " : " << g_disableMuonScaleSmear << "\n";
+    std::cerr << std::setw(24) << "noBeamConstraint" << " : " << g_disableBeamConstraint << "\n";
+    std::cerr << std::setw(24) << "noZPtRW"          << " : " << g_disableZPtRW << "\n";
+    std::cerr << std::setw(24) << "noMuonSF"         << " : " << g_disableMuonSF << "\n";
+    std::cerr << std::setw(24) << "noFSR"            << " : " << g_disableFSRRecovery << "\n";
+    std::cerr << std::setw(24) << "noPU"             << " : " << g_disablePUWeights << "\n";
+    //std::cerr << std::setw(24) << "noGolden"         << " : " << g_disableGoldenJSON << "\n";
+    std::cerr << std::setw(24) << "noFlags"          << " : " << g_disableFlagFilters << "\n";
+
+    std::cerr << "============================================================\n\n";
+}
+
 int main(int argc, char** argv)
 {
 	// Register Signals
@@ -4025,10 +4041,6 @@ int main(int argc, char** argv)
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	po::notify(vm);
    
-    std::cout << "[CONFIG] Beam constraint pT: " 
-              << (g_disableBeamConstraint ? "DISABLED" : "ENABLED")
-              << std::endl;
-
     if (vm.count("help") || argc<2)
 	{
 		std::cout << desc << std::endl;
@@ -4097,12 +4109,8 @@ int main(int argc, char** argv)
          __useKIT       ? "KIT"        :
          __useRochester ? "Rochester"  :
                           "None");
-
-    std::cout << "[MuonCorr] Mode=" << mode
-              << "  isMC=" << std::boolalpha << __isMC
-              << "  era="  << g_era << std::endl;
-
-    std::cerr << "[MUON] Correction mode = " << mode << std::endl;
+    
+    printAnalyzerConfig(mode);
 
     // --- Load weights & pick lumi for the chosen era (only for MC) ---
     if (__isMC && g_weightsFile != "None") {

@@ -257,8 +257,8 @@ static void draw_one(const TString& outdir, const std::string& dir, const std::s
   h_ratio->GetXaxis()->SetLabelSize(0.12);
   h_ratio->GetXaxis()->SetTitleSize(0.12);
   h_ratio->GetXaxis()->SetTitle(xTitle);
-  h_ratio->SetMinimum(0.90);
-  h_ratio->SetMaximum(1.05);
+  h_ratio->SetMinimum(0.6);
+  h_ratio->SetMaximum(1.4);
   h_ratio->SetLineColor(kBlack);
   h_ratio->SetMarkerStyle(20);
   h_ratio->Draw("E1");
@@ -316,6 +316,7 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   else if (era == "12023") eraLumiPb =  18704.13341;
   else if (era == "22023") eraLumiPb =  9693.130053;
   else if (era == "2024")  eraLumiPb =  104805.9585;
+  else if (era == "2025")  eraLumiPb =  114040.38;
   else {
     std::cerr << "[WARN] Unknown era \"" << era << "\"; setting eraLumiPb = 0\n";
   }

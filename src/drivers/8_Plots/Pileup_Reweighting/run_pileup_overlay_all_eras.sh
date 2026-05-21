@@ -1,11 +1,13 @@
 #!/bin/bash
 
-# Default settings (can override via arguments)
-CORR_MODE="${1:-KIT}"
-CONFIG_DIR="${2:-noPU_noScaleSmear_noMuonSF_noJERC_noJetVeto_noGolden_noFlags_noBtagSF_noJetCriteria}"
+# Example:
+# ./run_muon_and_jet_overlays_all_eras.sh KIT noScaleSmear_noBtagSF_ZPtRW
 
-#ERAS=(12022 22022 12023 22023 2024)
-ERAS=(2024)
+CORR_MODE="${1:-KIT}"
+CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_BTagRW_ZPtRW}"
+
+#ERAS=(12022 22022 12023 22023 2024 2025)
+ERAS=(12022 22022 12023 22023 2024)
 
 for ERA in "${ERAS[@]}"; do
 

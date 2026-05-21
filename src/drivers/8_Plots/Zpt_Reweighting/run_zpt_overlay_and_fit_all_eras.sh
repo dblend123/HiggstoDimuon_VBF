@@ -4,11 +4,11 @@
 # ./run_zpt_overlay_and_fit_all_eras.sh KIT noScaleSmear_noBtagSF_noZPtRW 2
 
 CORR_MODE="${1:-KIT}"
-CONFIG_DIR="${2:-noScaleSmear_noBtagSF_noZPtRW}"
+CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW}"
 REBIN="${3:-1}"
 
-ERAS=(12022 22022 12023 22023)
-# ERAS=(12022 22022 12023 22023 2024)
+#ERAS=(12022 22022 12023 22023 2024 2025)
+ERAS=(2025)
 
 MACRO_DIR="/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/8_Plots/Zpt_Reweighting"
 

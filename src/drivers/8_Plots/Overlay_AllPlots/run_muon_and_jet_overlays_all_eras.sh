@@ -4,10 +4,10 @@
 # ./run_muon_and_jet_overlays_all_eras.sh KIT noScaleSmear_noBtagSF_ZPtRW
 
 CORR_MODE="${1:-KIT}"
-CONFIG_DIR="${2:-noScaleSmear_noBtagSF_ZPtRW}"
+CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_BTagRW_ZPtRW}"
 
-#ERAS=(12022 22022 12023 22023 2024)
-ERAS=(22022 12023 22023)
+#ERAS=(12022 22022 12023 22023 2024 2025)
+ERAS=(2025)
 
 # ---- SET YOUR MACRO DIRECTORY HERE ----
 MACRO_DIR="/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/8_Plots/Overlay_AllPlots"

@@ -35,6 +35,7 @@ static double getEraLumi_pb(const TString& era) {
     else if (era == "12023") return  18704.13341;
     else if (era == "22023") return  9693.130053;
     else if (era == "2024")  return  104805.9585;
+    else if (era == "2025")  return  114040.38;
     std::cerr << "[WARN] Unknown era \"" << era << "\"; returning 0 pb^-1\n";
     return 0.0;
 }
@@ -314,8 +315,8 @@ for (const auto& var : vars) {
         h_ratio->GetYaxis()->SetNdivisions(505);
         h_ratio->GetXaxis()->SetLabelSize(0.12);
         h_ratio->GetXaxis()->SetTitleSize(0.12);
-        h_ratio->SetMinimum(0.5);
-        h_ratio->SetMaximum(1.5);
+        h_ratio->SetMinimum(0.6);
+        h_ratio->SetMaximum(1.4);
         h_ratio->SetMarkerStyle(20);
         h_ratio->SetLineColor(kBlack);
         h_ratio->Draw("E1");
