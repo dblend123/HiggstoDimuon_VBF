@@ -2,7 +2,7 @@
 
 Complete training, scoring, and statistical-analysis pipeline for the Run-3
 VBF H(125)→μμ search. Follows the strategy of the analysis note
-[`AN2019_090_UCSD.pdf`](../../../AN2019_090_UCSD.pdf) and extends it to all
+[`AN2019_090_UCSD.pdf`] and extends it to all
 Run-3 eras (12022, 22022, 12023, 22023, 2024, 2025).
 
 The pipeline is split into two driver scripts:
@@ -68,7 +68,7 @@ The pipeline is split into two driver scripts:
   `dphi_jj`, `njets`, `pt_j1`, `pt_j2`, `dphi_mumu_jj`, `deta_mumu_jj`,
   `phi_CS`, `costheta_CS`.
 
-  `m_μμ` is **deliberately excluded** to keep the score uncorrelated with the
+  `m_μμ` is excluded to keep the score uncorrelated with the
   fit observable (AN §6.4).
 - Assigns each event to one of 4 folds via a deterministic
   `(run, luminosityBlock, event)` hash. Folds **2** and **3** are reserved
@@ -164,15 +164,3 @@ done
 The final expected significance numbers, χ²/ndf tables, and category
 boundaries land in `Outputs/Categorization/combined/run.log`.
 
----
-
-## Notes & references
-
-- All references to the analysis note (`AN-2019/090`) above point to the
-  PDF stored at the repository root: [`AN2019_090_UCSD.pdf`](../../../AN2019_090_UCSD.pdf).
-- `Outputs/_archive/` holds legacy plots (`bdt_analysis_*.pdf`,
-  `bdt_combined_result.pdf`, `2024_tmva_*.{pdf,png}`) that were produced by
-  earlier iterations of the workflow and are no longer regenerated.
-- Removed in the May 2026 cleanup (now superseded by `vbf_bdt/`):
-  `plots_bdt_cuts.py`, `tmva_DataMC_BDT.py`, `tmva_KS_perfold.py`,
-  `tmva_MassSculpt.py`, `tmva_PlotScored.py`, `tmva_ScanYields.py`.
