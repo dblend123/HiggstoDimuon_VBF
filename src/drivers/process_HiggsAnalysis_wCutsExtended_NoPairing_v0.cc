@@ -55,10 +55,62 @@
 #include <random>   
 #include <cstdint>
 #include <iomanip>
+#include "TChainElement.h"
 
 //*******************************************************************
 //                   HISTOGRAM MACROS
 //*******************************************************************
+
+// -------------------------------------
+//             UNCERTAINTY 
+// -------------------------------------
+
+#define FILL_BDT_SYST_HIST(set, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown) \
+    set.h_z.fill(g_z, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_ptBalance.fill(g_ptBalance, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu1_pt_over_m.fill(g_mu1_pt_over_m, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu2_pt_over_m.fill(g_mu2_pt_over_m, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu1_eta.fill(g_mu1_eta, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu2_eta.fill(g_mu2_eta, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_jet1_eta.fill(g_jet1_eta, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_m_mumu.fill(g_m_mumu, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_deta_jj.fill(g_deta_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_dphi_jj.fill(g_dphi_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_njets.fill(g_njets, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_phi_CS.fill(g_phi_CS, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_costheta_CS.fill(g_costheta_CS, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_y_mumu.fill(g_y_mumu, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_y_j1.fill(g_y_j1, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_y_j2.fill(g_y_j2, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_pt_mumu.fill(g_pt_mumu, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_pt_j1.fill(g_pt_j1, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_pt_j2.fill(g_pt_j2, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
+
+
+#define FILL_BDT_EXP_SYST_HIST(set, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown) \
+    set.h_z.fill(g_z, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_ptBalance.fill(g_ptBalance, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_mu1_pt_over_m.fill(g_mu1_pt_over_m, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_mu2_pt_over_m.fill(g_mu2_pt_over_m, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_mu1_eta.fill(g_mu1_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_mu2_eta.fill(g_mu2_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_jet1_eta.fill(g_jet1_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_m_mumu.fill(g_m_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_deta_jj.fill(g_deta_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_dphi_jj.fill(g_dphi_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_njets.fill(g_njets, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_phi_CS.fill(g_phi_CS, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_costheta_CS.fill(g_costheta_CS, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_y_mumu.fill(g_y_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_y_j1.fill(g_y_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_y_j2.fill(g_y_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_pt_mumu.fill(g_pt_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_pt_j1.fill(g_pt_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_pt_j2.fill(g_pt_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown);
 
 // -------------------------------------
 //             VTX 
@@ -238,7 +290,7 @@ static inline bool useBeamConstraintPt(const analysis::core::Muon& mu);
 static inline float baseMuonPtForCorrections(const analysis::core::Muon& mu);
 static inline double clampProb(double x);
 static inline double getBTagEff_WP_jet(const analysis::core::Jet& j, const std::string& wp);
-static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets);
+static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets, const std::string& syst = "central");
 static inline float btagWPThreshold(const std::string& wp);
 
 // MVA tree
@@ -683,7 +735,12 @@ static std::string vetoFileForEra(const std::string& era) {
 
 static std::string btagFileForEra(const std::string& era) {
     if (g_btagJSON != "auto") return g_btagJSON;
-    return g_jmeDir + "/btagging" + era + ".json";
+
+    // 2025 b-tag JSON currently has WP values only, no SF corrections.
+    // Use 2024 UParTAK4 SF JSON for 2025, but keep era=2025 elsewhere.
+    const std::string btagEra = (era == "2025") ? "2024" : era;
+
+    return g_jmeDir + "/btagging" + btagEra + ".json";
 }
 
 static void printJetCorrectionTagsOnce() {
@@ -1626,6 +1683,16 @@ static inline double btagSF_WP_jet(const Jet& j, const std::string& wp, const st
         } catch (...) {}
    }
 
+    if (syst != "central") {
+        for (const auto& base : prefixes) {
+            const std::string name = base + source;
+            try {
+                const auto& c = btagCorrections->at(name);
+                return c->evaluate({std::string("central"), wp, flav, abseta, pt});
+            } catch (...) {}
+        }
+    }
+
     static int warnCount = 0;
 
      if (warnCount < 10) {
@@ -1673,7 +1740,7 @@ static inline double getBTagEff_WP_jet(const Jet& j, const std::string& wp) {
     return clampProb(h->GetBinContent(binx, biny));
 }
 
-static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets)
+static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets, const std::string& syst)
 {
     // pass veto  <=>  no medium jets AND at most one loose jet
     //
@@ -1717,8 +1784,8 @@ static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>&
         // enforce nesting numerically: Medium must not exceed Loose
         const double epsM_clamped = std::min(epsM, epsL);
 
-        const double sfL = btagSF_WP_jet(j, "L", "central");
-        const double sfM = btagSF_WP_jet(j, "M", "central");
+        const double sfL = btagSF_WP_jet(j, "L", syst);
+        const double sfM = btagSF_WP_jet(j, "M", syst);
 
         const double pL_data = clampProb(sfL * epsL);
         const double pM_data = clampProb(sfM * epsM_clamped);
@@ -2238,41 +2305,69 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs, uint32_t evt,
 //             MUONS 
 // -------------------------------------
 
-float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false) {
+float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false, const std::string& syst = "nominal") {
     if (g_disableMuonSF) return 1.0f;
     if (!isMC) return 1.0;
     if (!corrections) return 1.0;
 
-    float eta = std::abs(mu._eta);
+    float eta = mu._eta;
+    eta = std::clamp(eta, -2.39f, 2.39f);
     float pt = mu._pt;
 
     // Clamp to avoid going outside bin edges
     eta = std::min(eta, 2.39f);          // upper edge is 2.4 (exclusive)
     pt  = std::max(pt, 15.01f);          // lower edge is 15 (exclusive)
 
-    float id_sf = 1.0;
-    float iso_sf = 1.0;
-    float trig_sf = 1.0;
-
-    try {
-        id_sf   = corrections->at(g_muSFKeyID)->evaluate({eta, pt, "nominal"});
-        iso_sf  = corrections->at(g_muSFKeyISO)->evaluate({eta, pt, "nominal"});
-        if (applyTriggerSF && pt >= 26) {
-            trig_sf = corrections->at(g_muSFKeyTRG)->evaluate({eta, pt, "nominal"});
+    auto evalOrNominal = [&](const std::string& key, const std::string& s) -> float {
+        try {
+            return corrections->at(key)->evaluate({eta, pt, s});
+        } catch (...) {
+            if (s != "nominal") {
+                try {
+                    return corrections->at(key)->evaluate({eta, pt, std::string("nominal")});
+                } catch (...) {}
+            }
         }
-    } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Failed to evaluate muon SF: " << e.what() << std::endl;
-        return 1.0;
+        return 1.0f;
+    };
+
+    float id_sf   = evalOrNominal(g_muSFKeyID, syst);
+    float iso_sf  = evalOrNominal(g_muSFKeyISO, syst);
+    float trig_sf = 1.0f;
+
+    if (applyTriggerSF && pt >= 26) {
+        trig_sf = evalOrNominal(g_muSFKeyTRG, syst);
     }
 
-    //std::cout << "[DEBUG] Muon SF: eta = " << eta << ", pt = " << pt << ", SF = " << id_sf << std::endl;
     return id_sf * iso_sf * trig_sf;
 }
 
-// -------------------------------------
-//            B-TAGGED JETS 
-// -------------------------------------
+float getMuonTriggerOnlySF(const Muon& mu, bool isMC, const std::string& syst = "nominal") {
+    if (g_disableMuonSF) return 1.0f;
+    if (!isMC) return 1.0f;
+    if (!corrections) return 1.0f;
 
+    float eta = std::clamp(mu._eta, -2.39f, 2.39f);
+    float pt  = std::max(mu._pt, 15.01f);
+
+    if (pt < 26.0f) return 1.0f;
+
+    try {
+        return corrections->at(g_muSFKeyTRG)->evaluate({eta, pt, syst});
+    } catch (const std::exception& e) {
+        if (syst != "nominal") {
+            try {
+                return corrections->at(g_muSFKeyTRG)->evaluate({eta, pt, std::string("nominal")});
+            } catch (...) {}
+        }
+        static int warnTrig = 0;
+        if (warnTrig++ < 5) {
+            std::cerr << "[MUON TRG SF] failed for syst=" << syst
+                      << " (" << e.what() << "); using 1.0\n";
+        }
+        return 1.0f;
+    }
+}
 
 //*******************************************************************
 //                         CATEGORIZE FUNCTION 
@@ -2282,7 +2377,7 @@ void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, co
 const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons, 
 analysis::core::Vertices* vertices, const analysis::core::MET& met, const analysis::core::Event& event, 
 analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight, uint32_t evt, uint32_t lumi, 
-float w_nom, float w_pu) {
+float w_nom, float w_pu, float w_puUp, float w_puDown) {
 
     // -------------------------------------
     //             VERTICES 
@@ -2750,6 +2845,22 @@ std::cout
    
     float mu1_SF            = getMuonSF(mu1, __isMC);                                          // Leading Muon Scale-Factors
     float mu2_SF            = getMuonSF(mu2, __isMC);                                          // Sub-Leading Muon Scale-Factors
+
+    float mu1_SF_up         = getMuonSF(mu1, __isMC, false, "up");
+    float mu1_SF_down       = getMuonSF(mu1, __isMC, false, "down");
+    float mu2_SF_up         = getMuonSF(mu2, __isMC, false, "up");
+    float mu2_SF_down       = getMuonSF(mu2, __isMC, false, "down");
+
+    float trig1_nom         = getMuonTriggerOnlySF(mu1, __isMC, "nominal");
+    float trig2_nom         = getMuonTriggerOnlySF(mu2, __isMC, "nominal");
+    float trig1_up          = getMuonTriggerOnlySF(mu1, __isMC, "up");
+    float trig2_up          = getMuonTriggerOnlySF(mu2, __isMC, "up");
+    float trig1_down        = getMuonTriggerOnlySF(mu1, __isMC, "down");
+    float trig2_down        = getMuonTriggerOnlySF(mu2, __isMC, "down");
+
+    float btagjet_SF_up     = btagVetoWeightExact(btagJets, "up");
+    float btagjet_SF_down   = btagVetoWeightExact(btagJets, "down");
+
     float totalWeight       = Dataweight * mu1_SF * mu2_SF * btagjet_SF;                       // Weight (MC)
     float noWeight          = 1.0;                                                             // No Weight (DATA)
 
@@ -2758,12 +2869,26 @@ std::cout
     float totalWeight_noPU  = w_noPU * mu1_SF * mu2_SF * btagjet_SF;                           // NO pileup Weight * 
     float totalWeight_PU    = w_withPU * mu1_SF * mu2_SF * btagjet_SF;
 
+    float totalWeight_puUp      = w_puUp   * mu1_SF * mu2_SF * btagjet_SF;
+    float totalWeight_puDown    = w_puDown * mu1_SF * mu2_SF * btagjet_SF;
+
+    float totalWeight_muSFUp    = Dataweight * mu1_SF_up   * mu2_SF_up   * btagjet_SF;
+    float totalWeight_muSFDown  = Dataweight * mu1_SF_down * mu2_SF_down * btagjet_SF;
+
+    const float trigNom = std::max(1.0e-6f, trig1_nom * trig2_nom);
+    float totalWeight_trigUp    = totalWeight * ((trig1_up   * trig2_up)   / trigNom);
+    float totalWeight_trigDown  = totalWeight * ((trig1_down * trig2_down) / trigNom);
+
+    float totalWeight_btagUp    = Dataweight * mu1_SF * mu2_SF * btagjet_SF_up;
+    float totalWeight_btagDown  = Dataweight * mu1_SF * mu2_SF * btagjet_SF_down;
+
     
     // -------------------------------------
     //          Z-PT REWEIGHTING  
     // -------------------------------------
 
     double w_zpt = 1.0;
+    double totalWeight_beforeZPt = totalWeight;
     if (corr_p4dimuon.M() > 70 && corr_p4dimuon.M() < 110) {
         if (is0jet) {
             FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_Z0j, totalWeight); 
@@ -2788,7 +2913,18 @@ std::cout
       w_zpt = g_zptRW.eval(zpt, nj);
       totalWeight *= w_zpt;
     }
- 
+
+    double totalWeight_zptUp   = totalWeight;
+    double totalWeight_zptDown = totalWeight;
+
+    if (!g_disableZPtRW && __isMC && g_sampleName == "DY") {
+      const double w_zpt_up   = std::max(0.0, 1.0 + 2.0 * (w_zpt - 1.0)); // full correction envelope
+      const double w_zpt_down = 1.0;
+
+      totalWeight_zptUp   = totalWeight_beforeZPt * w_zpt_up;
+      totalWeight_zptDown = totalWeight_beforeZPt * w_zpt_down;
+    }
+
     // -------------------------------------
     //          B-TAG REWEIGHTING  
     // -------------------------------------
@@ -2967,6 +3103,75 @@ std::cerr << "[WEIGHT DBG]\n"
 
                 // Fill exactly once per selected dimuon+2jet pair
                 if (gMvaTree) gMvaTree->Fill();
+                
+                double w_scaleUp   = totalWeight;
+                double w_scaleDown = totalWeight;
+                double w_pdfUp     = totalWeight;
+                double w_pdfDown   = totalWeight;
+                double w_isrUp     = totalWeight;
+                double w_isrDown   = totalWeight;
+                double w_fsrUp     = totalWeight;
+                double w_fsrDown   = totalWeight;
+
+                // Scale envelope
+                if (__isMC && event._nLHEScaleWeight > 0) {
+                    double maxScale = 1.0;
+                    double minScale = 1.0;
+
+                    for (int iw = 0; iw < event._nLHEScaleWeight; ++iw) {
+                        // skip extreme anti-correlated variations if 9-point scale weights
+                        if (event._nLHEScaleWeight == 9 && (iw == 2 || iw == 6)) continue;
+
+                        double r = event._LHEScaleWeight[iw];
+                        if (!std::isfinite(r) || r <= 0.0) continue;
+
+                        maxScale = std::max(maxScale, r);
+                        minScale = std::min(minScale, r);
+                    }
+
+                    w_scaleUp   = totalWeight * maxScale;
+                    w_scaleDown = totalWeight * minScale;
+                }
+
+                // PDF RMS
+                if (__isMC && event._nLHEPdfWeight > 0) {
+                    double sum2 = 0.0;
+                    int nGood = 0;
+
+                    for (int iw = 0; iw < event._nLHEPdfWeight; ++iw) {
+                        double r = event._LHEPdfWeight[iw];
+                        if (!std::isfinite(r) || r <= 0.0) continue;
+
+                        sum2 += (r - 1.0) * (r - 1.0);
+                        ++nGood;
+                    }
+
+                    if (nGood > 0) {
+                        double rms = std::sqrt(sum2 / nGood);
+                        w_pdfUp   = totalWeight * (1.0 + rms);
+                        w_pdfDown = totalWeight * std::max(0.0, 1.0 - rms);
+                    }
+                }
+
+                // PS weights: common NanoAOD convention
+                if (__isMC && event._nPSWeight >= 4) {
+                    w_isrUp   = totalWeight * event._PSWeight[0];
+                    w_fsrUp   = totalWeight * event._PSWeight[1];
+                    w_isrDown = totalWeight * event._PSWeight[2];
+                    w_fsrDown = totalWeight * event._PSWeight[3];
+                }
+
+                if (__isMC) {
+                    FILL_BDT_SYST_HIST(hists.BDTTheorySyst_VBF, totalWeight, w_scaleUp, w_scaleDown, 
+                                       w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
+
+                    FILL_BDT_EXP_SYST_HIST(hists.BDTExperimentalSyst_VBF, totalWeight,
+                                           totalWeight_puUp, totalWeight_puDown,
+                                           totalWeight_muSFUp, totalWeight_muSFDown,
+                                           totalWeight_trigUp, totalWeight_trigDown,
+                                           totalWeight_btagUp, totalWeight_btagDown,
+                                           totalWeight_zptUp, totalWeight_zptDown);
+                }
 
 /*static int vtxDbg = 0;
 if (vtxDbg < 20) {
@@ -3217,6 +3422,110 @@ static double sampleBaseWeight(const std::string& sample) {
     return (g_selected_lumi * s.xsec) / denom;
 }
 
+//*******************************************************************
+//                       UNCERTAINTY BANDS 
+//*******************************************************************
+
+struct TheoryRunsNorm {
+    double genEventSumw = 0.0;
+    std::vector<double> LHEScaleSumw;
+    std::vector<double> LHEPdfSumw;
+    std::vector<double> PSSumw;
+};
+
+static TheoryRunsNorm readTheoryRunsNorm(TChain* eventsChain)
+{
+    TheoryRunsNorm out;
+
+    if (!eventsChain) return out;
+
+    TObjArray* files = eventsChain->GetListOfFiles();
+    if (!files) return out;
+
+    for (int i = 0; i < files->GetEntries(); ++i) {
+        auto* el = dynamic_cast<TChainElement*>(files->At(i));
+        if (!el) continue;
+
+        std::string fname = el->GetTitle();
+        if (fname.empty()) fname = el->GetName();
+
+        std::unique_ptr<TFile> f(TFile::Open(fname.c_str(), "READ"));
+        if (!f || f->IsZombie()) {
+            std::cerr << "[Runs] WARN: cannot open " << fname << "\n";
+            continue;
+        }
+
+        TTree* runs = nullptr;
+        f->GetObject("Runs", runs);
+        if (!runs) {
+            std::cerr << "[Runs] WARN: no Runs tree in " << fname << "\n";
+            continue;
+        }
+
+        double genEventSumw = 0.0;
+
+        UInt_t nLHEScaleSumw = 0;
+        UInt_t nLHEPdfSumw   = 0;
+        UInt_t nPSSumw       = 0;
+
+        double LHEScaleSumw[512] = {0.0};
+        double LHEPdfSumw[512]   = {0.0};
+        double PSSumw[512]       = {0.0};
+
+        if (runs->GetBranch("genEventSumw"))
+            runs->SetBranchAddress("genEventSumw", &genEventSumw);
+
+        if (runs->GetBranch("nLHEScaleSumw"))
+            runs->SetBranchAddress("nLHEScaleSumw", &nLHEScaleSumw);
+        if (runs->GetBranch("LHEScaleSumw"))
+            runs->SetBranchAddress("LHEScaleSumw", LHEScaleSumw);
+
+        if (runs->GetBranch("nLHEPdfSumw"))
+            runs->SetBranchAddress("nLHEPdfSumw", &nLHEPdfSumw);
+        if (runs->GetBranch("LHEPdfSumw"))
+            runs->SetBranchAddress("LHEPdfSumw", LHEPdfSumw);
+
+        if (runs->GetBranch("nPSSumw"))
+            runs->SetBranchAddress("nPSSumw", &nPSSumw);
+        if (runs->GetBranch("PSSumw"))
+            runs->SetBranchAddress("PSSumw", PSSumw);
+
+        for (Long64_t r = 0; r < runs->GetEntries(); ++r) {
+            runs->GetEntry(r);
+
+            out.genEventSumw += genEventSumw;
+
+            if (out.LHEScaleSumw.size() < nLHEScaleSumw)
+                out.LHEScaleSumw.resize(nLHEScaleSumw, 0.0);
+            for (UInt_t j = 0; j < nLHEScaleSumw; ++j)
+                out.LHEScaleSumw[j] += genEventSumw * LHEScaleSumw[j];
+
+            if (out.LHEPdfSumw.size() < nLHEPdfSumw)
+                out.LHEPdfSumw.resize(nLHEPdfSumw, 0.0);
+            for (UInt_t j = 0; j < nLHEPdfSumw; ++j)
+                out.LHEPdfSumw[j] += genEventSumw * LHEPdfSumw[j];
+
+            if (out.PSSumw.size() < nPSSumw)
+                out.PSSumw.resize(nPSSumw, 0.0);
+            for (UInt_t j = 0; j < nPSSumw; ++j)
+                out.PSSumw[j] += genEventSumw * PSSumw[j];
+        }
+    }
+
+    if (out.genEventSumw != 0.0) {
+        for (auto& x : out.LHEScaleSumw) x /= out.genEventSumw;
+        for (auto& x : out.LHEPdfSumw)   x /= out.genEventSumw;
+        for (auto& x : out.PSSumw)       x /= out.genEventSumw;
+    }
+
+    std::cerr << "[Runs] genEventSumw=" << out.genEventSumw
+              << " nScale=" << out.LHEScaleSumw.size()
+              << " nPDF="   << out.LHEPdfSumw.size()
+              << " nPS="    << out.PSSumw.size()
+              << "\n";
+
+    return out;
+}
 
 //*******************************************************************
 //                        MAIN PROCESS FUCNTION 
@@ -3248,6 +3557,12 @@ void process()
     // B-Tag Reweight Block 
     BTagEffSet BTagEff_PreSelection(outroot, "BTagEff_Pre-Selection");
     BTagEffSet BTagEff_VBF(outroot, "BTagEff_VBF");
+
+    // BDT theory uncertainty block
+    BDTTheorySystSet BDTTheorySyst_VBF(outroot, "BDTTheorySyst_VBF");
+
+    // BDT experimental uncertainty block
+    BDTExperimentalSystSet BDTExperimentalSyst_VBF(outroot, "BDTExperimentalSyst_VBF");
 
     // Pre-Selection Block
     MuonSet     setDM_PreSelection(outroot, "DM_Pre-Selection");
@@ -3329,6 +3644,12 @@ void process()
     // B-Tag Reweight Block
     BTagEff_PreSelection, BTagEff_VBF,
 
+    // BDT Theory Syst Block
+    BDTTheorySyst_VBF,
+
+    // BDT Experimental Syst Block
+    BDTExperimentalSyst_VBF,  
+
     // Pre-Selection Block
     setDM_PreSelection, corr_setDM_PreSelection, corr_setDM_PreSelection_Z, corr_setDM_PreSelection_SR, setJet_PreSelection, corr_setJet_PreSelection,
     setDM_PreSelection_BB, corr_setDM_PreSelection_BB, setJet_PreSelection_BB, corr_setJet_PreSelection_BB,
@@ -3406,6 +3727,18 @@ void process()
     SET_BRANCH_UINT(luminosityBlock);
     ULong64_t eventNumber = 0;
     ROOT_CHAIN->SetBranchAddress("event", &eventNumber);
+
+    //Setting Branch Array for Uncertainty Contents
+    SET_BRANCH_INT(nLHEScaleWeight);
+    SET_BRANCH_FLOAT_ARRAY(LHEScaleWeight);
+    SET_BRANCH_INT(nLHEPdfWeight);
+    SET_BRANCH_FLOAT_ARRAY(LHEPdfWeight);
+    SET_BRANCH_INT(nPSWeight);
+    SET_BRANCH_FLOAT_ARRAY(PSWeight);
+    
+    float LHEWeight_originalXWGTUP = 1.0f;
+    if (ROOT_CHAIN->GetBranch("LHEWeight_originalXWGTUP"))
+        ROOT_CHAIN->SetBranchAddress("LHEWeight_originalXWGTUP", &LHEWeight_originalXWGTUP);
 
     //Setting Branch Array for Muon Properties
     SET_BRANCH_UINT(nMuon);
@@ -3574,6 +3907,10 @@ void process()
     flags       = new std::vector<Flag>();
     event       = new Event();
 
+    TheoryRunsNorm theoryNorm;
+    if (__isMC) {
+        theoryNorm = readTheoryRunsNorm(ROOT_CHAIN);
+    }
 
 	//	Main Event Loop
 	uint32_t numEntries         = streamer._chain->GetEntries();
@@ -3648,11 +3985,21 @@ long long n_afterPair   = 0;
         electrons->clear();
         rhos->clear();
 
-        ROOT_CHAIN->GetEntry(i);
         event->_run  = run;                
         event->_lumi = luminosityBlock;    
         const uint32_t evt  = (uint32_t)(eventNumber & 0xffffffffULL);
         const uint32_t lumi = (uint32_t)luminosityBlock;
+
+        event->_genWeight = pickGenW();
+        event->_LHEWeight = LHEWeight_originalXWGTUP;
+
+        event->_nLHEScaleWeight = nLHEScaleWeight;
+        event->_nLHEPdfWeight   = nLHEPdfWeight;
+        event->_nPSWeight       = nPSWeight;
+
+        event->_LHEScaleWeight.assign(LHEScaleWeight, LHEScaleWeight + nLHEScaleWeight);
+        event->_LHEPdfWeight.assign(LHEPdfWeight, LHEPdfWeight + nLHEPdfWeight);
+        event->_PSWeight.assign(PSWeight, PSWeight + nPSWeight);
 
         for (size_t i=0; i<nMuon; i++) {
             Muon mu;
@@ -3800,25 +4147,44 @@ std::cout << "[STEP2 - STORED] vertices->_npvsGood="
 
         flags->push_back(std::move(flag));
        
-        // Pileup from correctionlib (JSON expects: NumTrueInteractions, "weights")
-        float pileupWeight = 1.0f;
+        // Pileup from correctionlib
+        float pileupWeight     = 1.0f;
+        float pileupWeightUp   = 1.0f;
+        float pileupWeightDown = 1.0f;
+
         if (__isMC && pu_corrections && !g_disablePUWeights) {
             try {
                 pileupWeight = static_cast<float>(
                     pu_corrections->evaluate({static_cast<double>(Pileup_nTrueInt), "nominal"}));
             } catch (const std::exception& e) {
-                std::cerr << "[PU ERROR] evaluate failed: " << e.what() << std::endl;
+                std::cerr << "[PU ERROR] nominal evaluate failed: " << e.what() << std::endl;
                 pileupWeight = 1.0f;
+            }
+
+            try {
+                pileupWeightUp = static_cast<float>(
+                    pu_corrections->evaluate({static_cast<double>(Pileup_nTrueInt), "up"}));
+            } catch (...) {
+                pileupWeightUp = pileupWeight;
+            }
+
+            try {
+                pileupWeightDown = static_cast<float>(
+                    pu_corrections->evaluate({static_cast<double>(Pileup_nTrueInt), "down"}));
+            } catch (...) {
+                pileupWeightDown = pileupWeight;
             }
         }
 
         float genWeight = __isMC ? pickGenW() : 1.0f;
         double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);
         float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
-        
-        const double w_nom = base * genWeight;
-        const double w_pu  = w_nom * pileupWeight;
-        
+
+        const double w_nom    = base * genWeight;
+        const double w_pu     = w_nom * pileupWeight;
+        const double w_puUp   = w_nom * pileupWeightUp;
+        const double w_puDown = w_nom * pileupWeightDown;
+
 
 sum_w_nominal += w_nom;
 sum_w_pu      += w_pu;
@@ -3888,7 +4254,7 @@ std::cout
             if (!passMuons(*it, *jt, trigobjs, evt, lumi)) continue;
             anyPair = true;
 
-            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight, evt, lumi, w_nom, w_pu);
+            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight, evt, lumi, w_nom, w_pu, w_puUp, w_puDown);
             break;
         }
         if (anyPair) break;

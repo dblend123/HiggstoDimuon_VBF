@@ -1,0 +1,37 @@
+== Job started: Wed Jun  3 11:46:03 PM CEST 2026
+Host: b9p12p3924.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/WZto3LNu/WZto3LNu_S23_part004.list'  tag='WZ3LNu_004MCRun12023'  sample='WZto3LNu'
+ERA (4th arg): '12023'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1748181
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/12023/Background_listfiles/WZto3LNu/WZto3LNu_S23_part004.list' -> using local: '/pool/condor/dir_1748181/WZto3LNu_S23_part004.list'
+Using Condor proxy: /pool/condor/dir_1748181/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1748181/WZto3LNu_S23_part004.list
+Input list has 4 lines
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer23NanoAODv12/WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2023_realistic_v15_ext1-v2/2530000/a86d145c-d31e-4895-a347-10225f233a93.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer23NanoAODv12/WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2023_realistic_v15_ext1-v2/2530000/aff9ac51-5962-46a4-bc55-145bb2ed0d07.root ...
+root://cms-xrd-global.cern.ch//store/mc/Run3Summer23NanoAODv12/WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/NANOAODSIM/130X_mcRun3_2023_realistic_v15_ext1-v2/2530000/4f08f896-b35d-4a6b-b0e7-84af6cf4546f.root ...
+Using skimmer: my_skim
+06938216b71177dd38057f5cebacca08  ./my_skim
+ 0x000000000000000f (RPATH)              Library rpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: WZ3LNu_004MCRun12023
+Running: ./my_skim '/pool/condor/dir_1748181/WZto3LNu_S23_part004.list' '-1'
+---- last 50 lines of skim.stdout.log ----
+Requested ALL events
+Writing: ./skims/Skimmed_a86d145c-d31e-4895-a347-10225f233a93.root
+Writing: ./skims/Skimmed_aff9ac51-5962-46a4-bc55-145bb2ed0d07.root
+Writing: ./skims/Skimmed_4f08f896-b35d-4a6b-b0e7-84af6cf4546f.root
+Writing: ./skims/Skimmed_fe10f7f5-c651-410e-b38e-a61f21399427.root
+
+Done. Files skimmed: 4  |  Events kept: 119735
+Staging to: root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/12023/WZto3LNu/WZ3LNu_004MCRun12023
+Found 4 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/12023/WZto3LNu/WZ3LNu_004MCRun12023/Skimmed_4f08f896-b35d-4a6b-b0e7-84af6cf4546f.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/12023/WZto3LNu/WZ3LNu_004MCRun12023/Skimmed_a86d145c-d31e-4895-a347-10225f233a93.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/12023/WZto3LNu/WZ3LNu_004MCRun12023/Skimmed_aff9ac51-5962-46a4-bc55-145bb2ed0d07.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/12023/WZto3LNu/WZ3LNu_004MCRun12023/Skimmed_fe10f7f5-c651-410e-b38e-a61f21399427.root
+Done staging.
+== Job finished: Wed Jun  3 11:47:54 PM CEST 2026

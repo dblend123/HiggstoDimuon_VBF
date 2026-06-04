@@ -29,6 +29,11 @@
     (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
     static_assert(true, "")
 
+#define SET_BRANCH_INT(NAME) \
+    Int_t NAME = 0; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
+    static_assert(true, "")
+
 #define SET_BRANCH_FLOAT(NAME) \
     Float_t NAME; \
     (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \

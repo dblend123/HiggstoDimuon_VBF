@@ -9,7 +9,143 @@ namespace analysis
 {
 	namespace processing
 	{
-		struct VtxSet
+        struct SystHist1D
+        {
+            TH1F* nom = nullptr;
+
+            TH1F* scaleUp = nullptr;
+            TH1F* scaleDown = nullptr;
+
+            TH1F* pdfUp = nullptr;
+            TH1F* pdfDown = nullptr;
+
+            TH1F* isrUp = nullptr;
+            TH1F* isrDown = nullptr;
+
+            TH1F* fsrUp = nullptr;
+            TH1F* fsrDown = nullptr;
+
+            void book(const char* name, const char* title, int nbins, double xmin, double xmax)
+            {
+                nom       = new TH1F(name, title, nbins, xmin, xmax);
+
+                scaleUp   = new TH1F(Form("%s_scaleUp",   name), Form("%s_scaleUp",   title), nbins, xmin, xmax);
+                scaleDown = new TH1F(Form("%s_scaleDown", name), Form("%s_scaleDown", title), nbins, xmin, xmax);
+
+                pdfUp     = new TH1F(Form("%s_pdfUp",     name), Form("%s_pdfUp",     title), nbins, xmin, xmax);
+                pdfDown   = new TH1F(Form("%s_pdfDown",   name), Form("%s_pdfDown",   title), nbins, xmin, xmax);
+
+                isrUp     = new TH1F(Form("%s_isrUp",     name), Form("%s_isrUp",     title), nbins, xmin, xmax);
+                isrDown   = new TH1F(Form("%s_isrDown",   name), Form("%s_isrDown",   title), nbins, xmin, xmax);
+
+                fsrUp     = new TH1F(Form("%s_fsrUp",     name), Form("%s_fsrUp",     title), nbins, xmin, xmax);
+                fsrDown   = new TH1F(Form("%s_fsrDown",   name), Form("%s_fsrDown",   title), nbins, xmin, xmax);
+
+                nom->Sumw2();
+                scaleUp->Sumw2();   scaleDown->Sumw2();
+                pdfUp->Sumw2();     pdfDown->Sumw2();
+                isrUp->Sumw2();     isrDown->Sumw2();
+                fsrUp->Sumw2();     fsrDown->Sumw2();
+            }
+
+            void fill(double x,
+                      double w_nom,
+                      double w_scaleUp, double w_scaleDown,
+                      double w_pdfUp,   double w_pdfDown,
+                      double w_isrUp,   double w_isrDown,
+                      double w_fsrUp,   double w_fsrDown)
+            {
+                nom->Fill(x, w_nom);
+
+                scaleUp->Fill(x, w_scaleUp);
+                scaleDown->Fill(x, w_scaleDown);
+
+                pdfUp->Fill(x, w_pdfUp);
+                pdfDown->Fill(x, w_pdfDown);
+
+                isrUp->Fill(x, w_isrUp);
+                isrDown->Fill(x, w_isrDown);
+
+                fsrUp->Fill(x, w_fsrUp);
+                fsrDown->Fill(x, w_fsrDown);
+            }
+        };
+		
+
+        struct ExpSystHist1D
+        {
+            TH1F* nom = nullptr;
+
+            TH1F* puUp = nullptr;
+            TH1F* puDown = nullptr;
+
+            TH1F* muonSFUp = nullptr;
+            TH1F* muonSFDown = nullptr;
+
+            TH1F* triggerUp = nullptr;
+            TH1F* triggerDown = nullptr;
+
+            TH1F* btagUp = nullptr;
+            TH1F* btagDown = nullptr;
+
+            TH1F* zptUp = nullptr;
+            TH1F* zptDown = nullptr;
+
+            void book(const char* name, const char* title, int nbins, double xmin, double xmax)
+            {
+                nom         = new TH1F(name, title, nbins, xmin, xmax);
+
+                puUp       = new TH1F(Form("%s_puUp",       name), Form("%s_puUp",       title), nbins, xmin, xmax);
+                puDown     = new TH1F(Form("%s_puDown",     name), Form("%s_puDown",     title), nbins, xmin, xmax);
+
+                muonSFUp   = new TH1F(Form("%s_muonSFUp",   name), Form("%s_muonSFUp",   title), nbins, xmin, xmax);
+                muonSFDown = new TH1F(Form("%s_muonSFDown", name), Form("%s_muonSFDown", title), nbins, xmin, xmax);
+
+                triggerUp   = new TH1F(Form("%s_triggerUp",   name), Form("%s_triggerUp",   title), nbins, xmin, xmax);
+                triggerDown = new TH1F(Form("%s_triggerDown", name), Form("%s_triggerDown", title), nbins, xmin, xmax);
+
+                btagUp     = new TH1F(Form("%s_btagUp",     name), Form("%s_btagUp",     title), nbins, xmin, xmax);
+                btagDown   = new TH1F(Form("%s_btagDown",   name), Form("%s_btagDown",   title), nbins, xmin, xmax);
+
+                zptUp      = new TH1F(Form("%s_zptUp",      name), Form("%s_zptUp",      title), nbins, xmin, xmax);
+                zptDown    = new TH1F(Form("%s_zptDown",    name), Form("%s_zptDown",    title), nbins, xmin, xmax);
+
+                nom->Sumw2();
+                puUp->Sumw2();       puDown->Sumw2();
+                muonSFUp->Sumw2();   muonSFDown->Sumw2();
+                triggerUp->Sumw2();  triggerDown->Sumw2();
+                btagUp->Sumw2();     btagDown->Sumw2();
+                zptUp->Sumw2();      zptDown->Sumw2();
+            }
+
+            void fill(double x,
+                      double w_nom,
+                      double w_puUp,      double w_puDown,
+                      double w_muonSFUp,  double w_muonSFDown,
+                      double w_triggerUp, double w_triggerDown,
+                      double w_btagUp,    double w_btagDown,
+                      double w_zptUp,     double w_zptDown)
+            {
+                nom->Fill(x, w_nom);
+
+                puUp->Fill(x, w_puUp);
+                puDown->Fill(x, w_puDown);
+
+                muonSFUp->Fill(x, w_muonSFUp);
+                muonSFDown->Fill(x, w_muonSFDown);
+
+                triggerUp->Fill(x, w_triggerUp);
+                triggerDown->Fill(x, w_triggerDown);
+
+                btagUp->Fill(x, w_btagUp);
+                btagDown->Fill(x, w_btagDown);
+
+                zptUp->Fill(x, w_zptUp);
+                zptDown->Fill(x, w_zptDown);
+            }
+        };
+
+        struct VtxSet
         {
 			VtxSet(TDirectory* parentDir, TString const& postfix)
 			    : _postfix(postfix)
@@ -135,6 +271,165 @@ namespace analysis
                 TH1F *hJet2eta;
                 TH1F *hnJets;
 		};      
+        
+        struct BDTTheorySystSet
+        {
+            BDTTheorySystSet(TDirectory* parentDir, const TString& postfix)
+                : _postfix(postfix)
+            {
+                _dir = parentDir->mkdir(_postfix);
+                _dir->cd();
+
+                h_z.book("Zeppenfeld", "Zeppenfeld", 40, -6, 6);
+                h_ptBalance.book("PtBalance", "PtBalance", 40, 0, 2);
+
+                h_mu1_pt_over_m.book("Muon1PtOverM", "Muon1PtOverM", 40, 0, 2);
+                h_mu2_pt_over_m.book("Muon2PtOverM", "Muon2PtOverM", 40, 0, 2);
+
+                h_mu1_eta.book("Muon1Eta", "Muon1Eta", 50, -2.5, 2.5);
+                h_mu2_eta.book("Muon2Eta", "Muon2Eta", 50, -2.5, 2.5);
+
+                h_jet1_eta.book("Jet1Eta", "Jet1Eta", 60, -5, 5);
+
+                h_m_mumu.book("DimuonMass", "DimuonMass", 80, 110, 150);
+
+                h_deta_jj.book("DijetDeltaEta", "DijetDeltaEta", 40, 0, 10);
+                h_dphi_jj.book("DijetDeltaPhi", "DijetDeltaPhi", 32, 0, 3.2);
+
+                h_njets.book("NJets", "NJets", 10, 0, 10);
+
+                h_dphi_mumu_jj.book("DeltaPhiDimuonDijet", "DeltaPhiDimuonDijet", 32, 0, 3.2);
+                h_deta_mumu_jj.book("DeltaEtaDimuonDijet", "DeltaEtaDimuonDijet", 40, 0, 10);
+
+                h_phi_CS.book("CollinsSoperPhi", "CollinsSoperPhi", 32, -3.2, 3.2);
+                h_costheta_CS.book("CollinsSoperCosTheta", "CollinsSoperCosTheta", 20, -1, 1);
+
+                h_y_mumu.book("DimuonRapidity", "DimuonRapidity", 50, -2.5, 2.5);
+                h_y_j1.book("Jet1Rapidity", "Jet1Rapidity", 60, -5, 5);
+                h_y_j2.book("Jet2Rapidity", "Jet2Rapidity", 60, -5, 5);
+
+                h_pt_mumu.book("DimuonPt", "DimuonPt", 60, 0, 300);
+                h_pt_j1.book("Jet1Pt", "Jet1Pt", 60, 0, 300);
+                h_pt_j2.book("Jet2Pt", "Jet2Pt", 60, 0, 300);
+
+                parentDir->cd();
+            }
+
+            ~BDTTheorySystSet() {}
+
+            TDirectory* _dir;
+            TString _postfix;
+
+            SystHist1D h_z;
+            SystHist1D h_ptBalance;
+
+            SystHist1D h_mu1_pt_over_m;
+            SystHist1D h_mu2_pt_over_m;
+
+            SystHist1D h_mu1_eta;
+            SystHist1D h_mu2_eta;
+
+            SystHist1D h_jet1_eta;
+
+            SystHist1D h_m_mumu;
+            SystHist1D h_deta_jj;
+            SystHist1D h_dphi_jj;
+            SystHist1D h_njets;
+
+            SystHist1D h_dphi_mumu_jj;
+            SystHist1D h_deta_mumu_jj;
+
+            SystHist1D h_phi_CS;
+            SystHist1D h_costheta_CS;
+
+            SystHist1D h_y_mumu;
+            SystHist1D h_y_j1;
+            SystHist1D h_y_j2;
+
+            SystHist1D h_pt_mumu;
+            SystHist1D h_pt_j1;
+            SystHist1D h_pt_j2;
+        };
+
+
+        struct BDTExperimentalSystSet
+        {
+            BDTExperimentalSystSet(TDirectory* parentDir, const TString& postfix)
+                : _postfix(postfix)
+            {
+                _dir = parentDir->mkdir(_postfix);
+                _dir->cd();
+
+                h_z.book("Zeppenfeld", "Zeppenfeld", 40, -6, 6);
+                h_ptBalance.book("PtBalance", "PtBalance", 40, 0, 2);
+
+                h_mu1_pt_over_m.book("Muon1PtOverM", "Muon1PtOverM", 40, 0, 2);
+                h_mu2_pt_over_m.book("Muon2PtOverM", "Muon2PtOverM", 40, 0, 2);
+
+                h_mu1_eta.book("Muon1Eta", "Muon1Eta", 50, -2.5, 2.5);
+                h_mu2_eta.book("Muon2Eta", "Muon2Eta", 50, -2.5, 2.5);
+
+                h_jet1_eta.book("Jet1Eta", "Jet1Eta", 60, -5, 5);
+
+                h_m_mumu.book("DimuonMass", "DimuonMass", 80, 110, 150);
+
+                h_deta_jj.book("DijetDeltaEta", "DijetDeltaEta", 40, 0, 10);
+                h_dphi_jj.book("DijetDeltaPhi", "DijetDeltaPhi", 32, 0, 3.2);
+
+                h_njets.book("NJets", "NJets", 10, 0, 10);
+
+                h_dphi_mumu_jj.book("DeltaPhiDimuonDijet", "DeltaPhiDimuonDijet", 32, 0, 3.2);
+                h_deta_mumu_jj.book("DeltaEtaDimuonDijet", "DeltaEtaDimuonDijet", 40, 0, 10);
+
+                h_phi_CS.book("CollinsSoperPhi", "CollinsSoperPhi", 32, -3.2, 3.2);
+                h_costheta_CS.book("CollinsSoperCosTheta", "CollinsSoperCosTheta", 20, -1, 1);
+
+                h_y_mumu.book("DimuonRapidity", "DimuonRapidity", 50, -2.5, 2.5);
+                h_y_j1.book("Jet1Rapidity", "Jet1Rapidity", 60, -5, 5);
+                h_y_j2.book("Jet2Rapidity", "Jet2Rapidity", 60, -5, 5);
+
+                h_pt_mumu.book("DimuonPt", "DimuonPt", 60, 0, 300);
+                h_pt_j1.book("Jet1Pt", "Jet1Pt", 60, 0, 300);
+                h_pt_j2.book("Jet2Pt", "Jet2Pt", 60, 0, 300);
+
+                parentDir->cd();
+            }
+
+            ~BDTExperimentalSystSet() {}
+
+            TDirectory* _dir;
+            TString _postfix;
+
+            ExpSystHist1D h_z;
+            ExpSystHist1D h_ptBalance;
+
+            ExpSystHist1D h_mu1_pt_over_m;
+            ExpSystHist1D h_mu2_pt_over_m;
+
+            ExpSystHist1D h_mu1_eta;
+            ExpSystHist1D h_mu2_eta;
+
+            ExpSystHist1D h_jet1_eta;
+
+            ExpSystHist1D h_m_mumu;
+            ExpSystHist1D h_deta_jj;
+            ExpSystHist1D h_dphi_jj;
+            ExpSystHist1D h_njets;
+
+            ExpSystHist1D h_dphi_mumu_jj;
+            ExpSystHist1D h_deta_mumu_jj;
+
+            ExpSystHist1D h_phi_CS;
+            ExpSystHist1D h_costheta_CS;
+
+            ExpSystHist1D h_y_mumu;
+            ExpSystHist1D h_y_j1;
+            ExpSystHist1D h_y_j2;
+
+            ExpSystHist1D h_pt_mumu;
+            ExpSystHist1D h_pt_j1;
+            ExpSystHist1D h_pt_j2;
+        };
 
         struct BTagEffSet
         {
@@ -408,6 +703,12 @@ namespace analysis
             // B-Tag Reweighting Block
             analysis::processing::BTagEffSet& BTagEff_PreSelection;
             analysis::processing::BTagEffSet& BTagEff_VBF;
+
+            // BDT Theory Syst Block
+            analysis::processing::BDTTheorySystSet& BDTTheorySyst_VBF;
+
+            // BDT Experimental Syst Block
+            analysis::processing::BDTExperimentalSystSet& BDTExperimentalSyst_VBF;
 
             // Pre-Selection Block
             analysis::processing::MuonSet& setDM_PreSelection;

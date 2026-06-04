@@ -3,7 +3,7 @@ Auto-build a PowerPoint from ROOT/plot PDFs in EOS.
 
 Example:
     python3 make_muon_jet_slides.py \
-        --out /eos/user/d/dblend/PowerPoint/Muons_Jets_KIT_noScaleSmear_noJERC_noJER_BTagRW_ZPtRW.pptx
+        --out /eos/user/d/dblend/PowerPoint/Muons_Jets_KIT_noScaleSmear_noBTagRW_noZPtRW.pptx
 
 Optional:
   --layout single   # one PDF per slide
@@ -50,7 +50,14 @@ PLOT_GROUPS = [
         "type": "pdf",
         "path": "BTagEfficiency/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW",
     },
-
+    
+    # Pileup reweighting PDFs
+    {
+        "name": "PileupReweighting",
+        "type": "pdf",
+        "path": "PileupReweighting/KIT/noScaleSmear_noJERC_noJER_BTagRW_ZPtRW",
+    },
+    
     # Mass resolution single PNG
     {
         "name": "MassResolution",
@@ -58,7 +65,7 @@ PLOT_GROUPS = [
         "path": "Mass_Resolutions/ZCR/KIT/noScaleSmear_noJERC_noJER_BTagRW_ZPtRW",
     },
 ]
-CONFIG = "noScaleSmear_noJERC_noJER_BTagRW_ZPtRW"
+CONFIG = "noScaleSmear_noBTagRW_noZPtRW"
 CORR = "KIT"
 
 

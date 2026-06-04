@@ -8,7 +8,6 @@ CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_BTagRW_ZPtRW}"
 METRIC="${3:-sigma68}"   # sigma68, sigmaCB, sigmaFwhm
 
 ERAS=(12022 22022 12023 22023 2024 2025)
-#ERAS=(2025)
 
 # ---- SET YOUR MACRO DIRECTORY ----
 MACRO_DIR="/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/8_Plots/Z_Boson"

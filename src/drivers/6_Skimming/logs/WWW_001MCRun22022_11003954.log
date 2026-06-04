@@ -1,0 +1,43 @@
+040 (11003954.001.000) 06/03 23:44:32 Started transferring input files
+	Transferring to host: <188.185.204.164:9618?addrs=188.185.204.164-9618+[2001-1458-303-8--100-98]-9618&alias=b9p02p9999.cern.ch&noUDP&sock=slot1_31_4820_e03d_261003>
+...
+040 (11003954.001.000) 06/03 23:44:32 Finished transferring input files
+...
+001 (11003954.001.000) 06/03 23:44:32 Job executing on host: <188.185.204.164:9618?addrs=188.185.204.164-9618+[2001-1458-303-8--100-98]-9618&alias=b9p02p9999.cern.ch&noUDP&sock=startd_4037_9feb>
+	SlotName: slot1_31@b9p02p9999.cern.ch
+	CondorScratchDir = "/pool/condor/dir_164094"
+	Cpus = 4
+	Disk = 6637
+	GPUs = 0
+	Memory = 12000
+...
+006 (11003954.001.000) 06/03 23:44:46 Image size of job updated: 108560
+	107  -  MemoryUsage of job (MB)
+	108560  -  ResidentSetSize of job (KB)
+...
+006 (11003954.001.000) 06/03 23:46:45 Image size of job updated: 176376
+	107  -  MemoryUsage of job (MB)
+	108940  -  ResidentSetSize of job (KB)
+...
+040 (11003954.001.000) 06/03 23:46:45 Started transferring output files
+...
+040 (11003954.001.000) 06/03 23:46:45 Finished transferring output files
+...
+005 (11003954.001.000) 06/03 23:46:45 Job terminated.
+	(1) Normal termination (return value 0)
+		Usr 0 00:00:46, Sys 0 00:00:03  -  Run Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Run Local Usage
+		Usr 0 00:00:46, Sys 0 00:00:03  -  Total Remote Usage
+		Usr 0 00:00:00, Sys 0 00:00:00  -  Total Local Usage
+	3111  -  Run Bytes Sent By Job
+	190582  -  Run Bytes Received By Job
+	3111  -  Total Bytes Sent By Job
+	190582  -  Total Bytes Received By Job
+	Partitionable Resources :    Usage  Request Allocated 
+	   Cpus                 :        0        4         4 
+	   Disk (KB)            :      289     4000      6637 
+	   GPUs                 :                           0 
+	   Memory (MB)          :      107    12000     12000 
+	   TimeExecute (s)      :      133                    
+	   TimeSlotBusy (s)     :      133                    
+...

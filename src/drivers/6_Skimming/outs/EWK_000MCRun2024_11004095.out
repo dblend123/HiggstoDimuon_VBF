@@ -1,0 +1,109 @@
+== Job started: Wed Jun  3 11:48:31 PM CEST 2026
+Host: b9p20p5563.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/EWK/part000.list'  tag='EWK_000MCRun2024'  sample='EWK'
+ERA (4th arg): '2024'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_2849991
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/EWK/part000.list' -> using local: '/pool/condor/dir_2849991/part000.list'
+Using Condor proxy: /pool/condor/dir_2849991/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_2849991/part000.list
+Input list has 40 lines
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/120000/3e115fa0-d91b-4cfd-8cfe-fa8e7bd1e6d4.root ...
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/110000/3a01decf-42fa-4697-b2e0-a838d9900f53.root ...
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/2810000/597470e8-faaf-4ab7-83ae-53e5567fdd59.root ...
+Using skimmer: my_skim
+06938216b71177dd38057f5cebacca08  ./my_skim
+ 0x000000000000000f (RPATH)              Library rpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: EWK_000MCRun2024
+Running: ./my_skim '/pool/condor/dir_2849991/part000.list' '-1'
+---- last 50 lines of skim.stdout.log ----
+Requested ALL events
+Writing: ./skims/Skimmed_3e115fa0-d91b-4cfd-8cfe-fa8e7bd1e6d4.root
+Writing: ./skims/Skimmed_3a01decf-42fa-4697-b2e0-a838d9900f53.root
+Writing: ./skims/Skimmed_597470e8-faaf-4ab7-83ae-53e5567fdd59.root
+Writing: ./skims/Skimmed_83ccae06-0bc7-45a2-a39d-4da05a2cb9a4.root
+Writing: ./skims/Skimmed_58256970-548a-4261-b486-593b8b6e8db6.root
+Writing: ./skims/Skimmed_0b8ed3bb-bada-471a-8d1e-12a575ba8b6f.root
+Writing: ./skims/Skimmed_b804eeda-1896-4b37-8e53-d6b7a4627e8a.root
+Writing: ./skims/Skimmed_57d27717-d16c-4c6a-85e2-1a9c933688ab.root
+Writing: ./skims/Skimmed_b33899a5-8e71-4bd3-af80-d9f4e7939eab.root
+Writing: ./skims/Skimmed_2c8a89ae-e937-4124-8281-4ba5062d115b.root
+Writing: ./skims/Skimmed_9ddcfd96-29cd-4e33-88f7-317e53275d1a.root
+Writing: ./skims/Skimmed_f0dea6b7-8180-4ffc-8519-76788839a828.root
+Writing: ./skims/Skimmed_2fcb4154-83cc-4bc0-b99a-ace41b25b7f0.root
+Writing: ./skims/Skimmed_63bf402e-61a8-4726-afbb-3e668b1bbae8.root
+Writing: ./skims/Skimmed_4ec14e9c-8f95-46aa-b246-f9558d52562c.root
+Writing: ./skims/Skimmed_f7a23c05-4561-45f4-bb82-72e8a48adc62.root
+Writing: ./skims/Skimmed_af435915-b105-48ab-8373-a7662cb09fc1.root
+Writing: ./skims/Skimmed_9d959d9f-2cd0-45ae-b781-d1c264056e59.root
+Writing: ./skims/Skimmed_50a25783-e8a9-4c68-8d8f-d3f488765636.root
+Writing: ./skims/Skimmed_322870a2-9188-4e84-bd6f-0864111c4fc5.root
+Writing: ./skims/Skimmed_cc656873-a169-464e-ab9d-64e52d9e2183.root
+Writing: ./skims/Skimmed_38e58a48-7aa5-4d9f-9af8-e966d282c7f5.root
+Writing: ./skims/Skimmed_cfe41749-52e0-4317-af95-d84aae4782a6.root
+Writing: ./skims/Skimmed_15dca804-6ce5-4575-a473-c6da06530aad.root
+Writing: ./skims/Skimmed_d0b5fc03-47c6-4453-85e2-870ae74b9da6.root
+Writing: ./skims/Skimmed_b282055a-6e8e-42b8-addc-f076d1bdb118.root
+Writing: ./skims/Skimmed_72e8f574-eb84-456f-a711-9c6a5e590bb6.root
+Writing: ./skims/Skimmed_90767518-e294-4dec-82e8-2e89472544c0.root
+Writing: ./skims/Skimmed_55bd4a0b-9e1d-4006-84aa-8d8c43487482.root
+Writing: ./skims/Skimmed_758582ef-4b5c-49e1-84d9-9cfd8eacb852.root
+Writing: ./skims/Skimmed_95a79cb8-5dbc-48fe-9f6c-d3a2e494b257.root
+Writing: ./skims/Skimmed_836dacba-4959-4088-8159-6375cc6d89e1.root
+Writing: ./skims/Skimmed_c4755601-32b4-47a4-8980-0d6faae371c5.root
+Writing: ./skims/Skimmed_77c06bab-eff6-4898-ba10-0156756fba99.root
+Writing: ./skims/Skimmed_a7026e54-4314-4832-9432-9cdcce8110f6.root
+Writing: ./skims/Skimmed_cff1d666-ee24-42b5-adbc-a21b6a63be2b.root
+Writing: ./skims/Skimmed_36e241da-3275-4a25-87a8-b87ea73f2137.root
+Writing: ./skims/Skimmed_738b3249-50bd-4c95-bd98-6c4e3368e176.root
+Writing: ./skims/Skimmed_73d24f87-7610-4c44-882a-67db8580b569.root
+Writing: ./skims/Skimmed_7ec3c7c0-bd15-411f-8ba1-4961b52137af.root
+
+Done. Files skimmed: 40  |  Events kept: 1204847
+Staging to: root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024
+Found 40 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_0b8ed3bb-bada-471a-8d1e-12a575ba8b6f.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_15dca804-6ce5-4575-a473-c6da06530aad.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_2c8a89ae-e937-4124-8281-4ba5062d115b.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_2fcb4154-83cc-4bc0-b99a-ace41b25b7f0.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_322870a2-9188-4e84-bd6f-0864111c4fc5.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_36e241da-3275-4a25-87a8-b87ea73f2137.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_38e58a48-7aa5-4d9f-9af8-e966d282c7f5.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_3a01decf-42fa-4697-b2e0-a838d9900f53.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_3e115fa0-d91b-4cfd-8cfe-fa8e7bd1e6d4.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_4ec14e9c-8f95-46aa-b246-f9558d52562c.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_50a25783-e8a9-4c68-8d8f-d3f488765636.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_55bd4a0b-9e1d-4006-84aa-8d8c43487482.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_57d27717-d16c-4c6a-85e2-1a9c933688ab.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_58256970-548a-4261-b486-593b8b6e8db6.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_597470e8-faaf-4ab7-83ae-53e5567fdd59.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_63bf402e-61a8-4726-afbb-3e668b1bbae8.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_72e8f574-eb84-456f-a711-9c6a5e590bb6.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_738b3249-50bd-4c95-bd98-6c4e3368e176.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_73d24f87-7610-4c44-882a-67db8580b569.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_758582ef-4b5c-49e1-84d9-9cfd8eacb852.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_77c06bab-eff6-4898-ba10-0156756fba99.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_7ec3c7c0-bd15-411f-8ba1-4961b52137af.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_836dacba-4959-4088-8159-6375cc6d89e1.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_83ccae06-0bc7-45a2-a39d-4da05a2cb9a4.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_90767518-e294-4dec-82e8-2e89472544c0.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_95a79cb8-5dbc-48fe-9f6c-d3a2e494b257.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_9d959d9f-2cd0-45ae-b781-d1c264056e59.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_9ddcfd96-29cd-4e33-88f7-317e53275d1a.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_a7026e54-4314-4832-9432-9cdcce8110f6.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_af435915-b105-48ab-8373-a7662cb09fc1.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_b282055a-6e8e-42b8-addc-f076d1bdb118.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_b33899a5-8e71-4bd3-af80-d9f4e7939eab.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_b804eeda-1896-4b37-8e53-d6b7a4627e8a.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_c4755601-32b4-47a4-8980-0d6faae371c5.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_cc656873-a169-464e-ab9d-64e52d9e2183.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_cfe41749-52e0-4317-af95-d84aae4782a6.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_cff1d666-ee24-42b5-adbc-a21b6a63be2b.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_d0b5fc03-47c6-4453-85e2-870ae74b9da6.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_f0dea6b7-8180-4ffc-8519-76788839a828.root
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2024/EWK/EWK_000MCRun2024/Skimmed_f7a23c05-4561-45f4-bb82-72e8a48adc62.root
+Done staging.
+== Job finished: Thu Jun  4 12:06:02 AM CEST 2026

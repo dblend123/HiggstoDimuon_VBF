@@ -1,0 +1,203 @@
+my_skim FAILED (exit 139)
+---- last 200 lines of skim.stderr.log ----
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_PFMET110_PFJet100
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_PFMET110_PFJet100_looseRecoiling
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_HT200_L1SingleLLPJet_DisplacedDijet30_Inclusive1PtrkShortSig5
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_HT200_L1SingleLLPJet_DisplacedDijet35_Inclusive1PtrkShortSig5
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DiPhoton10sminlt0p1
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DiPhoton10sminlt0p12
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DiPhoton10sminlt0p14
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DiPhoton10sminlt0p16
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle4_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle4p5_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle5_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle5p5_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle6_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle7_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle7p5_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle8p5_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle9_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_DoubleEle9p5_eta1p22_mMax6
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_ExpressMuons
+Error in <TTree::SetBranchAddress>: unknown branch -> HLT_OnlineMonitorGroup
+[SKIM WARN] Missing branch: nLHEScaleWeight
+[SKIM WARN] Missing branch: LHEScaleWeight
+[SKIM WARN] Missing branch: nLHEPdfWeight
+[SKIM WARN] Missing branch: LHEPdfWeight
+[SKIM WARN] Missing branch: nPSWeight
+[SKIM WARN] Missing branch: PSWeight
+[SKIM WARN] Missing branch: LHEWeight
+Error in <TTree::SetBranchStatus>: No branch name is matching wildcard -> Generator_*
+[SKIM WARN] Missing branch: genWeight
+Error in <TTree::SetBranchStatus>: No branch name is matching wildcard -> Pileup_*
+[SKIM WARN] Missing branch: nTrueInt
+[SKIM WARN] Missing branch: Jet_jetId
+[SKIM WARN] Missing branch: Jet_genJetIdx
+[SKIM WARN] Missing branch: Jet_hadronFlavour
+[SKIM WARN] Missing branch: nGenJet
+[SKIM WARN] Missing branch: GenJet_pt
+[SKIM WARN] Missing branch: GenJet_eta
+[SKIM WARN] Missing branch: GenJet_phi
+[SKIM WARN] Missing branch: GenJet_mass
+[SKIM WARN] Missing branch: MET_pt
+[SKIM WARN] Missing branch: MET_phi
+
+ *** Break *** segmentation violation
+
+
+
+===========================================================
+There was a crash.
+This is the entire stack trace of all threads:
+===========================================================
+
+Thread 15 (Thread 0x14a059a93640 (LWP 502) "my_skim"):
+#0  0x000014a079c883da in __futex_abstimed_wait_common () from /lib64/libc.so.6
+#1  0x000014a079c93538 in __new_sem_wait_slow64.constprop.0 () from /lib64/libc.so.6
+#2  0x000014a05b787446 in XrdSysSemaphore::Wait (this=0x50532e0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.hh:509
+#3  XrdCl::SyncQueue<XrdCl::JobManager::JobHelper>::Get (this=0x50633a8) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClSyncQueue.hh:66
+#4  XrdCl::JobManager::RunJobs (this=0x5063390) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClJobManager.cc:151
+#5  0x000014a05b7874f9 in RunRunnerThread (arg=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClJobManager.cc:34
+#6  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#7  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 14 (Thread 0x14a059c94640 (LWP 501) "my_skim"):
+#0  0x000014a079c883da in __futex_abstimed_wait_common () from /lib64/libc.so.6
+#1  0x000014a079c93538 in __new_sem_wait_slow64.constprop.0 () from /lib64/libc.so.6
+#2  0x000014a05b787446 in XrdSysSemaphore::Wait (this=0x50532e0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.hh:509
+#3  XrdCl::SyncQueue<XrdCl::JobManager::JobHelper>::Get (this=0x50633a8) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClSyncQueue.hh:66
+#4  XrdCl::JobManager::RunJobs (this=0x5063390) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClJobManager.cc:151
+#5  0x000014a05b7874f9 in RunRunnerThread (arg=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClJobManager.cc:34
+#6  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#7  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 13 (Thread 0x14a059e95640 (LWP 500) "my_skim"):
+#0  0x000014a079c883da in __futex_abstimed_wait_common () from /lib64/libc.so.6
+#1  0x000014a079c93538 in __new_sem_wait_slow64.constprop.0 () from /lib64/libc.so.6
+#2  0x000014a05b787446 in XrdSysSemaphore::Wait (this=0x50532e0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.hh:509
+#3  XrdCl::SyncQueue<XrdCl::JobManager::JobHelper>::Get (this=0x50633a8) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClSyncQueue.hh:66
+#4  XrdCl::JobManager::RunJobs (this=0x5063390) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClJobManager.cc:151
+#5  0x000014a05b7874f9 in RunRunnerThread (arg=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClJobManager.cc:34
+#6  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#7  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 12 (Thread 0x14a05a096640 (LWP 499) "my_skim"):
+#0  0x000014a079cd5995 in clock_nanosleep
+GLIBC_2.2.5 () from /lib64/libc.so.6
+#1  0x000014a079cda447 in nanosleep () from /lib64/libc.so.6
+#2  0x000014a072ca8a68 in XrdSysTimer::Wait (mills=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysTimer.cc:239
+#3  0x000014a05b706686 in XrdCl::TaskManager::RunTasks (this=0x4ce9960) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClTaskManager.cc:246
+#4  0x000014a05b706789 in RunRunnerThread (arg=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdCl/XrdClTaskManager.cc:38
+#5  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#6  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 11 (Thread 0x14a05a297640 (LWP 498) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x50c8160, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x50c65a0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 10 (Thread 0x14a05a498640 (LWP 497) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x50c7f60, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x50418a0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 9 (Thread 0x14a05a699640 (LWP 496) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x4fed1c0, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x50537c0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 8 (Thread 0x14a05a89a640 (LWP 495) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x50446c0, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x49a6490) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 7 (Thread 0x14a05aa9b640 (LWP 494) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x4ff0950, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x4ff66f0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 6 (Thread 0x14a05ac9c640 (LWP 493) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x509b6e0, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x504e570) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 5 (Thread 0x14a05ae9d640 (LWP 492) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x504ded0, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x508b8d0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 4 (Thread 0x14a05b09e640 (LWP 491) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x50e4b10, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x50447f0) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 3 (Thread 0x14a05b29f640 (LWP 490) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x49a64f0, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x5042580) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 2 (Thread 0x14a05b4a0640 (LWP 489) "my_skim"):
+#0  0x000014a079d0fc0e in epoll_wait () from /lib64/libc.so.6
+#1  0x000014a072ca305a in XrdSys::IOEvents::PollE::Begin (this=0x4bb6a80, syncsem=<optimized out>, retcode=<optimized out>, eTxt=<optimized out>) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEventsPollE.icc:212
+#2  0x000014a072c9f1ed in XrdSys::IOEvents::BootStrap::Start (parg=0x7ffc674eef40) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysIOEvents.cc:149
+#3  0x000014a072ca8177 in XrdSysThread_Xeq (myargs=0x5040670) at /build/jenkins/workspace/lcg_release_pipeline/build/externals/xrootd-5.6.3/src/xrootd/5.6.3/src/XrdSys/XrdSysPthread.cc:86
+#4  0x000014a079c8b3f9 in start_thread () from /lib64/libc.so.6
+#5  0x000014a079d105d0 in clone3 () from /lib64/libc.so.6
+
+Thread 1 (Thread 0x14a07a67fbc0 (LWP 474) "my_skim"):
+#0  0x000014a079cda1ff in wait4 () from /lib64/libc.so.6
+#1  0x000014a079c4f4b3 in do_system () from /lib64/libc.so.6
+#2  0x000014a07bd12519 in TUnixSystem::StackTrace() () from /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib/libCore.so
+#3  0x000014a07bd11ed4 in TUnixSystem::DispatchSignals(ESignals) () from /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib/libCore.so
+#4  <signal handler called>
+#5  0x000014a07aba9bf6 in TTree::GetCurrentFile() const () from /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib/libTree.so
+#6  0x0000000000404b39 in MyAnalysis::~MyAnalysis() ()
+#7  0x00000000004042f6 in main ()
+===========================================================
+
+
+The lines below might hint at the cause of the crash. If you see question
+marks as part of the stack trace, try to recompile with debugging information
+enabled and export CLING_DEBUG=1 environment variable before running.
+You may get help by asking at the ROOT forum https://root.cern/forum
+preferably using the command (.forum bug) in the ROOT prompt.
+Only if you are really convinced it is a bug in ROOT then please submit a
+report at https://root.cern/bugs or (preferably) using the command (.gh bug) in
+the ROOT prompt. Please post the ENTIRE stack trace
+from above as an attachment in addition to anything else
+that might help us fixing this issue.
+===========================================================
+#5  0x000014a07aba9bf6 in TTree::GetCurrentFile() const () from /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib/libTree.so
+#6  0x0000000000404b39 in MyAnalysis::~MyAnalysis() ()
+#7  0x00000000004042f6 in main ()
+===========================================================
+
+
+FATAL: my_skim failed with code 139

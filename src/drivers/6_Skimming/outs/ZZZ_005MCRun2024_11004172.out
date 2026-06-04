@@ -1,0 +1,29 @@
+== Job started: Wed Jun  3 11:54:19 PM CEST 2026
+Host: b9g03p0845.cern.ch
+Args: inputList='/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/ZZZ/part005.list'  tag='ZZZ_005MCRun2024'  sample='ZZZ'
+ERA (4th arg): '2025'
+MAX_EVENTS:  -1
+PWD: /pool/condor/dir_1833738
+Input list arg: '/afs/cern.ch/user/d/dblend/test-analysis/src/drivers/1_ListFiles/2024/Background_listfiles/ZZZ/part005.list' -> using local: '/pool/condor/dir_1833738/part005.list'
+Using Condor proxy: /pool/condor/dir_1833738/x509up.cert
+ROOT bin:   /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/bin/root
+ROOT ver:   6.30.02
+libdir:     /cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib
+Using input list: /pool/condor/dir_1833738/part005.list
+Input list has 1 lines
+root://cms-xrd-global.cern.ch//store/mc/RunIII2024Summer24NanoAODv15/ZZZ-5F_TuneCP5_13p6TeV_amcatnlo-pythia8/NANOAODSIM/150X_mcRun3_2024_realistic_v2-v2/130000/cdb3b387-e111-4e48-a553-0e4e033e6929.root ...
+Using skimmer: my_skim
+06938216b71177dd38057f5cebacca08  ./my_skim
+ 0x000000000000000f (RPATH)              Library rpath: [/cvmfs/sft.cern.ch/lcg/releases/ROOT/6.30.02-fb5be/x86_64-el9-gcc13-opt/lib]
+Using cleaned TAG: ZZZ_005MCRun2024
+Running: ./my_skim '/pool/condor/dir_1833738/part005.list' '-1'
+---- last 50 lines of skim.stdout.log ----
+Requested ALL events
+Writing: ./skims/Skimmed_cdb3b387-e111-4e48-a553-0e4e033e6929.root
+
+Done. Files skimmed: 1  |  Events kept: 1967
+Staging to: root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2025/ZZZ/ZZZ_005MCRun2024
+Found 1 skim files.
+xrdcp -> root://eosuser.cern.ch//eos/experiment/higgstodimuon-vbf/2025/ZZZ/ZZZ_005MCRun2024/Skimmed_cdb3b387-e111-4e48-a553-0e4e033e6929.root
+Done staging.
+== Job finished: Wed Jun  3 11:54:48 PM CEST 2026

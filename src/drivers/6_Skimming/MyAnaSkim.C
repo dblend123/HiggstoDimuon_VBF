@@ -225,6 +225,12 @@ int main(int argc, char* argv[])
     tree->SetBranchStatus("*", 0);
 
     std::vector<const char*> keep = {
+      // theory weights for orange band
+      "nLHEScaleWeight", "LHEScaleWeight",
+      "nLHEPdfWeight",   "LHEPdfWeight",
+      "nPSWeight",       "PSWeight",
+      "LHEWeight",
+
       // bookkeeping
       "run", "event", "luminosityBlock",
 
@@ -241,8 +247,8 @@ int main(int argc, char* argv[])
       "nMuon",
       //"Muon_*", 
       "Muon_pt","Muon_eta","Muon_phi","Muon_charge",
-      "Muon_isGlobal","Muon_isTracker","Muon_tightId", "Muon_mediumId", 
-      "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers",
+      "Muon_isGlobal","Muon_isTracker","Muon_tightId", "Muon_mediumId", "Muon_looseId", 
+      "Muon_dxy","Muon_dxybs","Muon_dz","Muon_sip3d","Muon_nTrackerLayers", "Muon_miniIsoId",
       "Muon_pfRelIso04_all","Muon_tkRelIso","Muon_bsConstrainedPt","Muon_bsConstrainedChi2","Muon_bsConstrainedPtErr",
 
       // triggers & trig objects
@@ -256,6 +262,10 @@ int main(int argc, char* argv[])
       "Jet_btagDeepFlavB","Jet_area","Jet_chHEF","Jet_neHEF","Jet_chEmEF","Jet_neEmEF","Jet_muEF",
       "Jet_genJetIdx", "Jet_btagPNetB", "Jet_hadronFlavour", "Jet_rawFactor", 
       "Jet_btagUParTAK4B","Jet_chMultiplicity", "Jet_neMultiplicity",
+
+      // soft-activity 
+      "SoftActivityJetHT", "SoftActivityJetHT2", "SoftActivityJetHT5", "SoftActivityJetHT10",
+      "SoftActivityJetNjets2", "SoftActivityJetNjets5", "SoftActivityJetNjets10",
 
       // gen jets
       "nGenJet","GenJet_pt","GenJet_eta","GenJet_phi","GenJet_mass",
@@ -278,18 +288,56 @@ int main(int argc, char* argv[])
       "Flag_BadPFMuonDzFilter", "Flag_eeBadScFilter", "Flag_ecalBadCalibFilter", "Flag_hfNoisyHitsFilter",
     };
 
-    for (auto b : keep) tree->SetBranchStatus(b, 1);
+    for (auto b : keep) {
+        std::string name = b;
+
+        if (name.find('*') != std::string::npos) {
+            tree->SetBranchStatus(b, 1);  // wildcard patterns
+        } else if (tree->GetBranch(b)) {
+            tree->SetBranchStatus(b, 1);  // exact branch names
+        } else {
+            std::cerr << "[SKIM WARN] Missing branch: " << b << "\n";
+        }
+    }
 
     // open output file
     const string outPath = FileLocation(infile);
     std::cout << "Writing: " << outPath << "\n";
-    NewTreeFile = TFile::Open(outPath.c_str(), "RECREATE");
+    NewTreeFile = TFile::Open(outPath.c_str(), "RECREATE"); 
     if (!NewTreeFile || NewTreeFile->IsZombie()) {
       std::cerr << "Cannot create output: " << outPath << "\n";
       if (NewTreeFile) { delete NewTreeFile; NewTreeFile = nullptr; }
       f->Close(); delete f;
       continue;
     }
+
+// copy Runs tree
+TTree* runsTree = nullptr;
+f->GetObject("Runs", runsTree);
+
+if (runsTree) {
+  runsTree->SetBranchStatus("*", 0);
+
+  std::vector<const char*> keepRuns = {
+    "run",
+    "genEventCount",
+    "genEventSumw",
+    "genEventSumw2",
+    "nLHEScaleSumw", "LHEScaleSumw",
+    "nLHEPdfSumw",   "LHEPdfSumw",
+    "nPSSumw",       "PSSumw"
+  };
+
+  for (auto b : keepRuns) {
+    if (runsTree->GetBranch(b)) runsTree->SetBranchStatus(b, 1);
+  }
+
+  NewTreeFile->cd();
+  TTree* newRunsTree = runsTree->CloneTree(-1, "fast");
+  newRunsTree->Write("Runs", TObject::kOverwrite);
+} else {
+  std::cerr << "[WARN] No Runs tree found in " << infile << "\n";
+}
 
     // clone ONLY enabled branches
     newtree = tree->CloneTree(0);
@@ -305,10 +353,12 @@ int main(int argc, char* argv[])
     newtree = nullptr;
 
     // Stop across files if we hit the global cap
-    if (MaxEvent != -1 && (int)ievnt >= MaxEvent) break;
+    bool hitCap = (MaxEvent != -1 && (int)ievnt >= MaxEvent);
 
     f->Close();
     delete f;
+
+    if (hitCap) break;
   }
 
   // print/save cutflow
