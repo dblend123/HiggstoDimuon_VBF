@@ -1,75 +1,82 @@
 #!/usr/bin/env python3
-# tmva103_Application.py
+"""
+tmva103_Application.py
 
-'''
-For MC:
-python3 tmva103_Application.py --input DataPreparation_Files/12022_test_signal.root DataPreparation_Files/12022_test_background.root --output 12022_scored_all.root --treename mva --model-file 12022_tmva101.root --model-name myBDT
+Apply a trained TMVA RBDT model to any ROOT file that contains the 'mva' tree
+(signal, background, or data) and write a clone with one new branch:
+    bdt_score / F
 
-For Data:
-python3 tmva103_Application.py --input /eos/user/d/dblend/Analyzed_SkimmedFiles/12022/MC/DATA/DATA_all.root --output Outputs/12022/12022_data_scored_all.root --treename mva --model-file 12022_tmva101.root --model-name myBDT
-'''
+Example (MC):
+    python3 tmva103_Application.py \
+        --input DataPreparation_Files/12022/12022_all_signal.root \
+        --output Outputs/12022/12022_scored_signal.root \
+        --model-file Outputs/Training/12022/12022_tmva101_background.root
 
-import argparse, array
+Example (Data):
+    python3 tmva103_Application.py \
+        --input /eos/.../12022/MC/DATA/DATA_all.root \
+        --output Outputs/12022/12022_data_scored_all.root \
+        --model-file Outputs/Training/12022/12022_tmva101_background.root
+"""
+
+import argparse, array, os
 import numpy as np
 import ROOT
 
-# --- keep variable order IDENTICAL to training ---
-from tmva100_DataPreparation import VARIABLES
+from tmva100_DataPreparation import VARIABLES  # MUST match training order
+
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Apply TMVA RBDT model to ROOT file(s) with an 'mva' tree.")
-    p.add_argument("--input", nargs="+", required=True, help="Input ROOT file(s) that contain the 'mva' tree.")
-    p.add_argument("--output", required=True, help="Output ROOT file to write.")
-    p.add_argument("--treename", default="mva", help="Tree name (default: mva).")
-    p.add_argument("--model-file", default="tmva101.root", help="TMVA model file produced in training.")
-    p.add_argument("--model-name", default="myBDT", help="Model name used in SaveXGBoost.")
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--input", nargs="+", required=True)
+    p.add_argument("--output", required=True)
+    p.add_argument("--treename", default="mva")
+    p.add_argument("--model-file", default="tmva101.root")
+    p.add_argument("--model-name", default="myBDT")
     return p.parse_args()
 
-if __name__ == "__main__":
+
+def main():
     args = parse_args()
 
-    # Load TMVA + model
     ROOT.gSystem.Load("libTMVA")
-    if ROOT.gSystem.AccessPathName(args.model_file, ROOT.kReadPermission):
-        ROOT.Error("tmva103", f"Model file not found or unreadable: {args.model_file}")
-        raise SystemExit(1)
+    if not os.path.exists(args.model_file) or os.path.getsize(args.model_file) < 1000:
+        raise SystemExit(f"[tmva103] Model missing or incomplete: {args.model_file}")
     model = ROOT.TMVA.Experimental.RBDT[""](args.model_name, args.model_file)
 
-    # Build an RDataFrame to pull NumPy arrays efficiently
     flist = ROOT.std.vector("string")()
-    for f in args.input: flist.push_back(f)
+    for f in args.input:
+        flist.push_back(f)
     df = ROOT.RDataFrame(args.treename, flist)
 
-    cols = list(df.GetColumnNames())
-    missing = [v for v in VARIABLES if v not in cols]
+    missing = [v for v in VARIABLES if v not in list(df.GetColumnNames())]
     if missing:
-        ROOT.Error("tmva103", "Missing VARIABLES in input tree: " + ", ".join(missing))
-        raise SystemExit(2)
+        raise SystemExit(f"[tmva103] Missing variables in input tree: {missing}")
 
-    # Fetch all columns and compute scores in one go
-    arrays = df.AsNumpy(VARIABLES)  # only VARIABLES needed for scoring
+    arrays = df.AsNumpy(VARIABLES)
     X = np.vstack([arrays[v] for v in VARIABLES]).T.astype(np.float32, copy=False)
     scores = model.Compute(X).astype(np.float32, copy=False)
-    n_entries = scores.shape[0]
+    n = scores.shape[0]
 
-    # Now clone the original tree and append the new branch
     chain = ROOT.TChain(args.treename)
-    for f in args.input: chain.Add(f)
-    if chain.GetEntries() != n_entries:
-        ROOT.Error("tmva103", f"Entry mismatch: chain={chain.GetEntries()} vs scores={n_entries}")
-        raise SystemExit(3)
+    for f in args.input:
+        chain.Add(f)
+    if chain.GetEntries() != n:
+        raise SystemExit(f"[tmva103] Entry mismatch: chain={chain.GetEntries()} vs scores={n}")
 
+    os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     out = ROOT.TFile(args.output, "RECREATE")
-    outtree = chain.CloneTree(0)  # clone structure only
-    bdt_buf = array.array('f', [0.0])
-    outtree.Branch("bdt_score", bdt_buf, "bdt_score/F")
-
-    # Fill
-    for i in range(n_entries):
+    outtree = chain.CloneTree(0)
+    buf = array.array('f', [0.0])
+    outtree.Branch("bdt_score", buf, "bdt_score/F")
+    for i in range(n):
         chain.GetEntry(i)
-        bdt_buf[0] = float(scores[i])
+        buf[0] = float(scores[i])
         outtree.Fill()
-
     outtree.Write()
     out.Close()
-    print(f"[tmva103] Wrote {args.output} with branch 'bdt_score' in tree '{args.treename}'")
+    print(f"[tmva103] Wrote {args.output} (+branch 'bdt_score' in tree '{args.treename}')")
+
+
+if __name__ == "__main__":
+    main()
