@@ -280,38 +280,38 @@ namespace analysis
                 _dir = parentDir->mkdir(_postfix);
                 _dir->cd();
 
-                h_z.book("Zeppenfeld", "Zeppenfeld", 40, -6, 6);
-                h_ptBalance.book("PtBalance", "PtBalance", 40, 0, 2);
+                h_z.book("Zeppenfeld", "Zeppenfeld", 20, -5, 5);
 
-                h_mu1_pt_over_m.book("Muon1PtOverM", "Muon1PtOverM", 40, 0, 2);
-                h_mu2_pt_over_m.book("Muon2PtOverM", "Muon2PtOverM", 40, 0, 2);
+                h_ptBalance.book("PtBalance", "PtBalance", 30, 0, 1.0);
 
-                h_mu1_eta.book("Muon1Eta", "Muon1Eta", 50, -2.5, 2.5);
-                h_mu2_eta.book("Muon2Eta", "Muon2Eta", 50, -2.5, 2.5);
+                h_mu1_pt_over_m.book("Muon1PTdDM", "Muon1PTdDM", 30, 0, 1.5);
+                h_mu2_pt_over_m.book("Muon2PTdDM", "Muon2PTdDM", 30, 0, 1.5);
 
-                h_jet1_eta.book("Jet1Eta", "Jet1Eta", 60, -5, 5);
+                h_mu1_eta.book("Muon1eta", "Muon1eta", 50, -2.5, 2.5);
+                h_mu2_eta.book("Muon2eta", "Muon2eta", 50, -2.5, 2.5);
 
-                h_m_mumu.book("DimuonMass", "DimuonMass", 80, 110, 150);
+                h_jet1_eta.book("Jet1eta", "Jet1eta", 60, -5, 5);
 
-                h_deta_jj.book("DijetDeltaEta", "DijetDeltaEta", 40, 0, 10);
-                h_dphi_jj.book("DijetDeltaPhi", "DijetDeltaPhi", 32, 0, 3.2);
+                h_m_mumu.book("DiMuonMass_Higgs", "DiMuonMass_Higgs", 180, 110, 150);
 
-                h_njets.book("NJets", "NJets", 10, 0, 10);
+                h_deta_jj.book("DiJetdeta", "DiJetdeta", 30, 0, 9);
+                h_dphi_jj.book("DiJetdphi", "DiJetdphi", 30, 0, 3.2);
 
-                h_dphi_mumu_jj.book("DeltaPhiDimuonDijet", "DeltaPhiDimuonDijet", 32, 0, 3.2);
-                h_deta_mumu_jj.book("DeltaEtaDimuonDijet", "DeltaEtaDimuonDijet", 40, 0, 10);
+                h_njets.book("nJets", "nJets", 8, 0, 8);
 
-                h_phi_CS.book("CollinsSoperPhi", "CollinsSoperPhi", 32, -3.2, 3.2);
-                h_costheta_CS.book("CollinsSoperCosTheta", "CollinsSoperCosTheta", 20, -1, 1);
+                h_dphi_mumu_jj.book("hdphi_mumu_jj", "hdphi_mumu_jj", 40, 0, 3.2);
+                h_deta_mumu_jj.book("hdeta_mumu_jj", "hdeta_mumu_jj", 40, 0, 8);
 
-                h_y_mumu.book("DimuonRapidity", "DimuonRapidity", 50, -2.5, 2.5);
-                h_y_j1.book("Jet1Rapidity", "Jet1Rapidity", 60, -5, 5);
-                h_y_j2.book("Jet2Rapidity", "Jet2Rapidity", 60, -5, 5);
+                h_phi_CS.book("CollinsSoper", "CollinsSoper", 30, -3.2, 3.2);
+                h_costheta_CS.book("cosCollinsSoper", "cosCollinsSoper", 10, -1, 1);
 
-                h_pt_mumu.book("DimuonPt", "DimuonPt", 60, 0, 300);
-                h_pt_j1.book("Jet1Pt", "Jet1Pt", 60, 0, 300);
-                h_pt_j2.book("Jet2Pt", "Jet2Pt", 60, 0, 300);
+                h_y_mumu.book("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
 
+                h_pt_mumu.book("DiMuonpt", "DiMuonpt", 60, 0, 200);
+
+                h_pt_j1.book("Jet1Pt", "Jet1Pt", 50, 0, 200);
+                h_pt_j2.book("Jet2Pt", "Jet2Pt", 50, 0, 200);
+                
                 parentDir->cd();
             }
 
@@ -360,38 +360,38 @@ namespace analysis
                 _dir = parentDir->mkdir(_postfix);
                 _dir->cd();
 
-                h_z.book("Zeppenfeld", "Zeppenfeld", 40, -6, 6);
-                h_ptBalance.book("PtBalance", "PtBalance", 40, 0, 2);
+                h_z.book("Zeppenfeld", "Zeppenfeld", 20, -5, 5);
 
-                h_mu1_pt_over_m.book("Muon1PtOverM", "Muon1PtOverM", 40, 0, 2);
-                h_mu2_pt_over_m.book("Muon2PtOverM", "Muon2PtOverM", 40, 0, 2);
+                h_ptBalance.book("PtBalance", "PtBalance", 30, 0, 1.0);
 
-                h_mu1_eta.book("Muon1Eta", "Muon1Eta", 50, -2.5, 2.5);
-                h_mu2_eta.book("Muon2Eta", "Muon2Eta", 50, -2.5, 2.5);
+                h_mu1_pt_over_m.book("Muon1PTdDM", "Muon1PTdDM", 30, 0, 1.5);
+                h_mu2_pt_over_m.book("Muon2PTdDM", "Muon2PTdDM", 30, 0, 1.5);
 
-                h_jet1_eta.book("Jet1Eta", "Jet1Eta", 60, -5, 5);
+                h_mu1_eta.book("Muon1eta", "Muon1eta", 50, -2.5, 2.5);
+                h_mu2_eta.book("Muon2eta", "Muon2eta", 50, -2.5, 2.5);
 
-                h_m_mumu.book("DimuonMass", "DimuonMass", 80, 110, 150);
+                h_jet1_eta.book("Jet1eta", "Jet1eta", 60, -5, 5);
 
-                h_deta_jj.book("DijetDeltaEta", "DijetDeltaEta", 40, 0, 10);
-                h_dphi_jj.book("DijetDeltaPhi", "DijetDeltaPhi", 32, 0, 3.2);
+                h_m_mumu.book("DiMuonMass_Higgs", "DiMuonMass_Higgs", 180, 110, 150);
 
-                h_njets.book("NJets", "NJets", 10, 0, 10);
+                h_deta_jj.book("DiJetdeta", "DiJetdeta", 30, 0, 9);
+                h_dphi_jj.book("DiJetdphi", "DiJetdphi", 30, 0, 3.2);
 
-                h_dphi_mumu_jj.book("DeltaPhiDimuonDijet", "DeltaPhiDimuonDijet", 32, 0, 3.2);
-                h_deta_mumu_jj.book("DeltaEtaDimuonDijet", "DeltaEtaDimuonDijet", 40, 0, 10);
+                h_njets.book("nJets", "nJets", 8, 0, 8);
 
-                h_phi_CS.book("CollinsSoperPhi", "CollinsSoperPhi", 32, -3.2, 3.2);
-                h_costheta_CS.book("CollinsSoperCosTheta", "CollinsSoperCosTheta", 20, -1, 1);
+                h_dphi_mumu_jj.book("hdphi_mumu_jj", "hdphi_mumu_jj", 40, 0, 3.2);
+                h_deta_mumu_jj.book("hdeta_mumu_jj", "hdeta_mumu_jj", 40, 0, 8);
 
-                h_y_mumu.book("DimuonRapidity", "DimuonRapidity", 50, -2.5, 2.5);
-                h_y_j1.book("Jet1Rapidity", "Jet1Rapidity", 60, -5, 5);
-                h_y_j2.book("Jet2Rapidity", "Jet2Rapidity", 60, -5, 5);
+                h_phi_CS.book("CollinsSoper", "CollinsSoper", 30, -3.2, 3.2);
+                h_costheta_CS.book("cosCollinsSoper", "cosCollinsSoper", 10, -1, 1);
 
-                h_pt_mumu.book("DimuonPt", "DimuonPt", 60, 0, 300);
-                h_pt_j1.book("Jet1Pt", "Jet1Pt", 60, 0, 300);
-                h_pt_j2.book("Jet2Pt", "Jet2Pt", 60, 0, 300);
+                h_y_mumu.book("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
 
+                h_pt_mumu.book("DiMuonpt", "DiMuonpt", 60, 0, 200);
+
+                h_pt_j1.book("Jet1Pt", "Jet1Pt", 50, 0, 200);
+                h_pt_j2.book("Jet2Pt", "Jet2Pt", 50, 0, 200);
+                
                 parentDir->cd();
             }
 

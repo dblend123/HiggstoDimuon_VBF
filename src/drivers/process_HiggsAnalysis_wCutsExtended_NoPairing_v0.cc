@@ -3993,13 +3993,13 @@ long long n_afterPair   = 0;
         event->_genWeight = pickGenW();
         event->_LHEWeight = LHEWeight_originalXWGTUP;
 
-        event->_nLHEScaleWeight = nLHEScaleWeight;
-        event->_nLHEPdfWeight   = nLHEPdfWeight;
-        event->_nPSWeight       = nPSWeight;
+        event->_nLHEScaleWeight = std::min(nLHEScaleWeight, 9);
+        event->_nLHEPdfWeight   = std::min(nLHEPdfWeight, 103);
+        event->_nPSWeight       = std::min(nPSWeight, 4);
 
-        event->_LHEScaleWeight.assign(LHEScaleWeight, LHEScaleWeight + nLHEScaleWeight);
-        event->_LHEPdfWeight.assign(LHEPdfWeight, LHEPdfWeight + nLHEPdfWeight);
-        event->_PSWeight.assign(PSWeight, PSWeight + nPSWeight);
+        event->_LHEScaleWeight.assign(LHEScaleWeight, LHEScaleWeight + event->_nLHEScaleWeight);
+        event->_LHEPdfWeight.assign(LHEPdfWeight, LHEPdfWeight + event->_nLHEPdfWeight);
+        event->_PSWeight.assign(PSWeight, PSWeight + event->_nPSWeight);
 
         for (size_t i=0; i<nMuon; i++) {
             Muon mu;

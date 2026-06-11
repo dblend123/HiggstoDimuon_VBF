@@ -28,28 +28,73 @@ noPU="${8:-false}"
 noScaleSmear="${9:-false}"
 noMuonSF="${10:-false}"
 noJERC="${11:-false}"
-noJetVeto="${12:-false}"
-noGolden="${13:-false}"
-noFlags="${14:-false}"
-noFSR="${15:-false}"
-noBtagSF="${16:-false}"
-noJetCriteria="${17:-false}"
+noJER="${12:-false}"
+noJetVeto="${13:-false}"
+noGolden="${14:-false}"
+noFlags="${15:-false}"
+noFSR="${16:-false}"
+noBtagSF="${17:-false}"
+noJetCriteria="${18:-false}"
 
-noZPtRW="${18:-true}"
-zptRWFile_remote="${19:-None}"
+noZPtRW="${19:-true}"
+zptRWFile_remote="${20:-None}"
 zptRWFile="$(basename -- "$zptRWFile_remote")"
-noBeamConstraint="${20:-false}"
+
+btagEffFile_remote="${21:-None}"
+btagEffFile="$(basename -- "$btagEffFile_remote")"
+
+noBeamConstraint="${22:-false}"
 
 echo "=== Job $(date) ==="
 echo "tag=$tag  sample=$sample  maxEvents=$maxEvents"
 echo "inputList (remote) = $inputList_remote"
 echo "weights (remote)   = $weights_remote"
-echo "Toggles: noPU=$noPU noScaleSmear=$noScaleSmear noMuonSF=$noMuonSF noJERC=$noJERC noJetVeto=$noJetVeto noGolden=$noGolden noFlags=$noFlags noFSR=$noFSR noBtagSF=$noBtagSF noJetCriteria=$noJetCriteria noBeamConstraint=$noBeamConstraint"
+echo "Toggles: noPU=$noPU noScaleSmear=$noScaleSmear noMuonSF=$noMuonSF noJERC=$noJERC noJER=$noJER noJetVeto=$noJetVeto noGolden=$noGolden noFlags=$noFlags noFSR=$noFSR noBtagSF=$noBtagSF noJetCriteria=$noJetCriteria noZPtRW=$noZPtRW noBeamConstraint=$noBeamConstraint"
 
 # Resolve to local filenames (Condor puts transferred files in CWD under their basename)
 inputList="$(basename -- "$inputList_remote")"
 echo "inputList (local)  = $inputList"
 [[ -s "$inputList" ]] || { echo "ERROR: list '$inputList' missing in $(pwd)"; ls -la; exit 66; }
+
+# ------------------------------------------------------------------
+# Redirect skimmed-file inputs to the shared working area.
+# This changes ONLY where the analyzer reads skimmed ROOT files from.
+# Stage-out below still writes to /eos/user/d/dblend/Analyzed_SkimmedFiles.
+#
+# Override at submit time only if needed, e.g.
+#   environment = "SKIMMED_BASE=/some/other/base"
+# ------------------------------------------------------------------
+SKIMMED_BASE="${SKIMMED_BASE:-/eos/experiment/higgstodimuon-vbf}"
+inputList_original="${inputList}.original_paths"
+cp -p "$inputList" "$inputList_original"
+
+python3 - "$inputList" "$SKIMMED_BASE" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+list_path = Path(sys.argv[1])
+new_base = sys.argv[2].rstrip('/')
+
+# Known old skimmed-file bases that may appear in the transferred list files.
+old_bases = [
+    "/eos/user/d/dblend/SkimmedFiles",
+    "/eos/user/o/okoseyan/Personal/SkimmedFiles",
+]
+
+text = list_path.read_text()
+for old in old_bases:
+    text = text.replace(old, new_base)
+    # Also handle paths already written with an EOS xrootd prefix.
+    text = text.replace(f"root://eosuser.cern.ch//{old}", f"root://eosuser.cern.ch//{new_base}")
+    text = text.replace(f"root://eoscms.cern.ch//{old}", f"root://eoscms.cern.ch//{new_base}")
+
+list_path.write_text(text)
+PY
+
+echo "Skimmed input base redirected to: $SKIMMED_BASE"
+echo "First usable input after redirect:"
+awk 'NF && $1 !~ /^#/{print "  "$1; exit}' "$inputList" || true
 
 # Count usable lines (non-empty, not comments)
 nfiles=$(awk 'NF && $1 !~ /^#/{c++} END{print c+0}' "$inputList")
@@ -79,6 +124,7 @@ extra_args=()
 [[ "$noScaleSmear" == "true" ]] && extra_args+=( --noScaleSmear )
 [[ "$noMuonSF"     == "true" ]] && extra_args+=( --noMuonSF )
 [[ "$noJERC"       == "true" ]] && extra_args+=( --noJERC )
+[[ "$noJER"        == "true" ]] && extra_args+=( --noJER )
 [[ "$noJetVeto"    == "true" ]] && extra_args+=( --noJetVeto )
 [[ "$noGolden"     == "true" ]] && extra_args+=( --noGolden )
 [[ "$noFlags"      == "true" ]] && extra_args+=( --noFlags )
@@ -88,6 +134,8 @@ extra_args=()
 [[ "$noZPtRW"       == "true" ]] && extra_args+=( --noZPtRW )
 [[ "$noZPtRW"       != "true" ]] && extra_args+=( --zptRWFile "$zptRWFile" )
 [[ "$noBeamConstraint" == "true" ]] && extra_args+=( --disableBeamConstraint )
+[[ "$isMC" == "true" && "$noBtagSF" != "true" && "$btagEffFile_remote" != "None" ]] && \
+  extra_args+=( --btagEffFile "$btagEffFile" )
 
 # Build args; use the full (already-edited) list as-is
 bin="./process_HiggsAnalysis_wCutsExtended_NoPairing_v0"
@@ -142,15 +190,22 @@ cfg_parts=()
 [[ "$noScaleSmear"  == "true" ]] && cfg_parts+=(noScaleSmear)
 [[ "$noMuonSF"      == "true" ]] && cfg_parts+=(noMuonSF)
 [[ "$noJERC"        == "true" ]] && cfg_parts+=(noJERC)
+[[ "$noJER"         == "true" ]] && cfg_parts+=(noJER)
 [[ "$noJetVeto"     == "true" ]] && cfg_parts+=(noJetVeto)
 [[ "$noGolden"      == "true" ]] && cfg_parts+=(noGolden)
 [[ "$noFlags"       == "true" ]] && cfg_parts+=(noFlags)
 [[ "$noFSR"         == "true" ]] && cfg_parts+=(noFSR)
-[[ "$noBtagSF"      == "true" ]] && cfg_parts+=(noBtagSF)
 [[ "$noJetCriteria" == "true" ]] && cfg_parts+=(noJetCriteria)
 [[ "$noBeamConstraint" == "true" ]] && cfg_parts+=(noBeamConstraint)
 
-# --- ZPt Reweighting flag (NEW) ---
+# --- BTag Reweighting flag ---
+if [[ "$noBtagSF" == "true" ]]; then
+  cfg_parts+=(noBTagRW)
+else
+  cfg_parts+=(BTagRW)
+fi
+
+# --- ZPt Reweighting flag ---
 if [[ "$noZPtRW" == "true" ]]; then
   cfg_parts+=(noZPtRW)
 else
