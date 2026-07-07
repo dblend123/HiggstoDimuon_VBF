@@ -55,6 +55,12 @@ namespace analysis
                       double w_isrUp,   double w_isrDown,
                       double w_fsrUp,   double w_fsrDown)
             {
+
+                if (!nom) {
+                    std::cerr << "[ERROR] Unbooked histogram in SystHist1D::fill()" << std::endl;
+                    abort();
+                }
+
                 nom->Fill(x, w_nom);
 
                 scaleUp->Fill(x, w_scaleUp);
@@ -91,6 +97,12 @@ namespace analysis
             TH1F* zptUp = nullptr;
             TH1F* zptDown = nullptr;
 
+            TH1F* jecUp = nullptr;
+            TH1F* jecDown = nullptr;
+            
+            TH1F* jerUp = nullptr;
+            TH1F* jerDown = nullptr;
+    
             void book(const char* name, const char* title, int nbins, double xmin, double xmax)
             {
                 nom         = new TH1F(name, title, nbins, xmin, xmax);
@@ -110,12 +122,38 @@ namespace analysis
                 zptUp      = new TH1F(Form("%s_zptUp",      name), Form("%s_zptUp",      title), nbins, xmin, xmax);
                 zptDown    = new TH1F(Form("%s_zptDown",    name), Form("%s_zptDown",    title), nbins, xmin, xmax);
 
+                jecUp   = new TH1F(Form("%s_jecUp", name),   Form("%s_jecUp", title), nbins, xmin, xmax);
+                jecDown = new TH1F(Form("%s_jecDown", name), Form("%s_jecDown", title), nbins, xmin, xmax);
+                
+                jerUp   = new TH1F(Form("%s_jerUp", name),   Form("%s_jerUp", title), nbins, xmin, xmax);
+                jerDown = new TH1F(Form("%s_jerDown", name), Form("%s_jerDown", title), nbins, xmin, xmax);
+
+
                 nom->Sumw2();
                 puUp->Sumw2();       puDown->Sumw2();
                 muonSFUp->Sumw2();   muonSFDown->Sumw2();
                 triggerUp->Sumw2();  triggerDown->Sumw2();
                 btagUp->Sumw2();     btagDown->Sumw2();
                 zptUp->Sumw2();      zptDown->Sumw2();
+                jecUp->Sumw2();      jecDown->Sumw2();
+                jerUp->Sumw2();      jerDown->Sumw2();
+            }
+            
+                  void fill(double x,
+                  double w_nom,
+                  double w_puUp,      double w_puDown,
+                  double w_muonSFUp,  double w_muonSFDown,
+                  double w_triggerUp, double w_triggerDown,
+                  double w_btagUp,    double w_btagDown,
+                  double w_zptUp,     double w_zptDown)
+            {
+                fill(x, w_nom,
+                     w_puUp, w_puDown,
+                     w_muonSFUp, w_muonSFDown,
+                     w_triggerUp, w_triggerDown,
+                     w_btagUp, w_btagDown,
+                     w_zptUp, w_zptDown,
+                     x, x, x, x);
             }
 
             void fill(double x,
@@ -124,7 +162,9 @@ namespace analysis
                       double w_muonSFUp,  double w_muonSFDown,
                       double w_triggerUp, double w_triggerDown,
                       double w_btagUp,    double w_btagDown,
-                      double w_zptUp,     double w_zptDown)
+                      double w_zptUp,     double w_zptDown,
+                      double x_jecUp,     double x_jecDown,
+                      double x_jerUp,     double x_jerDown)
             {
                 nom->Fill(x, w_nom);
 
@@ -142,7 +182,14 @@ namespace analysis
 
                 zptUp->Fill(x, w_zptUp);
                 zptDown->Fill(x, w_zptDown);
+
+                jecUp->Fill(x_jecUp, w_nom);
+                jecDown->Fill(x_jecDown, w_nom);
+
+                jerUp->Fill(x_jerUp, w_nom);
+                jerDown->Fill(x_jerDown, w_nom);
             }
+
         };
 
         struct VtxSet
@@ -306,6 +353,8 @@ namespace analysis
                 h_costheta_CS.book("cosCollinsSoper", "cosCollinsSoper", 10, -1, 1);
 
                 h_y_mumu.book("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
+                h_y_j1.book("Jet1Rapidity", "Jet1Rapidity", 50, -5, 5);
+                h_y_j2.book("Jet2Rapidity", "Jet2Rapidity", 50, -5, 5);
 
                 h_pt_mumu.book("DiMuonpt", "DiMuonpt", 60, 0, 200);
 
@@ -386,6 +435,8 @@ namespace analysis
                 h_costheta_CS.book("cosCollinsSoper", "cosCollinsSoper", 10, -1, 1);
 
                 h_y_mumu.book("DiMuonrapidity", "DiMuonrapidity", 50, -2.5, 2.5);
+                h_y_j1.book("Jet1Rapidity", "Jet1Rapidity", 50, -5, 5);
+                h_y_j2.book("Jet2Rapidity", "Jet2Rapidity", 50, -5, 5);
 
                 h_pt_mumu.book("DiMuonpt", "DiMuonpt", 60, 0, 200);
 
@@ -759,6 +810,7 @@ namespace analysis
             analysis::processing::MuonSet& corr_setDM_VBF_SR;
             analysis::processing::JetSet&  setJet_VBF;
             analysis::processing::JetSet&  corr_setJet_VBF;
+            analysis::processing::JetSet&  corr_setJet_VBF_SR;
 
             analysis::processing::MuonSet& setDM_VBF_BB;
             analysis::processing::MuonSet& corr_setDM_VBF_BB;

@@ -104,28 +104,33 @@ static TH1* makeOrangeTheoryBand(
         const double nom = h_nominal->GetBinContent(i);
         const double up = h_up ? h_up->GetBinContent(i) : nom;
         const double dn = h_down ? h_down->GetBinContent(i) : nom;
-        return std::max(std::abs(up - nom), std::abs(nom - dn));
+        return std::max(std::abs(up - nom), std::abs(dn - nom));
     };
 
     for (int i = 1; i <= band->GetNbinsX(); ++i) {
         const double nom = h_nom->GetBinContent(i);
-        const double stat = h_nom->GetBinError(i);
 
         const double dScale = dev(h_scaleUp, h_scaleDown, h_nom, i);
         const double dPDF   = dev(h_pdfUp,   h_pdfDown,   h_nom, i);
         const double dISR   = dev(h_isrUp,   h_isrDown,   h_nom, i);
         const double dFSR   = dev(h_fsrUp,   h_fsrDown,   h_nom, i);
 
-        const double totalErr = std::sqrt(stat*stat + dScale*dScale + dPDF*dPDF + dISR*dISR + dFSR*dFSR);
+        // Match the current muon plotting convention: theory band only,
+        // with MC statistical uncertainty shown separately by h_mcBand.
+        const double totalErr = std::sqrt(dScale*dScale + dPDF*dPDF + dISR*dISR + dFSR*dFSR);
+
+        const double relErrRaw = (nom > 0.0 ? totalErr / nom : 0.0);
+        const double relErr    = std::min(relErrRaw, 0.45);  // display cap
 
         band->SetBinContent(i, 1.0);
-        band->SetBinError(i, nom > 0.0 ? totalErr / nom : 0.0);
+        band->SetBinError(i, relErr);
     }
 
     band->SetFillColor(kOrange-3);
     band->SetFillStyle(1001);
     band->SetMarkerSize(0);
-    band->SetLineColor(kOrange-3);
+    band->SetLineColor(kOrange+7);
+    band->SetLineWidth(1);
     return band;
 }
 
@@ -148,14 +153,11 @@ static TH1* makeAzureExperimentalBand(
         const double nom = h_nominal->GetBinContent(i);
         const double up = h_up ? h_up->GetBinContent(i) : nom;
         const double dn = h_down ? h_down->GetBinContent(i) : nom;
-        return std::max(std::abs(up - nom), std::abs(nom - dn));
+        return std::max(std::abs(up - nom), std::abs(dn - nom));
     };
 
     for (int i = 1; i <= band->GetNbinsX(); ++i) {
         const double nom = h_nom->GetBinContent(i);
-
-        const double statRel = h_mcStatBand ? h_mcStatBand->GetBinError(i) : 0.0;
-        const double statAbs = nom * statRel;
 
         const double dPU   = dev(h_puUp,   h_puDown,   h_nom, i);
         const double dMuon = dev(h_muonUp, h_muonDown, h_nom, i);
@@ -163,15 +165,20 @@ static TH1* makeAzureExperimentalBand(
         const double dBTag = dev(h_btagUp, h_btagDown, h_nom, i);
         const double dZPt  = dev(h_zptUp,  h_zptDown,  h_nom, i);
 
-        const double totalErr = std::sqrt(statAbs*statAbs +
-                                          dPU*dPU +
+        // Match the current muon plotting convention: experimental band only,
+        // with MC statistical uncertainty shown separately by h_mcBand.
+        const double totalErr = std::sqrt(dPU*dPU +
                                           dMuon*dMuon +
-                                          dTrig*dTrig +
-                                          dBTag*dBTag +
-                                          dZPt*dZPt);
+                                          dTrig*dTrig 
+                                          //dBTag*dBTag +
+                                          //dZPt*dZPt
+                                          );
+
+        const double relErrRaw = (nom > 0.0 ? totalErr / nom : 0.0);
+        const double relErr    = std::min(relErrRaw, 0.45);  // display cap
 
         band->SetBinContent(i, 1.0);
-        band->SetBinError(i, nom > 0.0 ? totalErr / nom : 0.0);
+        band->SetBinError(i, relErr);
     }
 
     band->SetFillColor(kAzure+1);
@@ -262,8 +269,7 @@ TFile* f_signal     = open_or_warn(base + "VBF/VBF_all.root");
         "Jet2eta", "DiJetMass", "hdphi_mumu_jj", 
         "hdeta_mumu_jj", "nJets"
     };
-    //const std::string dir = "corr_Jet_Pre-Selection/";
-    const std::string dir = "corr_Jet_VBF/";
+    const std::string dir = "corr_Jet_VBF_SR/";
     
     // ---------- Output directory + summary file ----------
 TString outdir = "/eos/user/d/dblend/StackedPlots/" + era + "/Jets/" + corrType + "/" + configName + "/";
@@ -384,11 +390,11 @@ for (const auto& var : vars) {
         h_data->SetMarkerColor(kBlack);
         h_data->SetLineColor(kBlack);
 
-        h_DY->SetFillColor(kOrange-2); h_DY->SetLineColor(kOrange+3); h_DY->SetLineWidth(2);
-        h_EWK->SetFillColor(kGray+1);   h_EWK->SetLineColor(kGray+3);   h_EWK->SetLineWidth(2);
-        h_TT->SetFillColor(kRed-4);    h_TT->SetLineColor(kRed+1);    h_TT->SetLineWidth(2);
-        h_VV->SetFillColor(kAzure-9);  h_VV->SetLineColor(kAzure+2);  h_VV->SetLineWidth(2);
-        h_VVV->SetFillColor(kGreen-7); h_VVV->SetLineColor(kGreen+3); h_VVV->SetLineWidth(2);
+        h_DY->SetFillColor(kOrange-2); h_DY->SetLineColor(kOrange+3);
+        h_TT->SetFillColor(kRed-4);    h_TT->SetLineColor(kRed+1);
+        h_VV->SetFillColor(kAzure-9);  h_VV->SetLineColor(kAzure+2);
+        h_VVV->SetFillColor(kGreen-7); h_VVV->SetLineColor(kGreen+3);
+        h_EWK->SetFillColor(kGray+1);  h_EWK->SetLineColor(kGray+3);
         h_signal->SetFillColor(kMagenta+1); h_signal->SetLineColor(kMagenta+3); h_signal->SetLineWidth(3);
 
         // ---------- Canvas with ratio pad ----------
@@ -428,7 +434,7 @@ TH1* h_frame = (TH1*)h_data->Clone(("h_frame_"+var).c_str());
 h_frame->Reset("ICES");
 h_frame->SetTitle("");
 h_frame->SetMinimum(0.1);
-h_frame->SetMaximum(1.0e8);
+h_frame->SetMaximum(1.0e6);
 
 h_frame->GetYaxis()->SetTitle("Events");
 h_frame->GetYaxis()->SetTitleSize(0.055);
@@ -586,8 +592,8 @@ h_mcBand->SetLineColor(kGray+2);
             h_puDownTot     = makeVariationTotal("h_puDownTot_"     + var, expSystDir, systVar, "_puDown",     bkgSamples);
             h_muonSFUpTot   = makeVariationTotal("h_muonSFUpTot_"   + var, expSystDir, systVar, "_muonSFUp",   bkgSamples);
             h_muonSFDownTot = makeVariationTotal("h_muonSFDownTot_" + var, expSystDir, systVar, "_muonSFDown", bkgSamples);
-            h_trigUpTot     = makeVariationTotal("h_trigUpTot_"     + var, expSystDir, systVar, "_trigUp",     bkgSamples);
-            h_trigDownTot   = makeVariationTotal("h_trigDownTot_"   + var, expSystDir, systVar, "_trigDown",   bkgSamples);
+            h_trigUpTot     = makeVariationTotal("h_trigUpTot_"     + var, expSystDir, systVar, "_triggerUp",     bkgSamples);
+            h_trigDownTot   = makeVariationTotal("h_trigDownTot_"   + var, expSystDir, systVar, "_triggerDown",   bkgSamples);
             h_btagUpTot     = makeVariationTotal("h_btagUpTot_"     + var, expSystDir, systVar, "_btagUp",     bkgSamples);
             h_btagDownTot   = makeVariationTotal("h_btagDownTot_"   + var, expSystDir, systVar, "_btagDown",   bkgSamples);
             h_zptUpTot      = makeVariationTotal("h_zptUpTot_"      + var, expSystDir, systVar, "_zptUp",      bkgSamples);
@@ -624,12 +630,14 @@ h_mcBand->SetLineColor(kGray+2);
         h_ratio->SetMarkerStyle(20);
         h_ratio->SetLineColor(kBlack);
         h_ratio->SetStats(0);
-h_ratio->Draw("AXIS");
+        h_ratio->Draw("AXIS");
 
-if (h_azureBand)  h_azureBand->Draw("E2 SAME");
-if (h_orangeBand) h_orangeBand->Draw("E2 SAME");
-h_mcBand->Draw("E2 SAME");
-h_ratio->Draw("E1 SAME");
+        // Match Muon_Overlay_AllPlots aesthetics exactly:
+        // draw widest/colored bands first, then gray MC band, then data points.
+        if (h_azureBand)  h_azureBand->Draw("E2 SAME");
+        if (h_orangeBand) h_orangeBand->Draw("E2 SAME");
+        h_mcBand->Draw("E2 SAME");
+        h_ratio->Draw("E1 SAME");
 
         // Horizontal dotted guide lines every 0.2 in Data/MC
         pad2->Update();

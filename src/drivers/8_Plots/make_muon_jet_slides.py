@@ -35,13 +35,13 @@ PLOT_GROUPS = [
     {
         "name": "Muons",
         "type": "pdf",
-        "path": "Muons/KIT/noScaleSmear_noJERC_noJER_BTagRW_ZPtRW",
+        "path": "Muons/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW",
     },
 
     {
         "name": "Jets",
         "type": "pdf",
-        "path": "Jets/KIT/noScaleSmear_noJERC_noJER_BTagRW_ZPtRW",
+        "path": "Jets/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW",
     },
 
     # BTag efficiency PDFs

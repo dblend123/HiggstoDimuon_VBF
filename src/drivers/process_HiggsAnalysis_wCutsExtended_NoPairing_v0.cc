@@ -88,7 +88,6 @@
     set.h_pt_j1.fill(g_pt_j1, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
     set.h_pt_j2.fill(g_pt_j2, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
 
-
 #define FILL_BDT_EXP_SYST_HIST(set, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown) \
     set.h_z.fill(g_z, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
     set.h_ptBalance.fill(g_ptBalance, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
@@ -1429,7 +1428,9 @@ static inline float getDataResidualFactor(int run, float eta, float pt) {
     return (res > 0.f ? res : 1.f);
 }
 
-float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run, unsigned int lumi = 0, unsigned long long eventNumber = 0, int jetIndex = 0) {
+enum class JetSyst { Nominal, JECUp, JECDown, JERUp, JERDown };
+
+float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run, unsigned int lumi = 0, unsigned long long eventNumber = 0, int jetIndex = 0, JetSyst syst = JetSyst::Nominal) {
     if (!jetCorrections) {
         return jet._pt;
     }
@@ -1448,6 +1449,7 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
     float jec = 1.f;
 
     if (isMC) {
+
         // Prefer official compound MC JEC
         const std::string comp = cfg.prefixBase + "_MC_L1L2L3Res_AK4PFPuppi";
 
@@ -1529,6 +1531,9 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
 
     float corrPt = std::max(0.f, rawPt * jec);
 
+    if (syst == JetSyst::JECUp)   corrPt *= 1.02;
+    if (syst == JetSyst::JECDown) corrPt *= 0.98;
+        
     // 2024 transition-region mitigation that you already wanted to keep
     if (!isMC && g_era == "2024" && isTransitionHorn2024(abseta) && corrPt < 30.f) {
         const float res_at_pt = getDataResidualFactor(run, eta, std::max(corrPt, 1.f));
@@ -1540,8 +1545,13 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
 
     // JER: MC only, after full JEC
     if (isMC && !g_disableJER) {
+       
+        std::string jerVar = "nom";
+        if (syst == JetSyst::JERUp) jerVar = "up";
+        if (syst == JetSyst::JERDown) jerVar = "down";
+
         const double jerSF = tryEvalJetCorr(cfg.jerScaleKey, 1.0,
-            (double)eta, (double)corrPt, std::string("nom"));
+        (double)eta, (double)corrPt, jerVar);
 
         const double jerRes = tryEvalJetCorr(cfg.jerResKey, 0.0,
             (double)eta, (double)corrPt, (double)rho);
@@ -2228,7 +2238,7 @@ std::cout << "    [TrigObj " << idx << "] "
                       << ", dR = " << dR << "\n";
         }
 
-        if (dR < 0.3f) {
+        if (dR < 0.1f) {
             if (debug) {
                 std::cout << "      ==> MATCH: dR < 0.3, muon PASSES HLT match\n";
             }
@@ -2305,18 +2315,21 @@ bool passMuons(Muon const& m1, Muon const& m2, TrigObjs* trigObjs, uint32_t evt,
 //             MUONS 
 // -------------------------------------
 
+static std::string muonSystName(const std::string& syst) {
+    if (syst == "up")   return "systup";
+    if (syst == "down") return "systdown";
+    return syst;
+}
+
 float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false, const std::string& syst = "nominal") {
     if (g_disableMuonSF) return 1.0f;
-    if (!isMC) return 1.0;
-    if (!corrections) return 1.0;
+    if (!isMC) return 1.0f;
+    if (!corrections) return 1.0f;
 
-    float eta = mu._eta;
-    eta = std::clamp(eta, -2.39f, 2.39f);
-    float pt = mu._pt;
+    float eta = std::clamp(mu._eta, -2.39f, 2.39f);
+    float pt  = std::max(mu._pt, 15.01f);
 
-    // Clamp to avoid going outside bin edges
-    eta = std::min(eta, 2.39f);          // upper edge is 2.4 (exclusive)
-    pt  = std::max(pt, 15.01f);          // lower edge is 15 (exclusive)
+    const std::string systEval = muonSystName(syst);
 
     auto evalOrNominal = [&](const std::string& key, const std::string& s) -> float {
         try {
@@ -2331,12 +2344,12 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false, const st
         return 1.0f;
     };
 
-    float id_sf   = evalOrNominal(g_muSFKeyID, syst);
-    float iso_sf  = evalOrNominal(g_muSFKeyISO, syst);
+    float id_sf   = evalOrNominal(g_muSFKeyID,  systEval);
+    float iso_sf  = evalOrNominal(g_muSFKeyISO, systEval);
     float trig_sf = 1.0f;
 
-    if (applyTriggerSF && pt >= 26) {
-        trig_sf = evalOrNominal(g_muSFKeyTRG, syst);
+    if (applyTriggerSF && pt >= 26.0f) {
+        trig_sf = evalOrNominal(g_muSFKeyTRG, systEval);
     }
 
     return id_sf * iso_sf * trig_sf;
@@ -2352,19 +2365,23 @@ float getMuonTriggerOnlySF(const Muon& mu, bool isMC, const std::string& syst = 
 
     if (pt < 26.0f) return 1.0f;
 
+    const std::string systEval = muonSystName(syst);
+
     try {
-        return corrections->at(g_muSFKeyTRG)->evaluate({eta, pt, syst});
+        return corrections->at(g_muSFKeyTRG)->evaluate({eta, pt, systEval});
     } catch (const std::exception& e) {
-        if (syst != "nominal") {
+        if (systEval != "nominal") {
             try {
                 return corrections->at(g_muSFKeyTRG)->evaluate({eta, pt, std::string("nominal")});
             } catch (...) {}
         }
+
         static int warnTrig = 0;
         if (warnTrig++ < 5) {
-            std::cerr << "[MUON TRG SF] failed for syst=" << syst
+            std::cerr << "[MUON TRG SF] failed for syst=" << systEval
                       << " (" << e.what() << "); using 1.0\n";
         }
+
         return 1.0f;
     }
 }
@@ -2875,13 +2892,21 @@ std::cout
     float totalWeight_muSFUp    = Dataweight * mu1_SF_up   * mu2_SF_up   * btagjet_SF;
     float totalWeight_muSFDown  = Dataweight * mu1_SF_down * mu2_SF_down * btagjet_SF;
 
-    const float trigNom = std::max(1.0e-6f, trig1_nom * trig2_nom);
-    float totalWeight_trigUp    = totalWeight * ((trig1_up   * trig2_up)   / trigNom);
-    float totalWeight_trigDown  = totalWeight * ((trig1_down * trig2_down) / trigNom);
+    const double trigNomPair  = trig1_nom  * trig2_nom;
+    const double trigUpPair   = trig1_up   * trig2_up;
+    const double trigDownPair = trig1_down * trig2_down;
+
+    float totalWeight_trigUp   = totalWeight;
+    float totalWeight_trigDown = totalWeight;
+
+    if (__isMC && trigNomPair > 0.0) {
+        totalWeight_trigUp   = totalWeight * (trigUpPair   / trigNomPair);
+        totalWeight_trigDown = totalWeight * (trigDownPair / trigNomPair);
+    }
 
     float totalWeight_btagUp    = Dataweight * mu1_SF * mu2_SF * btagjet_SF_up;
     float totalWeight_btagDown  = Dataweight * mu1_SF * mu2_SF * btagjet_SF_down;
-
+    
     
     // -------------------------------------
     //          Z-PT REWEIGHTING  
@@ -2914,15 +2939,18 @@ std::cout
       totalWeight *= w_zpt;
     }
 
+    double w_zpt_up   = w_zpt;
+    double w_zpt_down = w_zpt;
+
     double totalWeight_zptUp   = totalWeight;
     double totalWeight_zptDown = totalWeight;
 
     if (!g_disableZPtRW && __isMC && g_sampleName == "DY") {
-      const double w_zpt_up   = std::max(0.0, 1.0 + 2.0 * (w_zpt - 1.0)); // full correction envelope
-      const double w_zpt_down = 1.0;
+        w_zpt_up   = std::max(0.0, 1.0 + 2.0 * (w_zpt - 1.0));
+        w_zpt_down = 1.0;
 
-      totalWeight_zptUp   = totalWeight_beforeZPt * w_zpt_up;
-      totalWeight_zptDown = totalWeight_beforeZPt * w_zpt_down;
+        totalWeight_zptUp   = totalWeight_beforeZPt * w_zpt_up;
+        totalWeight_zptDown = totalWeight_beforeZPt * w_zpt_down;
     }
 
     // -------------------------------------
@@ -2956,6 +2984,28 @@ std::cerr << "[WEIGHT DBG]\n"
 << "  totalWeight_noPU :" << totalWeight_noPU << "\n"
 << "  totalWeight_PU   :" << totalWeight_PU << "\n"
 << "\n";
+}
+
+static int sf_dbg = 0;
+if (__isMC && sf_dbg < 20) {
+std::cout << "[SF DBG]"
+<< " totalWeight=" << totalWeight
+<< " mu1_SF=" << mu1_SF
+<< " mu1_up=" << mu1_SF_up
+<< " mu1_down=" << mu1_SF_down
+<< " mu2_SF=" << mu2_SF
+<< " mu2_up=" << mu2_SF_up
+<< " mu2_down=" << mu2_SF_down
+<< " trigNomPair=" << trigNomPair
+<< " trig1_up=" << trig1_up
+<< " trig2_up=" << trig2_up
+<< " btag=" << btagjet_SF
+<< " btagUp=" << btagjet_SF_up
+<< " btagDown=" << btagjet_SF_down
+<< " zptUpW=" << w_zpt_up
+<< " zptDownW=" << w_zpt_down
+<< "\n";
+++sf_dbg;
 }
 
     // -------------------------------------
@@ -3161,6 +3211,25 @@ std::cerr << "[WEIGHT DBG]\n"
                     w_fsrDown = totalWeight * event._PSWeight[3];
                 }
 
+static int trig_weight_dbg = 0;
+if (__isMC && trig_weight_dbg < 20) {
+std::cout << "[TRIG WEIGHT DBG]"
+<< " totalWeight=" << totalWeight
+<< " trigNomPair=" << trigNomPair
+<< " totalWeight_trigUp=" << totalWeight_trigUp
+<< " totalWeight_trigDown=" << totalWeight_trigDown
+<< " ratioUp=" << (totalWeight != 0 ? totalWeight_trigUp / totalWeight : -999)
+<< " ratioDown=" << (totalWeight != 0 ? totalWeight_trigDown / totalWeight : -999)
+<< " trig1_nom=" << trig1_nom
+<< " trig2_nom=" << trig2_nom
+<< " trig1_up=" << trig1_up
+<< " trig2_up=" << trig2_up
+<< " trig1_down=" << trig1_down
+<< " trig2_down=" << trig2_down
+<< "\n";
+++trig_weight_dbg;
+}
+
                 if (__isMC) {
                     FILL_BDT_SYST_HIST(hists.BDTTheorySyst_VBF, totalWeight, w_scaleUp, w_scaleDown, 
                                        w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
@@ -3171,6 +3240,7 @@ std::cerr << "[WEIGHT DBG]\n"
                                            totalWeight_trigUp, totalWeight_trigDown,
                                            totalWeight_btagUp, totalWeight_btagDown,
                                            totalWeight_zptUp, totalWeight_zptDown);
+                
                 }
 
 /*static int vtxDbg = 0;
@@ -3184,6 +3254,7 @@ std::cout << "[VTX DBG] totalpvsGood=" << totalpvsGood
 }*/
 
                 //Filling Vertex Histograms 
+                FILL_CORR_JET_HIST(hists.corr_setJet_VBF_SR, totalWeight)
                 FILL_CORR_MUON_HIST(hists.corr_setDM_VBF_SR, totalWeight)
                 if (!__isMC) {
                     FILL_VTX_HIST(hists.PileupReweighting_VBF, totalpvsGood, 1.0, 1.0);
@@ -3607,6 +3678,7 @@ void process()
     MuonSet     corr_setDM_VBF_SR(outroot, "corr_DM_VBF_SR");
     JetSet      setJet_VBF(outroot, "Jet_VBF");
     JetSet      corr_setJet_VBF(outroot, "corr_Jet_VBF");
+    JetSet      corr_setJet_VBF_SR(outroot, "corr_Jet_VBF_SR");
     MuonSet     setDM_VBF_BB(outroot, "DM_VBF_BB");
     MuonSet     corr_setDM_VBF_BB(outroot, "corr_DM_VBF_BB");
     JetSet      setJet_VBF_BB(outroot, "Jet_VBF_BB");
@@ -3663,7 +3735,7 @@ void process()
     setJet_PreDiJet_VBF, corr_setJet_PreDiJet_VBF,
 
     // VBF Block
-    setDM_VBF,    corr_setDM_VBF,    corr_setDM_VBF_Z, corr_setDM_VBF_SR, setJet_VBF, corr_setJet_VBF,
+    setDM_VBF,    corr_setDM_VBF,    corr_setDM_VBF_Z, corr_setDM_VBF_SR, setJet_VBF, corr_setJet_VBF, corr_setJet_VBF_SR, 
     setDM_VBF_BB, corr_setDM_VBF_BB, setJet_VBF_BB, corr_setJet_VBF_BB, 
     setDM_VBF_BO, corr_setDM_VBF_BO, setJet_VBF_BO, corr_setJet_VBF_BO,
     setDM_VBF_BE, corr_setDM_VBF_BE, setJet_VBF_BE, corr_setJet_VBF_BE,

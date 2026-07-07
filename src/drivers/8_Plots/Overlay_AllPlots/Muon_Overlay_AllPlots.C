@@ -73,7 +73,12 @@ static TH1* getTotalVariationBand(
         const double err = std::max(errUp, errDown);
 
         band->SetBinContent(i, 1.0);
-        band->SetBinError(i, nom > 0 ? err / nom : 0.0);
+
+        if (nom <= 1.0) {
+            band->SetBinError(i, 0.0);
+        } else {
+            band->SetBinError(i, err / nom);
+        }
     }
 
     band->SetFillColor(color);
@@ -83,18 +88,31 @@ static TH1* getTotalVariationBand(
     return band;
 }
 
+static bool unstableBin(TH1* h, int i) {
+    if (!h) return true;
+
+    const double nom = h->GetBinContent(i);
+    const double err = h->GetBinError(i);
+
+    if (nom <= 5.0) return true;
+    if (err > 0.0 && err / nom > 0.30) return true;
+
+    return false;
+}
+
 // Map nominal overlay variable names to the BDTTheorySyst_VBF histogram names.
 // Return "" for variables that do not currently have theory-variation clones.
 static std::string theoryVarName(const std::string& var) {
-  if (var == "DiMuonMass" || var == "DiMuonMass_Higgs") return "DimuonMass";
-  if (var == "DiMuonpt")        return "DimuonPt";
-  if (var == "DiMuonrapidity")  return "DimuonRapidity";
-  if (var == "Muon1PTdDM")      return "Muon1PtOverM";
-  if (var == "Muon2PTdDM")      return "Muon2PtOverM";
-  if (var == "Muon1eta")        return "Muon1Eta";
-  if (var == "Muon2eta")        return "Muon2Eta";
-  if (var == "CollinsSoper")    return "CollinsSoperPhi";
-  if (var == "cosCollinsSoper") return "CollinsSoperCosTheta";
+  if (var == "DiMuonMass_Higgs") return "DiMuonMass_Higgs";
+  if (var == "DiMuonMass")       return "";  // no syst hist listed for inclusive mass
+  if (var == "DiMuonpt")        return "DiMuonpt";
+  if (var == "DiMuonrapidity")  return "DiMuonrapidity";
+  if (var == "Muon1PTdDM")      return "Muon1PTdDM";
+  if (var == "Muon2PTdDM")      return "Muon2PTdDM";
+  if (var == "Muon1eta")        return "Muon1eta";
+  if (var == "Muon2eta")        return "Muon2eta";
+  if (var == "CollinsSoper")    return "CollinsSoper";
+  if (var == "cosCollinsSoper") return "cosCollinsSoper";
   if (var == "PtBalance")       return "PtBalance";
   if (var == "Zeppenfeld")      return "Zeppenfeld";
   return "";
@@ -111,6 +129,10 @@ static void addHistOrNominal(TH1* total, TFile* f, const std::string& path, TH1*
     // If a sample does not have a variation histogram, keep it at nominal.
     // This lets the band still be built from the samples that do have variations.
     total->Add(h_nominal);
+  }
+  
+  if (!h) {
+    std::cout << "[MISSING SYST HIST] " << path << "\n";
   }
 }
 
@@ -174,36 +196,76 @@ static TH1* buildOrangeTheoryBand(
   for (int i = 1; i <= band->GetNbinsX(); ++i) {
     const double nom = h_nom->GetBinContent(i);
 
-    auto oneSyst = [&](TH1* up, TH1* down) {
-      if (!up && !down) return 0.0;
-      const double u = up   ? std::abs(up->GetBinContent(i)   - nom) : 0.0;
-      const double d = down ? std::abs(nom - down->GetBinContent(i)) : 0.0;
-      return std::max(u, d);
-    };
+auto oneSyst = [&](TH1* up, TH1* down) {
+  if (!up && !down) return 0.0;
+  const double u = up   ? std::abs(up->GetBinContent(i) - nom)   : 0.0;
+  const double d = down ? std::abs(down->GetBinContent(i) - nom) : 0.0;
+  return std::max(u, d);
+};
 
-    const double eScale = oneSyst(h_scaleUp, h_scaleDown);
-    const double ePdf   = oneSyst(h_pdfUp,   h_pdfDown);
-    const double eIsr   = oneSyst(h_isrUp,   h_isrDown);
-    const double eFsr   = oneSyst(h_fsrUp,   h_fsrDown);
+const double eScale = oneSyst(h_scaleUp, h_scaleDown);
+const double ePdf   = oneSyst(h_pdfUp,   h_pdfDown);
+const double eIsr   = oneSyst(h_isrUp,   h_isrDown);
+const double eFsr   = oneSyst(h_fsrUp,   h_fsrDown);
 
-    const double statRel = h_mcStatBand ? h_mcStatBand->GetBinError(i) : 0.0;
-    const double statAbs = nom * statRel;
+const double statRel = h_mcStatBand ? h_mcStatBand->GetBinError(i) : 0.0;
 
-    const double totalAbs = std::sqrt(statAbs*statAbs +
-                                      eScale*eScale +
-                                      ePdf*ePdf +
-                                      eIsr*eIsr +
-                                      eFsr*eFsr);
+const double theoryAbs = std::sqrt(eScale*eScale +
+                                   ePdf*ePdf +
+                                   eIsr*eIsr +
+                                   eFsr*eFsr);
 
-    band->SetBinContent(i, 1.0);
-    band->SetBinError(i, nom > 0 ? totalAbs / nom : 0.0);
-  }
+const double theoryRel = (nom > 0 ? theoryAbs / nom : 0.0);
 
-  band->SetFillColor(kOrange-3);
-  band->SetFillStyle(1001);
-  band->SetMarkerSize(0);
-  band->SetLineColor(kOrange-3);
-  return band;
+const double orangeRel = std::sqrt(statRel*statRel +
+                                   theoryRel*theoryRel);
+
+double relErrRaw = theoryRel;
+double relErr = std::min(relErrRaw, 0.45);   // cap display
+
+/*if (nom > 5.0 && relErrRaw > 0.45) {
+std::cout
+<< "[ORANGE DEBUG]"
+<< " bin=" << i
+<< " nom=" << nom
+<< " Scale=" << eScale/nom
+<< " PDF="   << ePdf/nom
+<< " ISR="   << eIsr/nom
+<< " FSR="   << eFsr/nom
+<< " raw="   << relErrRaw
+<< "\n";
+}
+
+if(i==20){
+std::cout
+<< "\n----- THEORY CHECK -----\n"
+<< "nom      = " << nom << "\n"
+<< "scaleUp  = " << (h_scaleUp ? h_scaleUp->GetBinContent(i) : -999) << "\n"
+<< "scaleDn  = " << (h_scaleDown ? h_scaleDown->GetBinContent(i) : -999) << "\n"
+<< "pdfUp    = " << (h_pdfUp ? h_pdfUp->GetBinContent(i) : -999) << "\n"
+<< "pdfDn    = " << (h_pdfDown ? h_pdfDown->GetBinContent(i) : -999) << "\n"
+<< "isrUp    = " << (h_isrUp ? h_isrUp->GetBinContent(i) : -999) << "\n"
+<< "isrDn    = " << (h_isrDown ? h_isrDown->GetBinContent(i) : -999) << "\n"
+<< "fsrUp    = " << (h_fsrUp ? h_fsrUp->GetBinContent(i) : -999) << "\n"
+<< "fsrDn    = " << (h_fsrDown ? h_fsrDown->GetBinContent(i) : -999) << "\n";
+}*/
+
+band->SetBinContent(i, 1.0);
+
+if (unstableBin(h_nom, i)) {
+    band->SetBinError(i, 0.0);
+} else {
+    band->SetBinError(i, orangeRel);
+}
+
+}
+
+band->SetFillColor(kOrange-3);
+band->SetFillStyle(1001);
+band->SetLineColor(kOrange+7);
+band->SetLineWidth(1);
+band->SetMarkerSize(0);
+return band;
 }
 
 
@@ -214,9 +276,10 @@ static TH1* buildAzureExperimentalBand(
     TH1* h_mcStatBand,
     TH1* h_puUp,     TH1* h_puDown,
     TH1* h_muonUp,   TH1* h_muonDown,
-    TH1* h_trigUp,   TH1* h_trigDown,
+    TH1* h_triggerUp,   TH1* h_triggerDown,
     TH1* h_btagUp,   TH1* h_btagDown,
-    TH1* h_zptUp,    TH1* h_zptDown
+    TH1* h_zptUp,    TH1* h_zptDown, 
+    TH1* h_theoryBand
 ) {
   if (!h_nom) return nullptr;
 
@@ -226,37 +289,75 @@ static TH1* buildAzureExperimentalBand(
   for (int i = 1; i <= band->GetNbinsX(); ++i) {
     const double nom = h_nom->GetBinContent(i);
 
-    auto oneSyst = [&](TH1* up, TH1* down) {
-      if (!up && !down) return 0.0;
-      const double u = up   ? std::abs(up->GetBinContent(i)   - nom) : 0.0;
-      const double d = down ? std::abs(nom - down->GetBinContent(i)) : 0.0;
-      return std::max(u, d);
-    };
+auto oneSyst = [&](TH1* up, TH1* down) {
+  if (!up && !down) return 0.0;
+  const double u = up   ? std::abs(up->GetBinContent(i) - nom)   : 0.0;
+  const double d = down ? std::abs(down->GetBinContent(i) - nom) : 0.0;
+
+  return std::max(u, d);
+};
 
     const double ePU   = oneSyst(h_puUp,   h_puDown);
     const double eMuon = oneSyst(h_muonUp, h_muonDown);
-    const double eTrig = oneSyst(h_trigUp, h_trigDown);
+    const double eTrig = oneSyst(h_triggerUp, h_triggerDown);
     const double eBTag = oneSyst(h_btagUp, h_btagDown);
     const double eZPt  = oneSyst(h_zptUp,  h_zptDown);
 
-    const double statRel = h_mcStatBand ? h_mcStatBand->GetBinError(i) : 0.0;
-    const double statAbs = nom * statRel;
+const double statRel   = h_mcStatBand ? h_mcStatBand->GetBinError(i) : 0.0;
+const double theoryRel = h_theoryBand ? h_theoryBand->GetBinError(i) : 0.0;
 
-    const double totalAbs = std::sqrt(statAbs*statAbs +
-                                      ePU*ePU +
-                                      eMuon*eMuon +
-                                      eTrig*eTrig +
-                                      eBTag*eBTag +
-                                      eZPt*eZPt);
+const double expAbs = std::sqrt(ePU*ePU +
+                                eMuon*eMuon +
+                                eTrig*eTrig 
+                                //eBTag*eBTag +
+                                //eZPt*eZPt
+                                );
 
-    band->SetBinContent(i, 1.0);
-    band->SetBinError(i, nom > 0 ? totalAbs / nom : 0.0);
-  }
+const double expRel = (nom > 0 ? expAbs / nom : 0.0);
+
+const double azureRel = std::sqrt(statRel*statRel +
+                                  theoryRel*theoryRel +
+                                  expRel*expRel);
+
+/*std::cout << "[EXP DEBUG] bin=" << i
+<< " nom=" << nom
+<< " PU=" << ePU/nom
+<< " Muon=" << eMuon/nom
+<< " Trig=" << eTrig/nom
+<< " BTag=" << eBTag/nom
+<< " ZPt=" << eZPt/nom
+<< "\n";*/
+
+double relErrRaw = expRel;
+double relErr = std::min(relErrRaw, 0.45);   // cap display
+
+/*if(i==20) {
+std::cout
+<< "[AZURE DEBUG]"
+<< " nom=" << nom
+<< " PU=" << ePU/nom
+<< " Muon=" << eMuon/nom
+<< " Trig=" << eTrig/nom
+<< " BTag=" << eBTag/nom
+<< " ZPt=" << eZPt/nom
+<< "\n";
+}*/
+
+band->SetBinContent(i, 1.0);
+
+if (unstableBin(h_nom, i)) {
+    band->SetBinError(i, 0.0);
+} else {
+    band->SetBinError(i, azureRel);
+}
+
+}
 
   band->SetFillColor(kAzure+1);
   band->SetFillStyle(1001);
   band->SetMarkerSize(0);
   band->SetLineColor(kAzure+1);
+
   return band;
 }
 
@@ -415,7 +516,7 @@ TH1* h_frame = (TH1*)h_data_draw->Clone(("h_frame_"+var).c_str());
 h_frame->Reset("ICES");
 h_frame->SetTitle("");
 h_frame->SetMinimum(0.1);
-h_frame->SetMaximum(1.0e8);
+h_frame->SetMaximum(1.0e6);
 
 h_frame->GetYaxis()->SetTitle("Events");
 h_frame->GetYaxis()->SetTitleSize(0.055);
@@ -592,12 +693,12 @@ TH1* h_muonSFDownTot = buildTotalVariation("h_muonSFDownTot_"+var, expSystDir, s
                                            f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
                                            f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
                                            f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
-TH1* h_trigUpTot = buildTotalVariation("h_trigUpTot_"+var, expSystDir, systVar, "trigUp", h_mctot,
+TH1* h_triggerUpTot = buildTotalVariation("h_triggerUpTot_"+var, expSystDir, systVar, "triggerUp", h_mctot,
                                        f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
                                        f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
                                        f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
                                        f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
-TH1* h_trigDownTot = buildTotalVariation("h_trigDownTot_"+var, expSystDir, systVar, "trigDown", h_mctot,
+TH1* h_triggerDownTot = buildTotalVariation("h_triggerDownTot_"+var, expSystDir, systVar, "triggerDown", h_mctot,
                                          f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
                                          f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
                                          f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
@@ -626,9 +727,10 @@ TH1* h_zptDownTot = buildTotalVariation("h_zptDownTot_"+var, expSystDir, systVar
 TH1* h_expBand = buildAzureExperimentalBand("h_expBand_"+var, h_mctot, h_mcBand,
                                             h_puUpTot,     h_puDownTot,
                                             h_muonSFUpTot, h_muonSFDownTot,
-                                            h_trigUpTot,   h_trigDownTot,
+                                            h_triggerUpTot,   h_triggerDownTot,
                                             h_btagUpTot,   h_btagDownTot,
-                                            h_zptUpTot,    h_zptDownTot);
+                                            h_zptUpTot,    h_zptDownTot,
+                                            h_theoryBand);
 
 
   TH1* h_ratio = (TH1*)h_data->Clone(("h_ratio_"+var).c_str());
@@ -656,11 +758,10 @@ TH1* h_expBand = buildAzureExperimentalBand("h_expBand_"+var, h_mctot, h_mcBand,
   h_ratio->SetLineColor(kBlack);
   h_ratio->SetMarkerStyle(20);
   h_ratio->SetStats(0);
-h_ratio->Draw("AXIS");
+  h_ratio->Draw("AXIS");
 
-// Draw widest bands first, then gray MC-stat on top.
-if (h_expBand)    h_expBand->Draw("E2 SAME");
-if (h_theoryBand) h_theoryBand->Draw("E2 SAME");
+if (h_expBand)    h_expBand->Draw("E2 SAME");  // total, draw first
+if (h_theoryBand) h_theoryBand->Draw("E2 SAME");  // orange on top
 h_mcBand->Draw("E2 SAME");
 h_ratio->Draw("E1 SAME");
 
@@ -709,7 +810,7 @@ h_ratio->Draw("E1 SAME");
   delete h_expBand;
   delete h_puUpTot; delete h_puDownTot;
   delete h_muonSFUpTot; delete h_muonSFDownTot;
-  delete h_trigUpTot; delete h_trigDownTot;
+  delete h_triggerUpTot; delete h_triggerDownTot;
   delete h_btagUpTot; delete h_btagDownTot;
   delete h_zptUpTot; delete h_zptDownTot;
   delete hs; delete h_frame; delete h_mcBand;
@@ -764,8 +865,7 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
     "Muon1pt","Muon2pt","Muon1eta","Muon2eta",
     "Muon1PTdDM","Muon2PTdDM","CollinsSoper","cosCollinsSoper","PtBalance","Zeppenfeld"
   };
-  const std::string dir = "corr_DM_VBF/";
-  //const std::string dir = "corr_DM_Pre-Selection/";
+  const std::string dir = "corr_DM_VBF_SR/";
 
   // Open data
   std::unique_ptr<TFile> f_data(TFile::Open(base + "DATA/DATA_all.root"));

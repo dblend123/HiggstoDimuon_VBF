@@ -5,6 +5,7 @@
 
 CORR_MODE="${1:-KIT}"
 CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW}"
+#CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_BTagRW_ZPtRW}"
 
 ERAS=(12022 22022 12023 22023 2024 2025)
 
