@@ -15,13 +15,14 @@ Optional:
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 import shutil
 import subprocess
 import tempfile
 import os
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -29,6 +30,15 @@ from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 
 ERAS = ["12022", "22022", "12023", "22023", "2024", "2025"]
+ERA_LABELS = {
+    "12022": "2022",
+    "22022": "2022EE",
+    "12023": "2023",
+    "22023": "2023BPix",
+    "2024": "2024",
+    "2025": "2025",
+}
+SYST_ORDER = ["QCD", "PDF", "ISR", "FSR", "Pileup", "MuonSF", "Trigger", "BTag", "ZPt"]
 PLOT_GROUPS = [
 
     # Standard overlay PDFs
@@ -191,6 +201,186 @@ def add_picture_fit_emu(slide, img, x, y, w, h):
         height=new_h,
     )
 
+
+
+def pct_text(value, digits=2):
+    """Format a percent value stored as a string/float from the CSV."""
+    if value is None or value == "":
+        return "--"
+    try:
+        return f"{float(value):.{digits}f}"
+    except Exception:
+        return str(value)
+
+
+def read_systematics_csv(csv_path: Path):
+    """
+    Read the CSV written by PrintSystematics_withCSV.C.
+
+    If the CSV has multiple entries for the same era/source because the macro was
+    re-run in append mode, keep the last row for each era/source.
+    """
+    single: Dict[Tuple[str, str], dict] = {}
+    ranges: Dict[Tuple[str, str], dict] = {}
+
+    if not csv_path.exists():
+        print(f"[WARNING] Systematics CSV not found: {csv_path}")
+        return single, ranges
+
+    with csv_path.open(newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            era = row.get("era", "").strip()
+            source = row.get("source", "").strip()
+            row_type = row.get("row_type", "").strip()
+            if not era or not source:
+                continue
+            if row_type == "single":
+                single[(era, source)] = row
+            elif row_type == "range":
+                ranges[(era, source)] = row
+
+    return single, ranges
+
+
+def add_table_slide(prs, title, headers, rows, footer=None, font_size=11):
+    """Add a clean, PowerPoint-native table slide."""
+    layout = prs.slide_layouts[7]  # Title Only
+    slide = prs.slides.add_slide(layout)
+    slide.shapes.title.text = title
+
+    x = Inches(0.55)
+    y = Inches(1.25)
+    w = Inches(12.25)
+    h = Inches(4.95)
+
+    table_shape = slide.shapes.add_table(
+        len(rows) + 1,
+        len(headers),
+        x,
+        y,
+        w,
+        h,
+    )
+    table = table_shape.table
+
+    # Column widths
+    table.columns[0].width = Inches(1.65)
+    if len(headers) > 1:
+        other_w = int((w - Inches(1.65)) / (len(headers) - 1))
+        for i in range(1, len(headers)):
+            table.columns[i].width = other_w
+
+    # Header
+    for j, text in enumerate(headers):
+        cell = table.cell(0, j)
+        cell.text = text
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = RGBColor(0, 0, 0)
+        for p in cell.text_frame.paragraphs:
+            p.alignment = PP_ALIGN.CENTER
+            for run in p.runs:
+                run.font.bold = True
+                run.font.size = Pt(font_size)
+                run.font.color.rgb = RGBColor(255, 255, 255)
+
+    # Body
+    for i, row in enumerate(rows, start=1):
+        for j, text in enumerate(row):
+            cell = table.cell(i, j)
+            cell.text = str(text)
+            for p in cell.text_frame.paragraphs:
+                p.alignment = PP_ALIGN.LEFT if j == 0 else PP_ALIGN.CENTER
+                for run in p.runs:
+                    run.font.size = Pt(font_size)
+                    run.font.bold = (j == 0)
+
+    if footer:
+        add_text(
+            slide,
+            footer,
+            0.65,
+            6.55,
+            12.0,
+            0.35,
+            size=9,
+            color=RGBColor(80, 80, 80),
+            align=PP_ALIGN.LEFT,
+        )
+
+    return slide
+
+
+def add_systematics_summary_slides(prs, csv_path: Optional[Path], include_details=True):
+    if csv_path is None:
+        return
+
+    single, ranges = read_systematics_csv(csv_path)
+    if not single and not ranges:
+        return
+
+    era_headers = [ERA_LABELS.get(e, e) for e in ERAS]
+
+    # 1) Envelope comparison table
+    headers = ["Source"] + era_headers
+    rows = []
+    for source in SYST_ORDER:
+        row = [source]
+        for era in ERAS:
+            row.append(pct_text(single.get((era, source), {}).get("envelope_pct")))
+        rows.append(row)
+
+    add_table_slide(
+        prs,
+        "Systematic uncertainties: DiMuonMass_Higgs envelope (%)",
+        headers,
+        rows,
+        footer=f"Read from {csv_path.name}; values are envelope = max(|up|, |down|).",
+        font_size=10,
+    )
+
+    # 2) BDT input range comparison table
+    range_rows = []
+    for source in SYST_ORDER:
+        row = [source]
+        for era in ERAS:
+            val = ranges.get((era, source), {}).get("range_text", "--")
+            row.append(val if val else "--")
+        range_rows.append(row)
+
+    add_table_slide(
+        prs,
+        "Systematic uncertainty ranges across BDT inputs (%)",
+        headers,
+        range_rows,
+        footer="Range is min–max envelope across the BDT variables listed in PrintSystematics.",
+        font_size=10,
+    )
+
+    # 3) Optional one detailed table per era
+    if include_details:
+        for era in ERAS:
+            detail_rows = []
+            for source in SYST_ORDER:
+                r = single.get((era, source), {})
+                rr = ranges.get((era, source), {})
+                detail_rows.append([
+                    source,
+                    pct_text(r.get("up_pct")),
+                    pct_text(r.get("down_pct")),
+                    pct_text(r.get("envelope_pct")),
+                    rr.get("range_text", "--") or "--",
+                ])
+
+            add_table_slide(
+                prs,
+                f"Systematics detail — {ERA_LABELS.get(era, era)}",
+                ["Source", "Up (%)", "Down (%)", "Envelope (%)", "BDT range (%)"],
+                detail_rows,
+                footer="Single histogram: DiMuonMass_Higgs in corr_DM_VBF_SR.",
+                font_size=10,
+            )
+
 def add_era_comparison_slides(prs, tmpdir, base):
 
     layout = prs.slide_layouts[7]  # Title Only
@@ -336,6 +526,18 @@ def main():
         default="/eos/user/d/dblend/PowerPoint/Muons_Jets_KIT_noScaleSmear_noJERC_noJER_BTagRW_ZPtRW.pptx"
     )
 
+    parser.add_argument(
+        "--syst-csv",
+        default="/eos/user/d/dblend/PowerPoint/systematics_summary.csv",
+        help="CSV written by PrintSystematics_withCSV.C. If missing, table slides are skipped.",
+    )
+
+    parser.add_argument(
+        "--no-syst-detail-slides",
+        action="store_true",
+        help="Only add the two all-era summary systematics slides; skip one detailed table slide per era.",
+    )
+
     args = parser.parse_args()
 
     # Load UIowa template
@@ -358,6 +560,16 @@ def main():
 
     subtitle = title_slide.placeholders[1]
     subtitle.text = "KIT / BTagRW / ZPtRW"
+
+    # ---------------------------------
+    # Systematics table slides
+    # ---------------------------------
+    syst_csv = Path(args.syst_csv) if args.syst_csv else None
+    add_systematics_summary_slides(
+        prs,
+        syst_csv,
+        include_details=not args.no_syst_detail_slides,
+    )
 
     # ---------------------------------
     # Begin plots

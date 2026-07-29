@@ -34,19 +34,14 @@ static TFile* open_or_warn(const TString& p) {
     return f;
 }
 
-
 static std::string jetVarToBDTSystName(const std::string& var) {
-    if (var == "Jet1Pt")         return "Jet1Pt";
-    if (var == "Jet2Pt")         return "Jet2Pt";
-    if (var == "Jet1eta")        return "Jet1Eta";
-    if (var == "DiJetdeta")      return "DijetDeltaEta";
-    if (var == "DiJetdphi")      return "DijetDeltaPhi";
-    if (var == "hdphi_mumu_jj")  return "DeltaPhiDimuonDijet";
-    if (var == "hdeta_mumu_jj")  return "DeltaEtaDimuonDijet";
-    if (var == "nJets")          return "NJets";
+    if (var == "Jet1Pt")    return "Jet1Pt";
+    if (var == "Jet2Pt")    return "Jet2Pt";
+    if (var == "Jet1eta")   return "Jet1eta";
+    if (var == "DiJetdeta") return "DiJetdeta";
+    if (var == "DiJetdphi") return "DiJetdphi";
+    if (var == "nJets")     return "nJets";
 
-    // These are not currently booked in BDTTheorySyst_VBF from your BDT input list.
-    // If you want orange bands for them too, add matching SystHist1D objects in the analyzer.
     return "";
 }
 
@@ -142,7 +137,9 @@ static TH1* makeAzureExperimentalBand(
     TH1* h_muonUp,   TH1* h_muonDown,
     TH1* h_trigUp,   TH1* h_trigDown,
     TH1* h_btagUp,   TH1* h_btagDown,
-    TH1* h_zptUp,    TH1* h_zptDown
+    TH1* h_zptUp,    TH1* h_zptDown,
+    TH1* h_jecUp,    TH1* h_jecDown,
+    TH1* h_jerUp,    TH1* h_jerDown
 ) {
     if (!h_nom) return nullptr;
 
@@ -164,14 +161,15 @@ static TH1* makeAzureExperimentalBand(
         const double dTrig = dev(h_trigUp, h_trigDown, h_nom, i);
         const double dBTag = dev(h_btagUp, h_btagDown, h_nom, i);
         const double dZPt  = dev(h_zptUp,  h_zptDown,  h_nom, i);
+        const double dJEC  = dev(h_jecUp, h_jecDown, h_nom, i);
+        const double dJER  = dev(h_jerUp, h_jerDown, h_nom, i);
 
         // Match the current muon plotting convention: experimental band only,
         // with MC statistical uncertainty shown separately by h_mcBand.
         const double totalErr = std::sqrt(dPU*dPU +
-                                          dMuon*dMuon +
-                                          dTrig*dTrig 
-                                          //dBTag*dBTag +
-                                          //dZPt*dZPt
+                                          dMuon*dMuon   + dTrig*dTrig 
+                                          //dBTag*dBTag + dZPt*dZPt
+                                          + dJEC*dJEC   + dJER*dJER
                                           );
 
         const double relErrRaw = (nom > 0.0 ? totalErr / nom : 0.0);
@@ -586,6 +584,10 @@ h_mcBand->SetLineColor(kGray+2);
         TH1* h_btagDownTot = nullptr;
         TH1* h_zptUpTot = nullptr;
         TH1* h_zptDownTot = nullptr;
+        TH1* h_jecUpTot = nullptr;
+        TH1* h_jecDownTot = nullptr;
+        TH1* h_jerUpTot = nullptr;
+        TH1* h_jerDownTot = nullptr;
 
         if (!systVar.empty()) {
             h_puUpTot       = makeVariationTotal("h_puUpTot_"       + var, expSystDir, systVar, "_puUp",       bkgSamples);
@@ -598,13 +600,19 @@ h_mcBand->SetLineColor(kGray+2);
             h_btagDownTot   = makeVariationTotal("h_btagDownTot_"   + var, expSystDir, systVar, "_btagDown",   bkgSamples);
             h_zptUpTot      = makeVariationTotal("h_zptUpTot_"      + var, expSystDir, systVar, "_zptUp",      bkgSamples);
             h_zptDownTot    = makeVariationTotal("h_zptDownTot_"    + var, expSystDir, systVar, "_zptDown",    bkgSamples);
+            h_jecUpTot      = makeVariationTotal("h_jecUpTot_"      + var, expSystDir, systVar, "_jecUp",   bkgSamples);
+            h_jecDownTot    = makeVariationTotal("h_jecDownTot_"    + var, expSystDir, systVar, "_jecDown", bkgSamples);
+            h_jerUpTot      = makeVariationTotal("h_jerUpTot_"      + var, expSystDir, systVar, "_jerUp",   bkgSamples);
+            h_jerDownTot    = makeVariationTotal("h_jerDownTot_"    + var, expSystDir, systVar, "_jerDown", bkgSamples);
 
-            h_azureBand = makeAzureExperimentalBand("h_azureExperimentalBand_" + var, h_mctot, h_mcBand,
+            h_azureBand     = makeAzureExperimentalBand("h_azureExperimentalBand_" + var, h_mctot, h_mcBand,
                                                     h_puUpTot,       h_puDownTot,
                                                     h_muonSFUpTot,   h_muonSFDownTot,
                                                     h_trigUpTot,     h_trigDownTot,
                                                     h_btagUpTot,     h_btagDownTot,
-                                                    h_zptUpTot,      h_zptDownTot);
+                                                    h_zptUpTot,      h_zptDownTot,
+                                                    h_jecUpTot,      h_jecDownTot,
+                                                    h_jerUpTot,      h_jerDownTot);
         }
 
         TH1* h_ratio = (TH1*)h_data->Clone(("h_ratio_"+var).c_str());
@@ -682,6 +690,10 @@ c->SaveAs(outdir + baseName + ".png");
         delete h_btagDownTot;
         delete h_zptUpTot;
         delete h_zptDownTot;
+        delete h_jecUpTot;
+        delete h_jecDownTot;
+        delete h_jerUpTot;
+        delete h_jerDownTot;
     }
 
     // ---------- Cleanup ----------

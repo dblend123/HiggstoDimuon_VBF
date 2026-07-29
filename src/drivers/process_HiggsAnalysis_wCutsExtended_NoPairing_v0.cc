@@ -88,28 +88,28 @@
     set.h_pt_j1.fill(g_pt_j1, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
     set.h_pt_j2.fill(g_pt_j2, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
 
-#define FILL_BDT_EXP_SYST_HIST(set, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown) \
-    set.h_z.fill(g_z, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_ptBalance.fill(g_ptBalance, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+#define FILL_BDT_EXP_SYST_HIST(set, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars, jecDownVars, jerUpVars, jerDownVars) \
+    set.h_z.fill(g_z, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.z, jecDownVars.z, jerUpVars.z, jerDownVars.z); \
+    set.h_ptBalance.fill(g_ptBalance, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.ptBalance, jecDownVars.ptBalance, jerUpVars.ptBalance, jerDownVars.ptBalance); \
     set.h_mu1_pt_over_m.fill(g_mu1_pt_over_m, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
     set.h_mu2_pt_over_m.fill(g_mu2_pt_over_m, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
     set.h_mu1_eta.fill(g_mu1_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
     set.h_mu2_eta.fill(g_mu2_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_jet1_eta.fill(g_jet1_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
     set.h_m_mumu.fill(g_m_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_deta_jj.fill(g_deta_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_dphi_jj.fill(g_dphi_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_njets.fill(g_njets, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.dphi_mumu_jj, jecDownVars.dphi_mumu_jj, jerUpVars.dphi_mumu_jj, jerDownVars.dphi_mumu_jj); \
+    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.deta_mumu_jj, jecDownVars.deta_mumu_jj, jerUpVars.deta_mumu_jj, jerDownVars.deta_mumu_jj); \
     set.h_phi_CS.fill(g_phi_CS, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
     set.h_costheta_CS.fill(g_costheta_CS, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
     set.h_y_mumu.fill(g_y_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_y_j1.fill(g_y_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_y_j2.fill(g_y_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+    set.h_y_j1.fill(g_y_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.y_j1, jecDownVars.y_j1, jerUpVars.y_j1, jerDownVars.y_j1); \
+    set.h_y_j2.fill(g_y_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.y_j2, jecDownVars.y_j2, jerUpVars.y_j2, jerDownVars.y_j2); \
     set.h_pt_mumu.fill(g_pt_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_pt_j1.fill(g_pt_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
-    set.h_pt_j2.fill(g_pt_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown);
+    set.h_jet1_eta.fill(g_jet1_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.eta_j1, jecDownVars.eta_j1, jerUpVars.eta_j1, jerDownVars.eta_j1); \
+    set.h_deta_jj.fill(g_deta_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.deta_jj, jecDownVars.deta_jj, jerUpVars.deta_jj, jerDownVars.deta_jj); \
+    set.h_dphi_jj.fill(g_dphi_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.dphi_jj, jecDownVars.dphi_jj, jerUpVars.dphi_jj, jerDownVars.dphi_jj); \
+    set.h_njets.fill(g_njets, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.njets, jecDownVars.njets, jerUpVars.njets, jerDownVars.njets); \
+    set.h_pt_j1.fill(g_pt_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.pt_j1, jecDownVars.pt_j1, jerUpVars.pt_j1, jerDownVars.pt_j1); \
+    set.h_pt_j2.fill(g_pt_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.pt_j2, jecDownVars.pt_j2, jerUpVars.pt_j2, jerDownVars.pt_j2);
 
 // -------------------------------------
 //             VTX 
@@ -194,8 +194,15 @@
 //*******************************************************************
 //                     CONSTANTS
 //*******************************************************************
+
+// ------------------------
+// Randomizer for KIT shape 
+// ------------------------
 static TRandom3 g_rng(42); // or seed per event if you prefer
 
+// ------------------------
+// Zpt Reweighting 
+// ------------------------
 struct ZPtReweighter {
   std::unique_ptr<TFile> f;
   std::unique_ptr<TF1> f0;
@@ -255,11 +262,17 @@ struct ZPtReweighter {
   }
 };
 
+// ------------------------
 // Service Globals
+// ------------------------
 std::string __inputfilename;
 std::string __outputfilename;
 std::string const NTUPLEMAKER_NAME =  "";
 
+
+// ------------------------
+// Booleans for Corrections 
+// ------------------------
 bool __isMC;
 bool __useKIT;
 bool __useRochester;
@@ -292,7 +305,9 @@ static inline double getBTagEff_WP_jet(const analysis::core::Jet& j, const std::
 static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets, const std::string& syst = "central");
 static inline float btagWPThreshold(const std::string& wp);
 
+// ------------------------
 // MVA tree
+// ------------------------
 TTree* gMvaTree = nullptr;
 
 float g_z             = -99.f;
@@ -322,7 +337,32 @@ float g_pt_j2         = -99.f;
 
 float g_weight        = 1.f;
 
+// ------------------------
+// JERC Systematics 
+// ------------------------
+struct JetSystVars {
+    float mjj           = -99.f;
+    float pt_jj         = -99.f;
+    float eta_j2        = -99.f;
+    float y_j1          = -99.f;
+    float y_j2          = -99.f;
+    float z             = -99.f;
+    float ptBalance     = -99.f;
+    float dphi_mumu_jj  = -99.f;
+    float deta_mumu_jj  = -99.f;
+    float pt_j1         = -99.f;
+    float pt_j2         = -99.f;
+    float eta_j1        = -99.f;
+    float deta_jj       = -99.f;
+    float dphi_jj       = -99.f;
+    int njets           = -99;
+    bool pass_vbf       = false;
+    bool pass_veto_map  = true;
+};
+
+// ------------------------
 // Weights Config
+// ------------------------
 struct SampleConfig {
     double xsec = 0.0;        // pb
     double sumw = 0.0;        // genEventSumw
@@ -331,7 +371,9 @@ struct SampleConfig {
 std::string g_weightsFile = "None";  // set via --weights
 std::string g_sampleName  = "DATA";  // set via --sample
 
-// --- Jet Debug Counters ---
+// ------------------------
+// Jet Debug Counters
+// ------------------------
 static unsigned long long jets_in               = 0;
 static unsigned long long jets_pass             = 0;
 static unsigned long long jets_after_vetoMap    = 0;
@@ -343,8 +385,10 @@ static unsigned long long jets_after_pt_default = 0;
 static unsigned long long jets_after_pt_hf      = 0;
 static unsigned long long jets_after_pt_he      = 0;
 static unsigned long long jets_after_pt         = 0;
-
+  
+// ------------------------
 // Era handling
+// ------------------------
 std::string g_era = "12022";  // default section (can be overridden via --era)
 std::unordered_map<std::string, std::unordered_map<std::string, double>> g_sectionLumis;
 std::unordered_map<std::string, std::unordered_map<std::string, SampleConfig>> g_sectionSamples;
@@ -352,7 +396,9 @@ std::unordered_map<std::string, std::unordered_map<std::string, SampleConfig>> g
 double g_selected_lumi = 0.0; 
 std::string g_selected_lumi_key = "unset";
 
+// ------------------------
 // Kinematic Cuts  
+// ------------------------
 enum MuonType {kLead=0, kSubLead=1};  // Muon Id --> lead = 0, sublead =1
 double _leadmuonPt          = 26.;  // +2 GeV of HLT trigger 
 double _subleadmuonPt       = 20.;
@@ -367,7 +413,9 @@ double _subleadJetEta       = 4.7;
 double _dijetMass_VBF       = 400;
 double _dijetdEta_VBF       = 2.5;
 
+// ------------------------
 // Namespace 
+// ------------------------
 namespace po = boost::program_options;
 using namespace analysis::core;
 using namespace analysis::dimuon;
@@ -623,11 +671,15 @@ std::string g_btagJSON      = "auto";       // "auto" => btagging<era>.json
 std::string g_btagAlgo      = "deepJet";    // "deepJet", "particleNet", "robustParticleTransformer"
 
 struct JecEraConfig {
-  std::string prefixBase;                   // base for JEC keys, we’ll append _MC or _<RunTag>_DATA
-  std::string dataRunTag;                   // e.g. RunCD, RunE, RunF, RunG, RunCv123, RunCv4, RunD
-  std::string jerScaleKey;                  // exact JER SF key
-  std::string jerResKey;                    // exact JER resolution key
-  std::string vetoMapKey;                   // veto map key (if available for this era/tag); leave "" to skip
+    std::string mcPrefix;
+    std::string dataPrefix;
+
+    std::string jerScaleKey;
+    std::string jerResKey;
+    std::string jerSFUncKey;
+
+    std::string jecTotalKey;
+    std::string vetoMapKey;
 };
 
 static inline const char* pnetCorrName() {
@@ -658,69 +710,114 @@ static std::string inferDataRunTag(const std::string& era, const std::string& in
   return "RunCD";
 }
 
-static JecEraConfig jecConfigForEra(const std::string& era, const std::string& inputFile) {
+static JecEraConfig jecConfigForEra(
+    const std::string& era,
+    const std::string& inputFile)
+{
     if (era == "12022") {
         return {
-            "Summer22_22Sep2023_V3",                               // prefix base
-            "RunCD",                                               // DATA tag
-            "Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",   // JER SF
-            "Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",  // JER Res
-            "Summer22_23Sep2023_RunCD_V1"                          // veto map
+            "Summer22_22Sep2023_V4_MC",
+            "Summer22_22Sep2023_V4_DATA",
+
+            "Summer22_22Sep2023_JRV2_MC_ScaleFactor_AK4PFPuppi",
+            "Summer22_22Sep2023_JRV2_MC_PtResolution_AK4PFPuppi",
+            "Summer22_22Sep2023_JRV2_MC_SFUncertainty_AK4PFPuppi",
+
+            "Summer22_22Sep2023_V4_MC_Regrouped_Total_AK4PFPuppi",
+            "Summer22_23Sep2023_RunCD_V1"
         };
     }
+
     if (era == "22022") {
-        const std::string runTag = inferDataRunTag(era, inputFile);
         return {
-            "Summer22EE_22Sep2023_V3",
-            runTag,
-            "Summer22EE_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",
-            "Summer22EE_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",
+            "Summer22EE_22Sep2023_V4_MC",
+            "Summer22EE_22Sep2023_V4_DATA",
+
+            "Summer22EE_22Sep2023_JRV2_MC_ScaleFactor_AK4PFPuppi",
+            "Summer22EE_22Sep2023_JRV2_MC_PtResolution_AK4PFPuppi",
+            "Summer22EE_22Sep2023_JRV2_MC_SFUncertainty_AK4PFPuppi",
+
+            "Summer22EE_22Sep2023_V4_MC_Regrouped_Total_AK4PFPuppi",
             "Summer22EE_23Sep2023_RunEFG_V1"
         };
     }
+
     if (era == "12023") {
-        const std::string runTag = inferDataRunTag(era, inputFile);
+        const bool isCv4 =
+            inputFile.find("RunCv4") != std::string::npos ||
+            inputFile.find("Cv4") != std::string::npos;
+
+        const bool isCv123 =
+            inputFile.find("RunCv123") != std::string::npos ||
+            inputFile.find("Cv123") != std::string::npos;
+
+        std::string jerBase;
+
+        if (isCv4) {
+            jerBase = "Summer23Prompt23_RunCv4_JRV2_MC";
+        } else if (isCv123) {
+            jerBase = "Summer23Prompt23_RunCv123_JRV2_MC";
+        } else {
+            jerBase = "Summer23Prompt23_RunCv1234_JRV2_MC";
+        }
         return {
-            "Summer23Prompt23_V2",
-            runTag,
-            "Summer23Prompt23_RunCv1234_JRV1_MC_ScaleFactor_AK4PFPuppi",
-            "Summer23Prompt23_RunCv1234_JRV1_MC_PtResolution_AK4PFPuppi",
+            "Summer23Prompt23_V4_MC",
+            "Summer23Prompt23_V4_DATA",
+
+            jerBase + "_ScaleFactor_AK4PFPuppi",
+            jerBase + "_PtResolution_AK4PFPuppi",
+            jerBase + "_SFUncertainty_AK4PFPuppi",
+
+            "Summer23Prompt23_V4_MC_Regrouped_Total_AK4PFPuppi",
             "Summer23Prompt23_RunC_V1"
         };
     }
+
     if (era == "22023") {
         return {
-            "Summer23BPixPrompt23_V3",
-            "RunD",
-            "Summer23BPixPrompt23_RunD_JRV1_MC_ScaleFactor_AK4PFPuppi",
-            "Summer23BPixPrompt23_RunD_JRV1_MC_PtResolution_AK4PFPuppi",
-            "Summer23BPixPrompt23_RunD_V1" 
+            "Summer23BPixPrompt23_V4_MC",
+            "Summer23BPixPrompt23_V4_DATA",
+
+            "Summer23BPixPrompt23_RunD_JRV2_MC_ScaleFactor_AK4PFPuppi",
+            "Summer23BPixPrompt23_RunD_JRV2_MC_PtResolution_AK4PFPuppi",
+            "Summer23BPixPrompt23_RunD_JRV2_MC_SFUncertainty_AK4PFPuppi",
+
+            "Summer23BPixPrompt23_V4_MC_Regrouped_Total_AK4PFPuppi",
+            "Summer23BPixPrompt23_RunD_V1"
         };
     }
+
     if (era == "2024") {
         return {
-            "Summer24Prompt24_V1",
-            "RunBCDEFGHI",     
+            "Summer24Prompt24_V3_MC",
+            "Summer24Prompt24_V3_DATA",
+
             "Summer24Prompt24_JRV1_MC_ScaleFactor_AK4PFPuppi",
             "Summer24Prompt24_JRV1_MC_PtResolution_AK4PFPuppi",
+            "Summer24Prompt24_JRV1_MC_SFUncertainty_AK4PFPuppi",
+
+            "Summer24Prompt24_V3_MC_Regrouped_Total_AK4PFPuppi",
             "Summer24Prompt24_RunBCDEFGHI_V1"
         };
     }
+
     if (era == "2025") {
         return {
-            "Summer24Prompt24_V1", 
-            "RunBCDEFG",          
-            "Winter25Prompt25_JRV1_MC_ScaleFactor_AK4PFPuppi",
-            "Winter25Prompt25_JRV1_MC_PtResolution_AK4PFPuppi",
-            "Winter25Prompt25_RunCDEFG_V1"
+            "Summer24Prompt25_V1_MC",
+            "Summer24Prompt25_V1_DATA",
+
+            "Summer24Prompt25_JRV1_MC_ScaleFactor_AK4PFPuppi",
+            "Summer24Prompt25_JRV1_MC_PtResolution_AK4PFPuppi",
+            "Summer24Prompt25_JRV1_MC_SFUncertainty_AK4PFPuppi",
+
+            "Summer24Prompt25_V1_MC_Regrouped_Total_AK4PFPuppi",
+            "Summer24Prompt25_RunCDEFG_V1"
         };
     }
-    return {
-        "Summer22_22Sep2023_V2","RunCD",
-        "Summer22_22Sep2023_JRV1_MC_ScaleFactor_AK4PFPuppi",
-        "Summer22_22Sep2023_JRV1_MC_PtResolution_AK4PFPuppi",
-        "Summer22_23Sep2023_RunCD_V1"
-    };
+
+    throw std::runtime_error(
+        "Unsupported JERC era: " + era
+    );
 }
 
 static std::string jercFileForEra(const std::string& era) {
@@ -749,28 +846,20 @@ static void printJetCorrectionTagsOnce() {
 
     const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
 
-    const std::string mcTag   = cfg.prefixBase + "_MC";
-    const std::string dataTag = cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA";
+    const std::string& mcTag   = cfg.mcPrefix;
+    const std::string& dataTag = cfg.dataPrefix;
 
     std::cerr << "\n========== JET CORRECTION TAGS ==========\n";
     
-    std::cerr << "\n[JERC JSON] " << jercFileForEra(g_era) << "\n";
-    std::cerr << "[JEC MC]   " << mcTag << "_L1FastJet_AK4PFPuppi\n";
-    std::cerr << "[JEC MC]   " << mcTag << "_L2Relative_AK4PFPuppi\n";
-    std::cerr << "[JEC MC]   " << mcTag << "_L3Absolute_AK4PFPuppi\n";
-    std::cerr << "[JEC MC]   " << mcTag << "_L1L2L3Res_AK4PFPuppi\n";
+    std::cerr << "[JEC MC]      "    << mcTag << "_L1L2L3Res_AK4PFPuppi\n";
 
-    std::cerr << "[JEC DATA] " << dataTag << "_L1FastJet_AK4PFPuppi\n";
-    std::cerr << "[JEC DATA] " << dataTag << "_L2Relative_AK4PFPuppi\n";
-    std::cerr << "[JEC DATA] " << dataTag << "_L3Absolute_AK4PFPuppi\n";
-    std::cerr << "[JEC DATA] " << dataTag << "_L2L3Residual_AK4PFPuppi\n";
-    std::cerr << "[JEC DATA] " << dataTag << "_L1L2L3Res_AK4PFPuppi\n";
+    std::cerr << "[JEC DATA]    "    << dataTag << "_L1L2L3Res_AK4PFPuppi\n";
 
-    std::cerr << "[JER SF]   " << cfg.jerScaleKey << "\n";
-    std::cerr << "[JER Res]  " << cfg.jerResKey << "\n";
-
-    std::cerr << "\n[JET VETO JSON] " << vetoFileForEra(g_era) << "\n";
-    std::cerr << "[JET VETO KEY]  " << cfg.vetoMapKey << "\n";
+    std::cerr << "[JER SF]      " << cfg.jerScaleKey << "\n";
+    std::cerr << "[JER Res]     " << cfg.jerResKey << "\n";
+    std::cerr << "[JER SF Unc]  " << cfg.jerSFUncKey << "\n";
+    std::cerr << "[JES Total]   " << cfg.jecTotalKey << "\n";
+    std::cerr << "[Veto Map]    " << cfg.vetoMapKey << "\n";
 
     std::cerr << "================================================\n\n";
 }
@@ -1411,21 +1500,24 @@ static inline float getRawJetMass(const Jet& j) {
     return std::max(0.0f, j._mass * (1.f - j._rawFactor));
 }
 
-static inline float getDataResidualFactor(int run, float eta, float pt) {
+static inline float getDataResidualFactor(int run, float eta, float pt)
+{
     if (!jetCorrections) return 1.f;
 
-    const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
-    const std::string dataTag = cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA";
-    const std::string key = dataTag + "_L2L3Residual_AK4PFPuppi";
+    const JecEraConfig cfg  = jecConfigForEra(g_era, __inputfilename);
+    const std::string key   = cfg.dataPrefix +  "_L2L3Residual_AK4PFPuppi";
 
-    float res = (float)tryEvalJetCorr(
-        key, 0.0,
-        (double)run,
-        (double)eta,
-        (double)pt
+    const float res = static_cast<float>(
+        tryEvalJetCorr(
+            key,
+            0.0,
+            static_cast<double>(run),
+            static_cast<double>(eta),
+            static_cast<double>(pt)
+        )
     );
 
-    return (res > 0.f ? res : 1.f);
+    return res > 0.f ? res : 1.f;
 }
 
 enum class JetSyst { Nominal, JECUp, JECDown, JERUp, JERDown };
@@ -1451,7 +1543,7 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
     if (isMC) {
 
         // Prefer official compound MC JEC
-        const std::string comp = cfg.prefixBase + "_MC_L1L2L3Res_AK4PFPuppi";
+        const std::string comp = cfg.mcPrefix + "_L1L2L3Res_AK4PFPuppi";
 
         double jec_comp = tryEvalJetCompound(
             comp, 0.0,
@@ -1462,9 +1554,9 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
             jec = (float)jec_comp;
         } else {
             // Explicit fallback: L1 * L2 * L3
-            const std::string kL1 = cfg.prefixBase + "_MC_L1FastJet_AK4PFPuppi";
-            const std::string kL2 = cfg.prefixBase + "_MC_L2Relative_AK4PFPuppi";
-            const std::string kL3 = cfg.prefixBase + "_MC_L3Absolute_AK4PFPuppi";
+            const std::string kL1 = cfg.mcPrefix + "_L1FastJet_AK4PFPuppi";
+            const std::string kL2 = cfg.mcPrefix + "_L2Relative_AK4PFPuppi";
+            const std::string kL3 = cfg.mcPrefix + "_L3Absolute_AK4PFPuppi";
 
             const float L1 = (float)tryEvalJetCorr(kL1, 1.0,
                 (double)area, (double)eta, (double)rawPt, (double)rho);
@@ -1479,9 +1571,9 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
         }
     } else {
         // Data: use correct data run tag in the compound key
-        const std::string dataTag = cfg.prefixBase + "_" + cfg.dataRunTag + "_DATA";
-        const std::string compA   = dataTag + "_L1L2L3Res_AK4PFPuppi";
-        const std::string compB   = dataTag + "_L1L2L3Residual_AK4PFPuppi";
+        const std::string& dataTag  = cfg.dataPrefix;
+        const std::string compA     = dataTag + "_L1L2L3Res_AK4PFPuppi";
+        const std::string compB     = cfg.dataPrefix + "_L1L2L3Res_AK4PFPuppi";
 
         double jec_comp = tryEvalJetCompound(
             compA, 0.0,
@@ -1518,11 +1610,6 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
                 (double)eta,
                 (double)(rawPt * L1 * L2 * L3));
 
-            if (Res <= 0.f) {
-                Res = (float)tryEvalJetCorr(dataTag + "_L2L3Res_AK4PFPuppi", 1.0,
-                    (double)eta, (double)(rawPt * L1 * L2 * L3));
-            }
-
             if (Res <= 0.f) Res = 1.f;
 
             jec = L1 * L2 * L3 * Res;
@@ -1531,9 +1618,43 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
 
     float corrPt = std::max(0.f, rawPt * jec);
 
-    if (syst == JetSyst::JECUp)   corrPt *= 1.02;
-    if (syst == JetSyst::JECDown) corrPt *= 0.98;
-        
+    // JEC uncertainty: MC only, evaluated using fully JEC-corrected pT
+    if (isMC &&
+        (syst == JetSyst::JECUp || syst == JetSyst::JECDown) &&
+        !cfg.jecTotalKey.empty()) {
+
+        double unc = tryEvalJetCorr(
+            cfg.jecTotalKey,
+            0.0,
+            static_cast<double>(eta),
+            static_cast<double>(corrPt)
+        );
+
+        // Protect against invalid JSON output or failed evaluation
+        if (!std::isfinite(unc) || unc < 0.0) {
+            unc = 0.0;
+        }
+
+static int jecUncPrints = 0;
+if (jecUncPrints < 10 &&
+isMC &&
+(syst == JetSyst::JECUp || syst == JetSyst::JECDown)) {
+std::cerr << "[JEC UNC DBG]"
+<< " eta=" << eta
+<< " corrPt=" << corrPt
+<< " unc=" << unc
+<< " syst=" << (syst == JetSyst::JECUp ? "up" : "down")
+<< "\n";
+++jecUncPrints;
+}
+
+        if (syst == JetSyst::JECUp) {
+            corrPt *= static_cast<float>(1.0 + unc);
+        } else {
+            corrPt *= static_cast<float>(std::max(0.0, 1.0 - unc));
+        }
+    }
+
     // 2024 transition-region mitigation that you already wanted to keep
     if (!isMC && g_era == "2024" && isTransitionHorn2024(abseta) && corrPt < 30.f) {
         const float res_at_pt = getDataResidualFactor(run, eta, std::max(corrPt, 1.f));
@@ -1945,14 +2066,20 @@ inline bool isVetoedJet(float eta, float phi) {
   try {
     const double val = jetVetoMaps->at(cfg.vetoMapKey)->evaluate({std::string("jetvetomap"), (double)eta, (double)phi});
     return (val != 0.0);
-  } catch (...) {
-    static bool warned = false;
-    if (!warned) {
-      std::cerr << "[WARN] Veto map key '" << cfg.vetoMapKey << "' not found for era " << g_era << "\n";
-      warned = true;
+    } catch (const std::exception& e) {
+        static int warned = 0;
+        if (warned++ < 5) {
+            std::cerr
+                << "[JET VETO ERROR] era=" << g_era
+                << " key=" << cfg.vetoMapKey
+                << " type=jetvetomap"
+                << " eta=" << eta
+                << " phi=" << phi
+                << " error=" << e.what()
+                << "\n";
+        }
+        return false;
     }
-    return false;
-  }
 }
 
 // -------------------------------------
@@ -2548,6 +2675,7 @@ std::cerr << "[KIT SEED DBG] "
     // -------------------------------------
 
     bool pass_bjet_veto = true;
+    
     int n_loose_bjets   = 0;
     int n_medium_bjets  = 0;
     int n_tight_bjets   = 0;
@@ -2789,17 +2917,6 @@ std::cout
     pass_bjet_veto = !(n_medium_bjets >= 1 || n_loose_bjets >= 2);
     if (!pass_bjet_veto) return;
 
-    // -------------------------------------
-    //      Sort jets / derive jet vars
-    // -------------------------------------
-    std::sort(
-        p4jets.begin(),
-        p4jets.end(),
-        [](const TLorentzVector& a, const TLorentzVector& b) {
-            return a.Pt() > b.Pt();
-        }
-    );
-
     const bool is0jet = (p4jets.size() == 0);
     const bool is1jet = (p4jets.size() == 1);
     const bool is2jet = (p4jets.size() >= 2);
@@ -2814,48 +2931,299 @@ std::cout
 
     TLorentzVector p4lead, p4sub, dijet;
 
+    // ------------------------------------------------------------
+    // One-jet quantities
+    // ------------------------------------------------------------
     if (has1jet) {
+        // p4jets is already sorted by descending pT
         p4lead  = p4jets[0];
         jet1eta = p4lead.Eta();
         jet1pt  = p4lead.Pt();
     }
 
+    // ------------------------------------------------------------
+    // For >=2 jets, choose the pair with the largest invariant mass
+    // ------------------------------------------------------------
     if (has2jet) {
-        p4sub   = p4jets[1];
-        jet2eta = p4sub.Eta();
-        jet2pt  = p4sub.Pt();
+        double best_mjj = -1.0;
+        int i_best = -1;
+        int j_best = -1;
 
-        dijet     = p4lead + p4sub;
-        dijetpt   = dijet.Pt();
-        dijetdeta = TMath::Abs(p4lead.Eta() - p4sub.Eta());
-        dijetmass = dijet.M();
-        dijetdphi = std::fabs(p4lead.DeltaPhi(p4sub));
+        for (size_t i = 0; i < p4jets.size(); ++i) {
+            for (size_t j = i + 1; j < p4jets.size(); ++j) {
+                const double mjj = (p4jets[i] + p4jets[j]).M();
+
+                if (mjj > best_mjj) {
+                    best_mjj = mjj;
+                    i_best = static_cast<int>(i);
+                    j_best = static_cast<int>(j);
+                }
+            }
+        }
+
+        // This should always succeed when has2jet is true
+        if (i_best >= 0 && j_best >= 0) {
+            const TLorentzVector& jA = p4jets[i_best];
+            const TLorentzVector& jB = p4jets[j_best];
+
+            // Define lead/sublead within the selected maximum-mjj pair
+            if (jA.Pt() >= jB.Pt()) {
+                p4lead = jA;
+                p4sub  = jB;
+            } else {
+                p4lead = jB;
+                p4sub  = jA;
+            }
+
+            jet1eta = p4lead.Eta();
+            jet2eta = p4sub.Eta();
+
+            jet1pt = p4lead.Pt();
+            jet2pt = p4sub.Pt();
+
+            dijet = p4lead + p4sub;
+
+            dijetpt   = dijet.Pt();
+            dijetdeta = std::abs(p4lead.Eta() - p4sub.Eta());
+            dijetmass = dijet.M();
+            dijetdphi = std::abs(
+                TVector2::Phi_mpi_pi(p4lead.Phi() - p4sub.Phi())
+            );
+        }
     }
 
     float PTdDM1 = corr_p4m1.Pt() / corr_p4dimuon.M();
     float PTdDM2 = corr_p4m2.Pt() / corr_p4dimuon.M();
 
-    // Choosing Largest Dijet Mass Pair
-    /*double best_mjj = -1.0;
-    int i_best = -1, j_best = -1;
+    // ----------------------------------------------------------------------
+    // Rebuild shifted jets and select the maximum-mjj pair for systematics
+    // ----------------------------------------------------------------------
+    
+    auto buildJetSystVars = [&](JetSyst syst) -> JetSystVars {
+        JetSystVars out;
 
-    for (size_t i = 0; i < p4jets.size(); ++i) {
-        for (size_t j = i + 1; j < p4jets.size(); ++j) {
-            double mjj = (p4jets[i] + p4jets[j]).M();
-            if (mjj > best_mjj) {
-                best_mjj = mjj;
-                i_best = static_cast<int>(i);
-                j_best = static_cast<int>(j);
+        std::vector<TLorentzVector> shiftedJets;
+        shiftedJets.reserve(jets->size());
+
+        for (size_t ijet = 0; ijet < jets->size(); ++ijet) {
+            const auto& j = jets->at(ijet);
+
+            float genJetPt = 0.f;
+            bool hasGenJet = false;
+
+            if (__isMC &&
+                genjets &&
+                j._genJetIdx >= 0 &&
+                j._genJetIdx < static_cast<int>(genjets->size())) {
+
+                const auto& gj = genjets->at(j._genJetIdx);
+                genJetPt = gj._pt;
+                hasGenJet = true;
+            }
+
+            const int runNum =
+                __isMC ? 0 : static_cast<int>(event._run);
+
+            const float corr_pt_syst = getCorrectedJetPt(
+                j,
+                rho,
+                __isMC,
+                genJetPt,
+                hasGenJet,
+                runNum,
+                static_cast<unsigned int>(event._lumi),
+                static_cast<unsigned long long>(event._event),
+                static_cast<int>(ijet),
+                syst
+            );
+
+            const float raw_mass = getRawJetMass(j);
+            const float raw_pt   = getRawJetPt(j);
+
+            const float corr_mass_syst =
+                (raw_pt > 0.f)
+                    ? raw_mass * (corr_pt_syst / raw_pt)
+                    : raw_mass;
+
+            // Apply the same jet selection used for nominal jets
+            if (!g_disableJetCriteria) {
+                if (!passJetID(j)) continue;
+
+                // The veto map depends on eta/phi, which are not shifted by JEC/JER.
+                // Reapply the same veto-map decision used by the nominal collection.
+                if (passesJetVetoMapMinimalSelection(j, corr_pt_syst) &&
+                    isVetoedJet(j._eta, j._phi)) {
+
+                    out.pass_veto_map = false;
+                    out.pass_vbf = false;
+                    return out;
+                }
+
+                const float abseta = std::abs(j._eta);
+
+                if (corr_pt_syst <= 25.f) continue;
+
+                if (isHFHorn(abseta) && eraNeedsHF50(g_era)) {
+                    if (corr_pt_syst <= 50.f) continue;
+                }
+
+                if (isHEHorn(abseta) && eraNeedsHE50(g_era)) {
+                    if (corr_pt_syst <= 50.f) continue;
+                }
+
+                if (abseta >= 4.7f) continue;
+
+                if (jetMuondR(
+                        j._eta,
+                        j._phi,
+                        mu1._eta,
+                        mu1._phi
+                    ) <= 0.4) {
+                    continue;
+                }
+
+                if (jetMuondR(
+                        j._eta,
+                        j._phi,
+                        mu2._eta,
+                        mu2._phi
+                    ) <= 0.4) {
+                    continue;
+                }
+            }
+
+            TLorentzVector p4;
+            p4.SetPtEtaPhiM(
+                corr_pt_syst,
+                j._eta,
+                j._phi,
+                corr_mass_syst
+            );
+
+            shiftedJets.push_back(p4);
+        }
+
+        out.njets = static_cast<int>(shiftedJets.size());
+
+        // No shifted jets
+        if (shiftedJets.empty()) {
+            return out;
+        }
+
+        // For exactly one shifted jet, use it as jet 1
+        if (shiftedJets.size() == 1) {
+            out.pt_j1  = shiftedJets[0].Pt();
+            out.eta_j1 = shiftedJets[0].Eta();
+            return out;
+        }
+
+        // ------------------------------------------------------------
+        // For >=2 shifted jets, choose the maximum-mjj pair
+        // ------------------------------------------------------------
+        double best_mjj_syst = -1.0;
+        int i_best_syst = -1;
+        int j_best_syst = -1;
+
+        for (size_t i = 0; i < shiftedJets.size(); ++i) {
+            for (size_t j = i + 1; j < shiftedJets.size(); ++j) {
+                const double mjj =
+                    (shiftedJets[i] + shiftedJets[j]).M();
+
+                if (mjj > best_mjj_syst) {
+                    best_mjj_syst = mjj;
+                    i_best_syst = static_cast<int>(i);
+                    j_best_syst = static_cast<int>(j);
+                }
             }
         }
-    }
 
-    if (i_best < 0 || j_best < 0) return;
-    TLorentzVector jA = p4jets[i_best];
-    TLorentzVector jB = p4jets[j_best];
-    TLorentzVector p4lead = (jA.Pt() >= jB.Pt()) ? jA : jB;
-    TLorentzVector p4sub  = (jA.Pt()  <  jB.Pt()) ? jA : jB;*/
-    
+        if (i_best_syst < 0 || j_best_syst < 0) {
+            return out;
+        }
+
+        const TLorentzVector& jetA =
+            shiftedJets[i_best_syst];
+
+        const TLorentzVector& jetB =
+            shiftedJets[j_best_syst];
+
+        // Define leading/subleading by pT within the maximum-mjj pair
+        const TLorentzVector& lead =
+            (jetA.Pt() >= jetB.Pt()) ? jetA : jetB;
+
+        const TLorentzVector& sub =
+            (jetA.Pt() >= jetB.Pt()) ? jetB : jetA;
+
+        const TLorentzVector dijet_syst = lead + sub;
+
+        out.mjj       = static_cast<float>(dijet_syst.M());
+        out.pt_jj     = static_cast<float>(dijet_syst.Pt());
+        out.pt_j1     = static_cast<float>(lead.Pt());
+        out.pt_j2     = static_cast<float>(sub.Pt());
+        out.eta_j1    = static_cast<float>(lead.Eta());
+        out.eta_j2    = static_cast<float>(sub.Eta());
+        out.y_j1      = static_cast<float>(lead.Rapidity());
+        out.y_j2      = static_cast<float>(sub.Rapidity());
+
+        out.deta_jj =
+            static_cast<float>(std::abs(lead.Eta() - sub.Eta()));
+
+        out.dphi_jj =
+            static_cast<float>(
+                std::abs(
+                    TVector2::Phi_mpi_pi(
+                        lead.Phi() - sub.Phi()
+                    )
+                )
+            );
+
+        out.dphi_mumu_jj =
+            static_cast<float>(
+                std::abs(
+                    TVector2::Phi_mpi_pi(
+                        corr_p4dimuon.Phi() - dijet_syst.Phi()
+                    )
+                )
+            );
+
+        out.deta_mumu_jj =
+            static_cast<float>(
+                std::abs(corr_p4dimuon.Eta() - dijet_syst.Eta())
+            );
+
+        out.z =
+            static_cast<float>(
+                corr_p4dimuon.Rapidity()
+                - 0.5 * (lead.Rapidity() + sub.Rapidity())
+            );
+
+        const double px_sum =
+            corr_p4dimuon.Px() + lead.Px() + sub.Px();
+
+        const double py_sum =
+            corr_p4dimuon.Py() + lead.Py() + sub.Py();
+
+        const double vec_sum =
+            std::sqrt(px_sum * px_sum + py_sum * py_sum);
+
+        const double scalar_sum =
+            corr_p4dimuon.Pt() + lead.Pt() + sub.Pt();
+
+        out.ptBalance =
+            (scalar_sum > 0.0)
+                ? static_cast<float>(vec_sum / scalar_sum)
+                : 0.f;
+
+        out.pass_vbf =
+            out.njets >= 2 &&
+            out.pt_j1 >= _leadJetPt &&
+            out.pt_j2 >= _subleadJetPt &&
+            out.mjj > _dijetMass_VBF &&
+            out.deta_jj > _dijetdEta_VBF;
+
+        return out;
+    };
+
     // -------------------------------------
     //          SF && WEIGHTS  
     // -------------------------------------
@@ -3095,9 +3463,10 @@ std::cout << "[SF DBG]"
     //          VBF HISTOGRAMS  
     // -------------------------------------
     
+    // VBF region requires at least two selected jets
+    if (!has2jet) return;                                       // Njets Cut 
     if (p4lead.Pt() < _leadJetPt) return;                       // Leading Jet Cut 
     if (p4sub.Pt() < _subleadJetPt) return;                     // Subleading Jet Cut
-    if (n_loose_bjets >= 2 || n_medium_bjets >= 1) return;      // B-Tag Jet Cut 
     
         //  PRE-DIJET CUTS 
         FILL_JET_HIST(hists.setJet_PreDiJet_VBF, noWeight); 
@@ -3211,6 +3580,18 @@ std::cout << "[SF DBG]"
                     w_fsrDown = totalWeight * event._PSWeight[3];
                 }
 
+                JetSystVars jecUpVars;
+                JetSystVars jecDownVars;
+                JetSystVars jerUpVars;
+                JetSystVars jerDownVars;
+
+                if (__isMC) {
+                    jecUpVars   = buildJetSystVars(JetSyst::JECUp);
+                    jecDownVars = buildJetSystVars(JetSyst::JECDown);
+                    jerUpVars   = buildJetSystVars(JetSyst::JERUp);
+                    jerDownVars = buildJetSystVars(JetSyst::JERDown);
+                }
+
 static int trig_weight_dbg = 0;
 if (__isMC && trig_weight_dbg < 20) {
 std::cout << "[TRIG WEIGHT DBG]"
@@ -3234,13 +3615,14 @@ std::cout << "[TRIG WEIGHT DBG]"
                     FILL_BDT_SYST_HIST(hists.BDTTheorySyst_VBF, totalWeight, w_scaleUp, w_scaleDown, 
                                        w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
 
-                    FILL_BDT_EXP_SYST_HIST(hists.BDTExperimentalSyst_VBF, totalWeight,
-                                           totalWeight_puUp, totalWeight_puDown,
-                                           totalWeight_muSFUp, totalWeight_muSFDown,
-                                           totalWeight_trigUp, totalWeight_trigDown,
-                                           totalWeight_btagUp, totalWeight_btagDown,
-                                           totalWeight_zptUp, totalWeight_zptDown);
-                
+                FILL_BDT_EXP_SYST_HIST(hists.BDTExperimentalSyst_VBF, totalWeight,
+                       totalWeight_puUp, totalWeight_puDown,
+                       totalWeight_muSFUp, totalWeight_muSFDown,
+                       totalWeight_trigUp, totalWeight_trigDown,
+                       totalWeight_btagUp, totalWeight_btagDown,
+                       totalWeight_zptUp, totalWeight_zptDown,
+                       jecUpVars, jecDownVars,
+                       jerUpVars, jerDownVars);
                 }
 
 /*static int vtxDbg = 0;

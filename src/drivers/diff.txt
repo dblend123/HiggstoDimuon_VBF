@@ -1,0 +1,132 @@
+--- new_process_HiggsAnalysis_wCutsExtended_NoPairing_v0.cc	2026-07-23 16:35:44.000000001 +0200
++++ process_HiggsAnalysis_wCutsExtended_NoPairing_v0.cc	2026-07-21 13:30:09.000000001 +0200
+@@ -89,20 +89,20 @@
+     set.h_pt_j2.fill(g_pt_j2, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
+ 
+ #define FILL_BDT_EXP_SYST_HIST(set, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars, jecDownVars, jerUpVars, jerDownVars) \
+-    set.h_z.fill(g_z, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.z, jecDownVars.z, jerUpVars.z, jerDownVars.z); \
+-    set.h_ptBalance.fill(g_ptBalance, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.ptBalance, jecDownVars.ptBalance, jerUpVars.ptBalance, jerDownVars.ptBalance); \
++    set.h_z.fill(g_z, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
++    set.h_ptBalance.fill(g_ptBalance, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_mu1_pt_over_m.fill(g_mu1_pt_over_m, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_mu2_pt_over_m.fill(g_mu2_pt_over_m, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_mu1_eta.fill(g_mu1_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_mu2_eta.fill(g_mu2_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_m_mumu.fill(g_m_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+-    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.dphi_mumu_jj, jecDownVars.dphi_mumu_jj, jerUpVars.dphi_mumu_jj, jerDownVars.dphi_mumu_jj); \
+-    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.deta_mumu_jj, jecDownVars.deta_mumu_jj, jerUpVars.deta_mumu_jj, jerDownVars.deta_mumu_jj); \
++    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
++    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_phi_CS.fill(g_phi_CS, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_costheta_CS.fill(g_costheta_CS, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_y_mumu.fill(g_y_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+-    set.h_y_j1.fill(g_y_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.y_j1, jecDownVars.y_j1, jerUpVars.y_j1, jerDownVars.y_j1); \
+-    set.h_y_j2.fill(g_y_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.y_j2, jecDownVars.y_j2, jerUpVars.y_j2, jerDownVars.y_j2); \
++    set.h_y_j1.fill(g_y_j1, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
++    set.h_y_j2.fill(g_y_j2, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_pt_mumu.fill(g_pt_mumu, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown); \
+     set.h_jet1_eta.fill(g_jet1_eta, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.eta_j1, jecDownVars.eta_j1, jerUpVars.eta_j1, jerDownVars.eta_j1); \
+     set.h_deta_jj.fill(g_deta_jj, w_nom, w_puUp, w_puDown, w_muonSFUp, w_muonSFDown, w_triggerUp, w_triggerDown, w_btagUp, w_btagDown, w_zptUp, w_zptDown, jecUpVars.deta_jj, jecDownVars.deta_jj, jerUpVars.deta_jj, jerDownVars.deta_jj); \
+@@ -344,7 +344,6 @@
+     float deta_jj   = -99.f;
+     float dphi_jj   = -99.f;
+     int njets       = -99;
+-    bool pass_vbf   = false;
+ };
+ 
+ // Weights Config
+@@ -2987,13 +2986,6 @@
+             if (!g_disableJetCriteria) {
+                 if (!passJetID(j)) continue;
+ 
+-                // The veto map depends on eta/phi, which are not shifted by JEC/JER.
+-                // Reapply the same veto-map decision used by the nominal collection.
+-                if (passesJetVetoMapMinimalSelection(j, corr_pt_syst) &&
+-                    isVetoedJet(j._eta, j._phi)) {
+-                    continue;
+-                }
+-
+                 const float abseta = std::abs(j._eta);
+ 
+                 if (corr_pt_syst <= 25.f) continue;
+@@ -3089,73 +3081,20 @@
+         const TLorentzVector& sub =
+             (jetA.Pt() >= jetB.Pt()) ? jetB : jetA;
+ 
+-        const TLorentzVector dijet_syst = lead + sub;
+-
+-        out.mjj       = static_cast<float>(dijet_syst.M());
+-        out.pt_jj     = static_cast<float>(dijet_syst.Pt());
+-        out.pt_j1     = static_cast<float>(lead.Pt());
+-        out.pt_j2     = static_cast<float>(sub.Pt());
+-        out.eta_j1    = static_cast<float>(lead.Eta());
+-        out.eta_j2    = static_cast<float>(sub.Eta());
+-        out.y_j1      = static_cast<float>(lead.Rapidity());
+-        out.y_j2      = static_cast<float>(sub.Rapidity());
++        out.pt_j1  = lead.Pt();
++        out.pt_j2  = sub.Pt();
++        out.eta_j1 = lead.Eta();
+ 
+         out.deta_jj =
+-            static_cast<float>(std::abs(lead.Eta() - sub.Eta()));
++            std::abs(lead.Eta() - sub.Eta());
+ 
+         out.dphi_jj =
+-            static_cast<float>(
+-                std::abs(
+-                    TVector2::Phi_mpi_pi(
+-                        lead.Phi() - sub.Phi()
+-                    )
++            std::abs(
++                TVector2::Phi_mpi_pi(
++                    lead.Phi() - sub.Phi()
+                 )
+             );
+ 
+-        out.dphi_mumu_jj =
+-            static_cast<float>(
+-                std::abs(
+-                    TVector2::Phi_mpi_pi(
+-                        corr_p4dimuon.Phi() - dijet_syst.Phi()
+-                    )
+-                )
+-            );
+-
+-        out.deta_mumu_jj =
+-            static_cast<float>(
+-                std::abs(corr_p4dimuon.Eta() - dijet_syst.Eta())
+-            );
+-
+-        out.z =
+-            static_cast<float>(
+-                corr_p4dimuon.Rapidity()
+-                - 0.5 * (lead.Rapidity() + sub.Rapidity())
+-            );
+-
+-        const double px_sum =
+-            corr_p4dimuon.Px() + lead.Px() + sub.Px();
+-
+-        const double py_sum =
+-            corr_p4dimuon.Py() + lead.Py() + sub.Py();
+-
+-        const double vec_sum =
+-            std::sqrt(px_sum * px_sum + py_sum * py_sum);
+-
+-        const double scalar_sum =
+-            corr_p4dimuon.Pt() + lead.Pt() + sub.Pt();
+-
+-        out.ptBalance =
+-            (scalar_sum > 0.0)
+-                ? static_cast<float>(vec_sum / scalar_sum)
+-                : 0.f;
+-
+-        out.pass_vbf =
+-            out.njets >= 2 &&
+-            out.pt_j1 >= _leadJetPt &&
+-            out.pt_j2 >= _subleadJetPt &&
+-            out.mjj > _dijetMass_VBF &&
+-            out.deta_jj > _dijetdEta_VBF;
+-
+         return out;
+     };
+ 

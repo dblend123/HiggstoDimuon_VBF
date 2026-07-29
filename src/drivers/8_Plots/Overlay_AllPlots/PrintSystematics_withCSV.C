@@ -1,21 +1,16 @@
-// To run:
-// 
-// for era in 12022 22022 12023 22023 2024 12025
-//do
-//    echo
-//    echo "=================================================="
-//    echo "Running era: $era"
-//    echo "=================================================="
+// To run one era and write CSV:
+// root -l -b -q 'PrintSystematics_withCSV.C("/eos/user/d/dblend/Analyzed_SkimmedFiles/12022/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW", "DiMuonMass_Higgs", "corr_DM_VBF_SR", false, 115.0, 135.0, "systematics_summary.csv", "12022")'
 //
-//    root -l -b -q \
-//    "PrintSystematics.C(\"/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW\")"
-//done
-//
-// root -l -b -q 'PrintSystematics.C("/eos/user/d/dblend/Analyzed_SkimmedFiles/12022/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW")'
+// To run all eras:
+// rm -f systematics_summary.csv
+// for era in 12022 22022 12023 22023 2024 2025; do
+//   root -l -b -q "PrintSystematics_withCSV.C(\"/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW\", \"DiMuonMass_Higgs\", \"corr_DM_VBF_SR\", false, 115.0, 135.0, \"systematics_summary.csv\", \"${era}\")"
+// done
 
 #include "TFile.h"
 #include "TH1.h"
 #include "TString.h"
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -23,6 +18,9 @@
 #include <cmath>
 #include <map>
 #include <limits>
+#include <sstream>
+#include <fstream>
+#include <string>
 
 static TH1* getHist(TFile* f, const std::string& path) {
     if (!f) return nullptr;
@@ -70,21 +68,15 @@ static TH1* buildTotal(
     return total;
 }
 
-static double envelopePct(TH1* h_nom, TH1* h_up, TH1* h_down, bool useWindow, double xmin, double xmax) {
-    const double Nnom  = useWindow ? integralWindow(h_nom, xmin, xmax)  : integralAll(h_nom);
-    const double Nup   = useWindow ? integralWindow(h_up, xmin, xmax)   : integralAll(h_up);
-    const double Ndown = useWindow ? integralWindow(h_down, xmin, xmax) : integralAll(h_down);
+struct VariationResult {
+    double nominal = 0.0;
+    double upPct = 0.0;
+    double downPct = 0.0;
+    double envelopePct = -1.0;
+    bool valid = false;
+};
 
-    if (Nnom <= 0.0) return -1.0;
-
-    const double upPct   = 100.0 * (Nup   - Nnom) / Nnom;
-    const double downPct = 100.0 * (Ndown - Nnom) / Nnom;
-
-    return std::max(std::abs(upPct), std::abs(downPct));
-}
-
-static void printSingle(
-    const std::string& label,
+static VariationResult calcVariation(
     TH1* h_nom,
     TH1* h_up,
     TH1* h_down,
@@ -92,25 +84,100 @@ static void printSingle(
     double xmin,
     double xmax
 ) {
-    const double Nnom  = useWindow ? integralWindow(h_nom, xmin, xmax)  : integralAll(h_nom);
-    const double Nup   = useWindow ? integralWindow(h_up, xmin, xmax)   : integralAll(h_up);
+    VariationResult r;
+    r.nominal = useWindow ? integralWindow(h_nom, xmin, xmax) : integralAll(h_nom);
+    const double Nup   = useWindow ? integralWindow(h_up, xmin, xmax) : integralAll(h_up);
     const double Ndown = useWindow ? integralWindow(h_down, xmin, xmax) : integralAll(h_down);
 
-    if (Nnom <= 0.0) {
-        std::cout << std::left << std::setw(15) << label << "  Nnom <= 0\n";
-        return;
+    if (r.nominal <= 0.0) return r;
+
+    r.upPct       = 100.0 * (Nup   - r.nominal) / r.nominal;
+    r.downPct     = 100.0 * (Ndown - r.nominal) / r.nominal;
+    r.envelopePct = std::max(std::abs(r.upPct), std::abs(r.downPct));
+    r.valid       = true;
+    return r;
+}
+
+static std::string csvEscape(const std::string& in) {
+    bool needsQuotes = false;
+    for (char c : in) {
+        if (c == ',' || c == '"' || c == '\n' || c == '\r') {
+            needsQuotes = true;
+            break;
+        }
     }
+    if (!needsQuotes) return in;
 
-    const double upPct   = 100.0 * (Nup   - Nnom) / Nnom;
-    const double downPct = 100.0 * (Ndown - Nnom) / Nnom;
-    const double envPct  = std::max(std::abs(upPct), std::abs(downPct));
+    std::string out = "\"";
+    for (char c : in) {
+        if (c == '"') out += "\"\"";
+        else out += c;
+    }
+    out += "\"";
+    return out;
+}
 
-    std::cout << std::left << std::setw(15) << label
-              << std::right
-              << std::setw(12) << std::fixed << std::setprecision(4) << upPct
-              << std::setw(12) << downPct
-              << std::setw(12) << envPct
-              << "\n";
+static bool fileIsEmptyOrMissing(const std::string& path) {
+    std::ifstream in(path.c_str());
+    if (!in.good()) return true;
+    return in.peek() == std::ifstream::traits_type::eof();
+}
+
+static void writeCsvHeaderIfNeeded(std::ofstream& csv, const std::string& path) {
+    if (!fileIsEmptyOrMissing(path)) return;
+    csv << "row_type,era,hist_name,nominal_dir,integration,xmin,xmax,nominal_yield,"
+        << "source,up_pct,down_pct,envelope_pct,min_range_pct,max_range_pct,range_text\n";
+}
+
+static void writeSingleCsvRow(
+    std::ofstream& csv,
+    const std::string& era,
+    const std::string& histName,
+    const std::string& nominalDir,
+    const std::string& integration,
+    double xmin,
+    double xmax,
+    const std::string& source,
+    const VariationResult& r
+) {
+    if (!csv.good() || !r.valid) return;
+
+    csv << "single,"
+        << csvEscape(era) << ","
+        << csvEscape(histName) << ","
+        << csvEscape(nominalDir) << ","
+        << csvEscape(integration) << ","
+        << xmin << ","
+        << xmax << ","
+        << std::setprecision(10) << r.nominal << ","
+        << csvEscape(source) << ","
+        << std::fixed << std::setprecision(4) << r.upPct << ","
+        << r.downPct << ","
+        << r.envelopePct << ",,,\n";
+}
+
+static void writeRangeCsvRow(
+    std::ofstream& csv,
+    const std::string& era,
+    const std::string& histName,
+    const std::string& nominalDir,
+    const std::string& source,
+    double minVal,
+    double maxVal
+) {
+    if (!csv.good() || !std::isfinite(minVal) || !std::isfinite(maxVal)) return;
+
+    std::ostringstream range;
+    range << std::fixed << std::setprecision(2) << minVal << " - " << maxVal;
+
+    csv << "range,"
+        << csvEscape(era) << ","
+        << csvEscape(histName) << ","
+        << csvEscape(nominalDir) << ",full_bdt_inputs,,,,"
+        << csvEscape(source) << ",,,,"
+        << std::fixed << std::setprecision(4) << minVal << ","
+        << maxVal << ","
+        << csvEscape(range.str()) << "\n";
 }
 
 void PrintSystematics(
@@ -119,9 +186,27 @@ void PrintSystematics(
     TString nominalDir = "corr_DM_VBF_SR",
     bool useWindow = false,
     double xmin = 115.0,
-    double xmax = 135.0
+    double xmax = 135.0,
+    TString outCsv = "",
+    TString eraLabel = ""
 ) {
     if (!basePath.EndsWith("/")) basePath += "/";
+
+    const std::string era = eraLabel.Length() ? std::string(eraLabel.Data()) : "unknown";
+    const std::string integration = useWindow ? "window" : "full_histogram";
+
+    std::ofstream csv;
+    std::string outCsvPath = std::string(outCsv.Data());
+    if (outCsv.Length()) {
+        const bool needHeader = fileIsEmptyOrMissing(outCsvPath);
+        csv.open(outCsvPath.c_str(), std::ios::out | std::ios::app);
+        if (!csv.good()) {
+            std::cerr << "[WARNING] Could not open CSV for writing: " << outCsvPath << "\n";
+        } else if (needHeader) {
+            csv << "row_type,era,hist_name,nominal_dir,integration,xmin,xmax,nominal_yield,"
+                << "source,up_pct,down_pct,envelope_pct,min_range_pct,max_range_pct,range_text\n";
+        }
+    }
 
     std::unique_ptr<TFile> f_DY      (TFile::Open(basePath + "DY/DY_all.root"));
     std::unique_ptr<TFile> f_EWK     (TFile::Open(basePath + "EWK/EWK_all.root"));
@@ -151,7 +236,7 @@ void PrintSystematics(
     };
 
     std::vector<SystDef> systs = {
-        {"Scale",   "BDTTheorySyst_VBF",       "scaleUp",    "scaleDown"},
+        {"QCD",     "BDTTheorySyst_VBF",       "scaleUp",    "scaleDown"},
         {"PDF",     "BDTTheorySyst_VBF",       "pdfUp",      "pdfDown"},
         {"ISR",     "BDTTheorySyst_VBF",       "isrUp",      "isrDown"},
         {"FSR",     "BDTTheorySyst_VBF",       "fsrUp",      "fsrDown"},
@@ -176,9 +261,6 @@ void PrintSystematics(
         "Zeppenfeld"
     };
 
-    // --------------------------
-    // Single histogram printout
-    // --------------------------
     const std::string nomPath = std::string(nominalDir.Data()) + "/" + std::string(histName.Data());
     TH1* h_template = getHist(f_DY.get(), nomPath);
 
@@ -188,15 +270,13 @@ void PrintSystematics(
     }
 
     TH1* h_nom = buildTotal("h_nom_total", nomPath, files, h_template);
+    const double nominalYield = useWindow ? integralWindow(h_nom, xmin, xmax) : integralAll(h_nom);
 
     std::cout << "\nSystematic yield variations for: " << histName << "\n";
     std::cout << "Nominal directory: " << nominalDir << "\n";
     if (useWindow) std::cout << "Integration window: [" << xmin << ", " << xmax << "]\n";
     else           std::cout << "Integration: full histogram\n";
-
-    std::cout << "Nominal yield: "
-              << (useWindow ? integralWindow(h_nom, xmin, xmax) : integralAll(h_nom))
-              << "\n\n";
+    std::cout << "Nominal yield: " << nominalYield << "\n\n";
 
     std::cout << std::left << std::setw(15) << "Systematic"
               << std::right << std::setw(12) << "Up (%)"
@@ -212,7 +292,19 @@ void PrintSystematics(
         TH1* h_up   = buildTotal("h_" + s.label + "_up",   upPath,   files, h_template);
         TH1* h_down = buildTotal("h_" + s.label + "_down", downPath, files, h_template);
 
-        printSingle(s.label, h_nom, h_up, h_down, useWindow, xmin, xmax);
+        VariationResult r = calcVariation(h_nom, h_up, h_down, useWindow, xmin, xmax);
+
+        if (!r.valid) {
+            std::cout << std::left << std::setw(15) << s.label << "  Nnom <= 0\n";
+        } else {
+            std::cout << std::left << std::setw(15) << s.label
+                      << std::right
+                      << std::setw(12) << std::fixed << std::setprecision(4) << r.upPct
+                      << std::setw(12) << r.downPct
+                      << std::setw(12) << r.envelopePct
+                      << "\n";
+            writeSingleCsvRow(csv, era, histName.Data(), nominalDir.Data(), integration, xmin, xmax, s.label, r);
+        }
 
         delete h_up;
         delete h_down;
@@ -221,9 +313,6 @@ void PrintSystematics(
     delete h_template;
     delete h_nom;
 
-    // --------------------------
-    // Range table across BDT vars
-    // --------------------------
     std::map<std::string, double> minVal;
     std::map<std::string, double> maxVal;
 
@@ -247,11 +336,10 @@ void PrintSystematics(
             TH1* h_up   = buildTotal("h_up_" + s.label + "_" + var, upPath, files, h_temp);
             TH1* h_down = buildTotal("h_down_" + s.label + "_" + var, downPath, files, h_temp);
 
-            double env = envelopePct(h_var_nom, h_up, h_down, false, xmin, xmax);
-
-            if (env >= 0.0 && std::isfinite(env)) {
-                minVal[s.label] = std::min(minVal[s.label], env);
-                maxVal[s.label] = std::max(maxVal[s.label], env);
+            VariationResult r = calcVariation(h_var_nom, h_up, h_down, false, xmin, xmax);
+            if (r.valid && std::isfinite(r.envelopePct)) {
+                minVal[s.label] = std::min(minVal[s.label], r.envelopePct);
+                maxVal[s.label] = std::max(maxVal[s.label], r.envelopePct);
             }
 
             delete h_up;
@@ -286,5 +374,25 @@ void PrintSystematics(
         std::cout << std::left << std::setw(20) << s.label
                   << std::right << std::setw(18) << range.str()
                   << "\n";
+
+        writeRangeCsvRow(csv, era, histName.Data(), nominalDir.Data(), s.label, minVal[s.label], maxVal[s.label]);
     }
+
+    if (csv.good()) {
+        csv.close();
+        std::cout << "\n[OK] Wrote CSV rows to: " << outCsvPath << "\n";
+    }
+}
+
+void PrintSystematics_withCSV(
+    TString basePath,
+    TString histName = "DiMuonMass_Higgs",
+    TString nominalDir = "corr_DM_VBF_SR",
+    bool useWindow = false,
+    double xmin = 115.0,
+    double xmax = 135.0,
+    TString outCsv = "",
+    TString eraLabel = ""
+) {
+    PrintSystematics(basePath, histName, nominalDir, useWindow, xmin, xmax, outCsv, eraLabel);
 }
