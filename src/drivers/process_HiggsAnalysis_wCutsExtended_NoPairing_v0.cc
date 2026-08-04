@@ -306,6 +306,32 @@ static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>&
 static inline float btagWPThreshold(const std::string& wp);
 
 // ------------------------
+// Debug controls
+// ------------------------
+static constexpr bool DEBUG_CORRECTIONS = false;
+static constexpr bool DEBUG_JERC        = false;
+static constexpr bool DEBUG_MUON        = false;
+static constexpr bool DEBUG_WEIGHTS     = false;
+static constexpr bool DEBUG_TRIGGER     = false;
+static constexpr bool DEBUG_BRANCHES    = false;
+
+static inline bool debugJERC() {
+    return DEBUG_CORRECTIONS || DEBUG_JERC;
+}
+
+static inline bool debugMuon() {
+    return DEBUG_CORRECTIONS || DEBUG_MUON;
+}
+
+static inline bool debugWeights() {
+    return DEBUG_CORRECTIONS || DEBUG_WEIGHTS;
+}
+
+static inline bool debugTrigger() {
+    return DEBUG_CORRECTIONS || DEBUG_TRIGGER;
+}
+
+// ------------------------
 // MVA tree
 // ------------------------
 TTree* gMvaTree = nullptr;
@@ -473,19 +499,35 @@ static std::string muonScaleSmearFileForEra(const std::string& era) {
 
 void loadMuonSF() {
     if (g_disableMuonSF) {
-        std::cerr << "[MUON] Skipping muon SF JSON loading (--noMuonSF); muon SFs will be 1.\n";
+        std::cerr
+            << "[MUON] Skipping muon SF JSON loading "
+            << "(--noMuonSF); muon SFs will be 1.\n";
+
         corrections = nullptr;
         return;
     }
+
+    const std::string sfPath =
+        muSFFileForEra(g_era);
+
     try {
-        const std::string sfPath = muSFFileForEra(g_era);
+        corrections =
+            correction::CorrectionSet::from_file(sfPath);
 
-        if (!corrections)
-            corrections = correction::CorrectionSet::from_file(sfPath);
+        std::cerr
+            << "[MUON] Loaded SFs"
+            << " era=" << g_era
+            << " file=" << sfPath
+            << "\n";
 
-        std::cerr << "[MUON] Loaded SFs from " << sfPath << "\n";
     } catch (const std::exception& e) {
-        std::cerr << "[MUON SF load ERROR] " << e.what() << std::endl;
+        std::cerr
+            << "[MUON SF load ERROR]"
+            << " era=" << g_era
+            << " file=" << sfPath
+            << " error=" << e.what()
+            << "\n";
+
         corrections = nullptr;
     }
 }
@@ -546,6 +588,9 @@ void loadRochesterCorrections() {
     }
 }
 
+// ------------------------
+// Debug
+// ------------------------
 static void probeKITScaleScan() {
     if (!kitCorrections) return;
 
@@ -591,8 +636,12 @@ void loadKITCorrections() {
 
         (void) kitCorrections->at("cb_params");
 
-        // Probe argument conventions once right after load
-        probeKITScaleScan();
+        // ------------------------
+        // Debug
+        // ------------------------
+        if (debugMuon()) {
+            probeKITScaleScan();
+        }
 
     } catch (const std::exception& e) {
         std::cerr << "[KIT load ERROR] " << e.what() << std::endl;
@@ -1058,7 +1107,7 @@ static std::string puKeyForEra(const std::string& era) {
   if (era == "12023") return "Collisions2023_366403_369802_eraBC_GoldenJson";
   if (era == "22023") return "Collisions2023_369803_370790_eraD_GoldenJson";
   if (era == "2024")  return "Collisions24_CDEFGHI_goldenJSON";
-  if (era == "2025")  return "Collisions24_CDEFGHI_goldenJSON";
+  if (era == "2025")  return "Collisions25_goldenJSON";
 
   return "weights";  // try a generic name if your files have only one correction
 }
@@ -1399,7 +1448,84 @@ float getMuonScaleSmear(const Muon& mu, bool isMC) {
 // -------------------------------------
 //             JEC/JER 
 // -------------------------------------
-    
+
+struct JetCorrectionInputs {
+    double jetPt  = 0.0;
+    double jetEta = 0.0;
+    double jetPhi = 0.0;
+    double jetA   = 0.0;
+    double rho    = 0.0;
+    int run       = 0;
+};
+
+static std::vector<correction::Variable::Type>
+makeJetCorrectionArguments(
+    const correction::CompoundCorrection::Ref& corr,
+    const JetCorrectionInputs& in)
+{
+    std::vector<correction::Variable::Type> args;
+    args.reserve(corr->inputs().size());
+
+    for (const auto& input : corr->inputs()) {
+        const std::string name = input.name();
+
+        if (name == "JetPt") {
+            args.emplace_back(in.jetPt);
+        } else if (name == "JetEta") {
+            args.emplace_back(in.jetEta);
+        } else if (name == "JetPhi") {
+            args.emplace_back(in.jetPhi);
+        } else if (name == "JetA") {
+            args.emplace_back(in.jetA);
+        } else if (name == "Rho") {
+            args.emplace_back(in.rho);
+        } else if (name == "run") {
+            args.emplace_back(in.run);
+        } else {
+            throw std::runtime_error(
+                "Unsupported compound JEC input '" +
+                name + "'"
+            );
+        }
+    }
+
+    return args;
+}
+
+static std::vector<correction::Variable::Type>
+makeJetCorrectionArguments(
+    const correction::Correction::Ref& corr,
+    const JetCorrectionInputs& in)
+{
+    std::vector<correction::Variable::Type> args;
+    args.reserve(corr->inputs().size());
+
+    for (const auto& input : corr->inputs()) {
+        const std::string name = input.name();
+
+        if (name == "JetPt") {
+            args.emplace_back(in.jetPt);
+        } else if (name == "JetEta") {
+            args.emplace_back(in.jetEta);
+        } else if (name == "JetPhi") {
+            args.emplace_back(in.jetPhi);
+        } else if (name == "JetA") {
+            args.emplace_back(in.jetA);
+        } else if (name == "Rho") {
+            args.emplace_back(in.rho);
+        } else if (name == "run") {
+            args.emplace_back(in.run);
+        } else {
+            throw std::runtime_error(
+                "Unsupported JEC input '" +
+                name + "'"
+            );
+        }
+    }
+
+    return args;
+}
+
 // JET HORN MITIGATION HELPERS
 static inline bool isHFHorn(float abseta) {
     return (abseta > 3.0f && abseta < 5.0f);
@@ -1438,36 +1564,99 @@ static inline float hornMitigatedJetPtCut(float eta, const std::string& era) {
 }
 
 // JERC HELPERS
+
+static double evaluateJetCorrectionDynamic(
+    const std::string& key,
+    const JetCorrectionInputs& inputs,
+    double fallback)
+{
+    if (!jetCorrections) return fallback;
+
+    try {
+        const auto corr = jetCorrections->at(key);
+
+        const double value = corr->evaluate(
+            makeJetCorrectionArguments(corr, inputs)
+        );
+
+        if (!std::isfinite(value))
+            return fallback;
+
+        return value;
+
+    } catch (const std::exception& e) {
+        static int warnings = 0;
+
+        if (warnings++ < 10) {
+            std::cerr
+                << "[JEC CORR ERROR]"
+                << " key=" << key
+                << " pt=" << inputs.jetPt
+                << " eta=" << inputs.jetEta
+                << " phi=" << inputs.jetPhi
+                << " area=" << inputs.jetA
+                << " rho=" << inputs.rho
+                << " run=" << inputs.run
+                << " error=" << e.what()
+                << "\n";
+        }
+
+        return fallback;
+    }
+}
+
+static double evaluateJetCompoundDynamic(
+    const std::string& key,
+    const JetCorrectionInputs& inputs,
+    double fallback)
+{
+    if (!jetCorrections)
+        return fallback;
+
+    try {
+        const auto corr =
+            jetCorrections->compound().at(key);
+
+        const double value =
+            corr->evaluate(
+                makeJetCorrectionArguments(
+                    corr,
+                    inputs
+                )
+            );
+
+        if (!std::isfinite(value))
+            return fallback;
+
+        return value;
+
+    } catch (const std::exception& e) {
+
+static int warnings = 0;
+if (warnings++ < 10) {
+std::cerr
+<< "[JEC COMPOUND ERROR]"
+<< " key=" << key
+<< " pt=" << inputs.jetPt
+<< " eta=" << inputs.jetEta
+<< " phi=" << inputs.jetPhi
+<< " area=" << inputs.jetA
+<< " rho=" << inputs.rho
+<< " run=" << inputs.run
+<< " error=" << e.what()
+<< "\n";
+}
+
+        return fallback;
+    }
+}
+
 template <typename... Args>
 static inline std::vector<correction::Variable::Type> makeCorrVals(Args&&... args) {
     std::vector<correction::Variable::Type> v;
     v.reserve(sizeof...(Args));
     (v.emplace_back(correction::Variable::Type(std::forward<Args>(args))), ...);
     return v;
-}
-
-template <typename... Args>
-static inline double tryEvalJetCorr(const std::string& key, double fallback, Args&&... args) {
-    if (!jetCorrections) return fallback;
-    try {
-        return jetCorrections->at(key)->evaluate(
-            makeCorrVals(std::forward<Args>(args)...)
-        );
-    } catch (...) {
-        return fallback;
-    }
-}
-
-template <typename... Args>
-static inline double tryEvalJetCompound(const std::string& key, double fallback, Args&&... args) {
-    if (!jetCorrections) return fallback;
-    try {
-        return jetCorrections->compound().at(key)->evaluate(
-            makeCorrVals(std::forward<Args>(args)...)
-        );
-    } catch (...) {
-        return fallback;
-    }
 }
 
 // Deterministic integer hash for stochastic JER smearing
@@ -1496,31 +1685,156 @@ static inline float getRawJetPt(const Jet& j) {
     return std::max(0.1f, j._pt * (1.f - j._rawFactor));
 }
 
-static inline float getRawJetMass(const Jet& j) {
-    return std::max(0.0f, j._mass * (1.f - j._rawFactor));
+static inline float getRawJetMass(
+    const Jet& jet)
+{
+    const float rawFactor =
+        std::clamp(
+            jet._rawFactor,
+            0.f,
+            1.f
+        );
+
+    return std::max(
+        0.f,
+        jet._mass *
+        (1.f - rawFactor)
+    );
 }
 
-static inline float getDataResidualFactor(int run, float eta, float pt)
+static inline float getDataResidualFactor(
+    int run,
+    float eta,
+    float pt)
 {
-    if (!jetCorrections) return 1.f;
+    if (!jetCorrections)
+        return 1.f;
 
-    const JecEraConfig cfg  = jecConfigForEra(g_era, __inputfilename);
-    const std::string key   = cfg.dataPrefix +  "_L2L3Residual_AK4PFPuppi";
+    const JecEraConfig cfg =
+        jecConfigForEra(
+            g_era,
+            __inputfilename
+        );
 
-    const float res = static_cast<float>(
-        tryEvalJetCorr(
-            key,
-            0.0,
-            static_cast<double>(run),
-            static_cast<double>(eta),
-            static_cast<double>(pt)
-        )
+    JetCorrectionInputs inputs;
+    inputs.jetPt  = std::max(1.f, pt);
+    inputs.jetEta = std::clamp(
+        static_cast<double>(eta),
+        -5.191,
+        5.191
     );
+    inputs.jetPhi = 0.0;
+    inputs.jetA   = 0.0;
+    inputs.rho    = 0.0;
+    inputs.run    = run;
 
-    return res > 0.f ? res : 1.f;
+    const std::string key =
+        cfg.dataPrefix +
+        "_L2L3Residual_AK4PFPuppi";
+
+    const double residual =
+        evaluateJetCorrectionDynamic(
+            key,
+            inputs,
+            1.0
+        );
+
+    return static_cast<float>(
+        residual > 0.0 ? residual : 1.0
+    );
 }
 
 enum class JetSyst { Nominal, JECUp, JECDown, JERUp, JERDown };
+
+static double tryEvalJetCorr(
+    const std::string& key,
+    double fallback,
+    double eta,
+    double pt
+) {
+    if (!jetCorrections || key.empty()) {
+        return fallback;
+    }
+
+    try {
+        return jetCorrections->at(key)->evaluate({eta, pt});
+    } catch (const std::exception& e) {
+        static int warnings = 0;
+        if (warnings++ < 10) {
+            std::cerr << "[JET CORR EVAL ERROR]"
+                      << " key=" << key
+                      << " eta=" << eta
+                      << " pt=" << pt
+                      << " error=" << e.what()
+                      << "\n";
+        }
+        return fallback;
+    }
+}
+
+static double tryEvalJetCorr(
+    const std::string& key,
+    double fallback,
+    double eta,
+    double pt,
+    const std::string& variation
+) {
+    if (!jetCorrections || key.empty()) {
+        return fallback;
+    }
+
+    try {
+        return jetCorrections->at(key)->evaluate({
+            eta,
+            pt,
+            variation
+        });
+    } catch (const std::exception& e) {
+        static int warnings = 0;
+        if (warnings++ < 10) {
+            std::cerr << "[JET CORR EVAL ERROR]"
+                      << " key=" << key
+                      << " eta=" << eta
+                      << " pt=" << pt
+                      << " variation=" << variation
+                      << " error=" << e.what()
+                      << "\n";
+        }
+        return fallback;
+    }
+}
+
+static double tryEvalJetCorr(
+    const std::string& key,
+    double fallback,
+    double eta,
+    double pt,
+    double rho
+) {
+    if (!jetCorrections || key.empty()) {
+        return fallback;
+    }
+
+    try {
+        return jetCorrections->at(key)->evaluate({
+            eta,
+            pt,
+            rho
+        });
+    } catch (const std::exception& e) {
+        static int warnings = 0;
+        if (warnings++ < 10) {
+            std::cerr << "[JET CORR EVAL ERROR]"
+                      << " key=" << key
+                      << " eta=" << eta
+                      << " pt=" << pt
+                      << " rho=" << rho
+                      << " error=" << e.what()
+                      << "\n";
+        }
+        return fallback;
+    }
+}
 
 float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run, unsigned int lumi = 0, unsigned long long eventNumber = 0, int jetIndex = 0, JetSyst syst = JetSyst::Nominal) {
     if (!jetCorrections) {
@@ -1540,81 +1854,212 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
 
     float jec = 1.f;
 
+    JetCorrectionInputs jecInputs;
+    jecInputs.jetPt  = static_cast<double>(rawPt);
+    jecInputs.jetEta = static_cast<double>(eta);
+    jecInputs.jetPhi = static_cast<double>(phi);
+    jecInputs.jetA   = static_cast<double>(area);
+    jecInputs.rho    = static_cast<double>(rho);
+    jecInputs.run    = run;
+
     if (isMC) {
 
-        // Prefer official compound MC JEC
-        const std::string comp = cfg.mcPrefix + "_L1L2L3Res_AK4PFPuppi";
+        const std::string compoundKey =
+            cfg.mcPrefix +
+            "_L1L2L3Res_AK4PFPuppi";
 
-        double jec_comp = tryEvalJetCompound(
-            comp, 0.0,
-            (double)area, (double)eta, (double)rawPt, (double)rho
-        );
+        const double compoundJEC =
+            evaluateJetCompoundDynamic(
+                compoundKey,
+                jecInputs,
+                0.0
+            );
 
-        if (jec_comp > 0.0) {
-            jec = (float)jec_comp;
+        if (compoundJEC > 0.0) {
+            jec = static_cast<float>(compoundJEC);
+
         } else {
-            // Explicit fallback: L1 * L2 * L3
-            const std::string kL1 = cfg.mcPrefix + "_L1FastJet_AK4PFPuppi";
-            const std::string kL2 = cfg.mcPrefix + "_L2Relative_AK4PFPuppi";
-            const std::string kL3 = cfg.mcPrefix + "_L3Absolute_AK4PFPuppi";
+            const std::string kL1 =
+                cfg.mcPrefix +
+                "_L1FastJet_AK4PFPuppi";
 
-            const float L1 = (float)tryEvalJetCorr(kL1, 1.0,
-                (double)area, (double)eta, (double)rawPt, (double)rho);
+            const std::string kL2 =
+                cfg.mcPrefix +
+                "_L2Relative_AK4PFPuppi";
 
-            const float L2 = (float)tryEvalJetCorr(kL2, 1.0,
-                (double)eta, (double)rawPt);
+            const std::string kL3 =
+                cfg.mcPrefix +
+                "_L3Absolute_AK4PFPuppi";
 
-            const float L3 = (float)tryEvalJetCorr(kL3, 1.0,
-                (double)eta, (double)rawPt);
+            // L1 uses raw pT
+            jecInputs.jetPt = rawPt;
 
-            jec = L1 * L2 * L3;
-        }
-    } else {
-        // Data: use correct data run tag in the compound key
-        const std::string& dataTag  = cfg.dataPrefix;
-        const std::string compA     = dataTag + "_L1L2L3Res_AK4PFPuppi";
-        const std::string compB     = cfg.dataPrefix + "_L1L2L3Res_AK4PFPuppi";
+            const double L1 =
+                evaluateJetCorrectionDynamic(
+                    kL1,
+                    jecInputs,
+                    1.0
+                );
 
-        double jec_comp = tryEvalJetCompound(
-            compA, 0.0,
-            (double)area, (double)eta, (double)rawPt, (double)rho
-        );
-        if (jec_comp <= 0.0) {
-            jec_comp = tryEvalJetCompound(
-                compB, 0.0,
-                (double)area, (double)eta, (double)rawPt, (double)rho
+            const double ptAfterL1 =
+                rawPt * L1;
+
+            // L2 uses L1-corrected pT
+            jecInputs.jetPt = ptAfterL1;
+
+            const double L2 =
+                evaluateJetCorrectionDynamic(
+                    kL2,
+                    jecInputs,
+                    1.0
+                );
+
+            const double ptAfterL2 =
+                ptAfterL1 * L2;
+
+            // L3 uses L1×L2-corrected pT
+            jecInputs.jetPt = ptAfterL2;
+
+            const double L3 =
+                evaluateJetCorrectionDynamic(
+                    kL3,
+                    jecInputs,
+                    1.0
+                );
+
+            const double ptAfterL3 =
+                ptAfterL2 * L3;
+
+            jec = static_cast<float>(
+                ptAfterL3 / rawPt
             );
         }
 
-        if (jec_comp > 0.0) {
-            jec = (float)jec_comp;
+    } else {
+
+        const std::string compoundKey =
+            cfg.dataPrefix +
+            "_L1L2L3Res_AK4PFPuppi";
+
+        // The dynamic evaluator inserts run in the proper position.
+        const double compoundJEC =
+            evaluateJetCompoundDynamic(
+                compoundKey,
+                jecInputs,
+                0.0
+            );
+
+        if (compoundJEC > 0.0) {
+            jec = static_cast<float>(compoundJEC);
+
         } else {
-            // Explicit fallback: L1 * L2 * L3 * residual
-            const std::string kL1  = dataTag + "_L1FastJet_AK4PFPuppi";
-            const std::string kL2  = dataTag + "_L2Relative_AK4PFPuppi";
-            const std::string kL3  = dataTag + "_L3Absolute_AK4PFPuppi";
-            const std::string kRes = dataTag + "_L2L3Residual_AK4PFPuppi";
+            
+static int compoundFallbackWarnings = 0;
+if (compoundFallbackWarnings++ < 10) {
+std::cerr
+<< "[JEC FALLBACK]"
+<< " era=" << g_era
+<< " isMC=" << isMC
+<< " key=" << compoundKey
+<< " run=" << run
+<< " rawPt=" << rawPt
+<< " eta=" << eta
+<< "\n";
+}
+            const std::string kL1 =
+                cfg.dataPrefix +
+                "_L1FastJet_AK4PFPuppi";
 
-            const float L1 = (float)tryEvalJetCorr(kL1, 1.0,
-                (double)area, (double)eta, (double)rawPt, (double)rho);
+            const std::string kL2 =
+                cfg.dataPrefix +
+                "_L2Relative_AK4PFPuppi";
 
-            const float L2 = (float)tryEvalJetCorr(kL2, 1.0,
-                (double)eta, (double)rawPt);
+            const std::string kL3 =
+                cfg.dataPrefix +
+                "_L3Absolute_AK4PFPuppi";
 
-            const float L3 = (float)tryEvalJetCorr(kL3, 1.0,
-                (double)eta, (double)rawPt);
+            const std::string kRes =
+                cfg.dataPrefix +
+                "_L2L3Residual_AK4PFPuppi";
 
-            float Res = (float)tryEvalJetCorr(
-                kRes, 0.0,
-                (double)run,
-                (double)eta,
-                (double)(rawPt * L1 * L2 * L3));
+            // L1 uses raw pT
+            jecInputs.jetPt = rawPt;
 
-            if (Res <= 0.f) Res = 1.f;
+            const double L1 =
+                evaluateJetCorrectionDynamic(
+                    kL1,
+                    jecInputs,
+                    1.0
+                );
 
-            jec = L1 * L2 * L3 * Res;
+            const double ptAfterL1 =
+                rawPt * L1;
+
+            // L2 uses pT after L1
+            jecInputs.jetPt = ptAfterL1;
+
+            const double L2 =
+                evaluateJetCorrectionDynamic(
+                    kL2,
+                    jecInputs,
+                    1.0
+                );
+
+            const double ptAfterL2 =
+                ptAfterL1 * L2;
+
+            // L3 uses pT after L1 and L2
+            jecInputs.jetPt = ptAfterL2;
+
+            const double L3 =
+                evaluateJetCorrectionDynamic(
+                    kL3,
+                    jecInputs,
+                    1.0
+                );
+
+            const double ptAfterL3 =
+                ptAfterL2 * L3;
+
+            // Residual uses the fully MC-level-corrected pT
+            // and receives the actual event run automatically.
+            jecInputs.jetPt = ptAfterL3;
+
+            const double residual =
+                evaluateJetCorrectionDynamic(
+                    kRes,
+                    jecInputs,
+                    1.0
+                );
+
+            const double ptAfterResidual =
+                ptAfterL3 * residual;
+
+            jec = static_cast<float>(
+                ptAfterResidual / rawPt
+            );
         }
     }
+
+if (!std::isfinite(jec) || jec <= 0.f) {
+static int badJecWarnings = 0;
+if (badJecWarnings++ < 10) {
+std::cerr
+<< "[JEC INVALID]"
+<< " era=" << g_era
+<< " isMC=" << isMC
+<< " run=" << run
+<< " rawPt=" << rawPt
+<< " eta=" << eta
+<< " phi=" << phi
+<< " area=" << area
+<< " rho=" << rho
+<< " jec=" << jec
+<< "\n";
+}
+
+jec = 1.f;
+}
 
     float corrPt = std::max(0.f, rawPt * jec);
 
@@ -1635,17 +2080,28 @@ float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bo
             unc = 0.0;
         }
 
-static int jecUncPrints = 0;
-if (jecUncPrints < 10 &&
-isMC &&
-(syst == JetSyst::JECUp || syst == JetSyst::JECDown)) {
-std::cerr << "[JEC UNC DBG]"
+// ------------------------
+// Debug
+// ------------------------
+if (debugJERC()) {
+static int jecUpPrints   = 0;
+static int jecDownPrints = 0;
+
+int& counter =
+(syst == JetSyst::JECUp)
+? jecUpPrints
+: jecDownPrints;
+
+if (counter++ < 5) {
+std::cerr
+<< "[JEC UNC DBG]"
 << " eta=" << eta
 << " corrPt=" << corrPt
 << " unc=" << unc
-<< " syst=" << (syst == JetSyst::JECUp ? "up" : "down")
+<< " syst="
+<< (syst == JetSyst::JECUp ? "up" : "down")
 << "\n";
-++jecUncPrints;
+}
 }
 
         if (syst == JetSyst::JECUp) {
@@ -1666,23 +2122,92 @@ std::cerr << "[JEC UNC DBG]"
 
     // JER: MC only, after full JEC
     if (isMC && !g_disableJER) {
-       
-        std::string jerVar = "nom";
-        if (syst == JetSyst::JERUp) jerVar = "up";
-        if (syst == JetSyst::JERDown) jerVar = "down";
 
-        const double jerSF = tryEvalJetCorr(cfg.jerScaleKey, 1.0,
-        (double)eta, (double)corrPt, jerVar);
+        double jerSFNom = tryEvalJetCorr(
+            cfg.jerScaleKey,
+            1.0,
+            static_cast<double>(eta),
+            static_cast<double>(corrPt)
+        );
 
-        const double jerRes = tryEvalJetCorr(cfg.jerResKey, 0.0,
-            (double)eta, (double)corrPt, (double)rho);
+        double jerSFUnc = tryEvalJetCorr(
+            cfg.jerSFUncKey,
+            0.0,
+            static_cast<double>(eta),
+            static_cast<double>(corrPt)
+        );
+
+        double jerRes = tryEvalJetCorr(
+            cfg.jerResKey,
+            0.0,
+            static_cast<double>(eta),
+            static_cast<double>(corrPt),
+            static_cast<double>(rho)
+        );
+
+        if (!std::isfinite(jerSFNom) || jerSFNom <= 0.0) {
+            jerSFNom = 1.0;
+        }
+
+        if (!std::isfinite(jerSFUnc) || jerSFUnc < 0.0) {
+            jerSFUnc = 0.0;
+        }
+
+        if (!std::isfinite(jerRes) || jerRes < 0.0) {
+            jerRes = 0.0;
+        }
+
+        double jerSF = jerSFNom;
+
+        if (syst == JetSyst::JERUp) {
+            jerSF = jerSFNom * (1.0 + jerSFUnc);
+        } else if (syst == JetSyst::JERDown) {
+            jerSF = jerSFNom * (1.0 - jerSFUnc);
+        }
+
+        jerSF = std::max(0.0, jerSF);
 
         const bool he_genmatched_only =
             isHEHorn(abseta) &&
-            (g_era == "12022" || g_era == "22022" ||
-             g_era == "12023" || g_era == "22023" ||
+            (g_era == "12022" ||
+             g_era == "22022" ||
+             g_era == "12023" ||
+             g_era == "22023" ||
              g_era == "2024");
 
+// ------------------------
+// Debug
+// ------------------------
+if (debugJERC()) {
+static int jerNomPrints  = 0;
+static int jerUpPrints   = 0;
+static int jerDownPrints = 0;
+int* counter = &jerNomPrints;
+if (syst == JetSyst::JERUp) {
+counter = &jerUpPrints;
+} else if (syst == JetSyst::JERDown) {
+counter = &jerDownPrints;
+}
+if ((*counter)++ < 5) {
+std::cerr
+<< "[JER DEBUG]"
+<< " era=" << g_era
+<< " eta=" << eta
+<< " pt=" << corrPt
+<< " rho=" << rho
+<< " sfNom=" << jerSFNom
+<< " sfUnc=" << jerSFUnc
+<< " sfUsed=" << jerSF
+<< " resolution=" << jerRes
+<< " syst="
+<< (syst == JetSyst::JERUp ? "up" :
+syst == JetSyst::JERDown ? "down" :
+"nominal")
+<< "\n";
+}
+}
+
+    // existing smearing logic continues here
         if (hasGenJet && genJetPt > 0.f) {
             const double smearedPt = genJetPt + jerSF * (corrPt - genJetPt);
             corrPt = (float)std::max(0.0, smearedPt);
@@ -1703,6 +2228,307 @@ std::cerr << "[JEC UNC DBG]"
     }
     return corrPt;
 }
+
+struct CorrectedJet {
+    const Jet* source = nullptr;
+    int sourceIndex = -1;
+
+    JetSyst variation = JetSyst::Nominal;
+
+    TLorentzVector p4;
+
+    float storedPt   = 0.f;
+    float storedMass = 0.f;
+
+    float rawPt      = 0.f;
+    float rawMass    = 0.f;
+
+    float correctedPt   = 0.f;
+    float correctedMass = 0.f;
+
+    float totalFactor = 1.f;
+
+    float eta  = 0.f;
+    float phi  = 0.f;
+    float area = 0.f;
+
+    float genJetPt = 0.f;
+    bool hasGenJet = false;
+
+    bool passesJetID = false;
+    bool passesVetoMapMinimalSelection = false;
+    bool vetoedByMap = false;
+
+    bool valid = false;
+};
+
+// -------------------------------------
+//          JET IDENTIFICATION
+// -------------------------------------
+
+static inline bool passJetIdTight_v12(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+
+    if (abseta <= 2.7f)
+        return (j._jetId & (1 << 1));
+
+    if (abseta <= 3.0f)
+        return (j._jetId & (1 << 1)) && (j._neHEF < 0.99f);
+
+    return (j._jetId & (1 << 1)) && (j._neEmEF < 0.4f);
+}
+
+static inline bool passJetIdTightLepVeto_v12(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+    const bool passTight = passJetIdTight_v12(j);
+
+    if (abseta <= 2.7f)
+        return passTight && (j._muEF < 0.8f) && (j._chEmEF < 0.8f);
+
+    return passTight;
+}
+
+static inline bool passJetIdTight_v15Manual(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+
+    const int chMult = (int)j._chMultiplicity;
+    const int neMult = (int)j._neMultiplicity;
+    const int mult   = chMult + neMult;
+
+    if (abseta <= 2.6f) {
+        return (j._neHEF < 0.99f) &&
+               (j._neEmEF < 0.90f) &&
+               (mult > 1) &&
+               (j._chHEF > 0.01f) &&
+               (chMult > 0);
+    }
+
+    if (abseta <= 2.7f) {
+        return (j._neHEF < 0.90f) &&
+               (j._neEmEF < 0.99f);
+    }
+
+    if (abseta <= 3.0f) {
+        return (j._neHEF < 0.99f);
+    }
+
+    return (neMult >= 2) &&
+           (j._neEmEF < 0.40f);
+}
+
+static inline bool passJetIdTightLepVeto_v15Manual(const Jet& j) {
+    const float abseta = std::fabs(j._eta);
+    const bool passTight = passJetIdTight_v15Manual(j);
+
+    if (abseta <= 2.7f)
+        return passTight && (j._muEF < 0.8f) && (j._chEmEF < 0.8f);
+
+    return passTight;
+}
+
+// -------------------------------------
+//              JET ID 
+// -------------------------------------
+
+static inline bool passJetID(const Jet& j) {
+    if (g_disableJetID) return true;
+
+    // 2022/2023 NanoAODv12 special recipe
+    if (g_era == "12022" || g_era == "22022" ||
+        g_era == "12023" || g_era == "22023") {
+        return passJetIdTightLepVeto_v12(j);
+    }
+
+    // 2024/2025 NanoAODv15-style manual recipe
+    if (g_era == "2024" || g_era == "2025") {
+        return passJetIdTightLepVeto_v15Manual(j);
+    }
+
+    // fallback
+    return ((j._jetId & (1 << 2)) != 0);
+}
+
+// -------------------------------------
+//              JET VETO 
+// -------------------------------------
+    
+inline bool passesJetVetoMapMinimalSelection(const Jet& j, float corr_pt) {
+    if (corr_pt <= 15.f) return false;
+    if (!passJetID(j)) return false;
+    if ((j._chEmEF + j._neEmEF) >= 0.9f) return false;
+    return true;
+}
+
+inline bool isVetoedJet(float eta, float phi) {
+  if (g_disableJetVeto)
+    return false;
+  if (!jetVetoMaps) { 
+    static int nWarns = 0;
+    if (nWarns < 3) {
+        std::cerr << "[ERROR] Jet veto corr not loaded!" << std::endl;
+        if (++nWarns == 3)
+            std::cerr << "[ERROR] (Further jet veto warnings suppressed...)\n";
+    }
+    return false; 
+   }
+
+  const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
+  if (cfg.vetoMapKey.empty()) return false; // no maps listed for this era
+  try {
+    const double val = jetVetoMaps->at(cfg.vetoMapKey)->evaluate({std::string("jetvetomap"), (double)eta, (double)phi});
+    return (val != 0.0);
+    } catch (const std::exception& e) {
+        static int warned = 0;
+        if (warned++ < 5) {
+            std::cerr
+                << "[JET VETO ERROR] era=" << g_era
+                << " key=" << cfg.vetoMapKey
+                << " type=jetvetomap"
+                << " eta=" << eta
+                << " phi=" << phi
+                << " error=" << e.what()
+                << "\n";
+        }
+        return false;
+    }
+}
+
+
+static CorrectedJet buildCorrectedJet(
+    const Jet& jet,
+    int sourceIndex,
+    float rho,
+    bool isMC,
+    const GenJets* genjets,
+    int run,
+    unsigned int lumi,
+    unsigned long long eventNumber,
+    JetSyst variation = JetSyst::Nominal)
+{
+    CorrectedJet out;
+
+    out.source      = &jet;
+    out.sourceIndex = sourceIndex;
+    out.variation   = variation;
+
+    out.storedPt   = jet._pt;
+    out.storedMass = jet._mass;
+
+    out.rawPt   = getRawJetPt(jet);
+    out.rawMass = getRawJetMass(jet);
+
+    out.eta =
+        std::clamp(
+            jet._eta,
+            -5.191f,
+            5.191f
+        );
+
+    out.phi =
+        TVector2::Phi_mpi_pi(
+            jet._phi
+        );
+
+    out.area =
+        std::max(
+            0.f,
+            jet._area
+        );
+
+    if (isMC &&
+        genjets &&
+        jet._genJetIdx >= 0 &&
+        jet._genJetIdx <
+            static_cast<int>(genjets->size())) {
+
+        out.genJetPt =
+            genjets->at(
+                jet._genJetIdx
+            )._pt;
+
+        out.hasGenJet = true;
+    }
+
+    out.correctedPt =
+        getCorrectedJetPt(
+            jet,
+            rho,
+            isMC,
+            out.genJetPt,
+            out.hasGenJet,
+            run,
+            lumi,
+            eventNumber,
+            sourceIndex,
+            variation
+        );
+
+        if (!std::isfinite(out.correctedPt) ||
+            out.correctedPt < 0.f) {
+
+            static int badCorrectedJetWarnings = 0;
+
+            if (badCorrectedJetWarnings++ < 10) {
+                std::cerr
+                    << "[CORRECTED JET ERROR]"
+                    << " era=" << g_era
+                    << " index=" << sourceIndex
+                    << " variation="
+                    << static_cast<int>(variation)
+                    << " storedPt=" << jet._pt
+                    << " rawPt=" << out.rawPt
+                    << " correctedPt=" << out.correctedPt
+                    << "\n";
+            }
+
+            return out;
+        }
+
+    if (out.correctedPt == 0.f) {
+        return out;
+    }
+
+        out.totalFactor =
+            out.rawPt > 0.f
+                ? out.correctedPt / out.rawPt
+                : 1.f;
+
+        out.correctedMass =
+            std::max(
+                0.f,
+                out.rawMass *
+                out.totalFactor
+            );
+
+        out.p4.SetPtEtaPhiM(
+            out.correctedPt,
+            out.eta,
+            out.phi,
+            out.correctedMass
+        );
+
+        out.passesJetID =
+            g_disableJetID ||
+            passJetID(jet);
+
+        out.passesVetoMapMinimalSelection =
+            passesJetVetoMapMinimalSelection(
+                jet,
+                out.correctedPt
+            );
+
+        out.vetoedByMap =
+            !g_disableJetVeto &&
+            out.passesVetoMapMinimalSelection &&
+            isVetoedJet(
+                out.eta,
+                out.phi
+            );
+
+        out.valid = true;
+
+        return out;
+    }
 
 // -------------------------------------
 //              B-TAGGING
@@ -1956,133 +2782,6 @@ static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>&
 }
 
 // -------------------------------------
-//          JET IDENTIFICATION
-// -------------------------------------
-
-static inline bool passJetIdTight_v12(const Jet& j) {
-    const float abseta = std::fabs(j._eta);
-
-    if (abseta <= 2.7f)
-        return (j._jetId & (1 << 1));
-
-    if (abseta <= 3.0f)
-        return (j._jetId & (1 << 1)) && (j._neHEF < 0.99f);
-
-    return (j._jetId & (1 << 1)) && (j._neEmEF < 0.4f);
-}
-
-static inline bool passJetIdTightLepVeto_v12(const Jet& j) {
-    const float abseta = std::fabs(j._eta);
-    const bool passTight = passJetIdTight_v12(j);
-
-    if (abseta <= 2.7f)
-        return passTight && (j._muEF < 0.8f) && (j._chEmEF < 0.8f);
-
-    return passTight;
-}
-
-static inline bool passJetIdTight_v15Manual(const Jet& j) {
-    const float abseta = std::fabs(j._eta);
-
-    const int chMult = (int)j._chMultiplicity;
-    const int neMult = (int)j._neMultiplicity;
-    const int mult   = chMult + neMult;
-
-    if (abseta <= 2.6f) {
-        return (j._neHEF < 0.99f) &&
-               (j._neEmEF < 0.90f) &&
-               (mult > 1) &&
-               (j._chHEF > 0.01f) &&
-               (chMult > 0);
-    }
-
-    if (abseta <= 2.7f) {
-        return (j._neHEF < 0.90f) &&
-               (j._neEmEF < 0.99f);
-    }
-
-    if (abseta <= 3.0f) {
-        return (j._neHEF < 0.99f);
-    }
-
-    return (neMult >= 2) &&
-           (j._neEmEF < 0.40f);
-}
-
-static inline bool passJetIdTightLepVeto_v15Manual(const Jet& j) {
-    const float abseta = std::fabs(j._eta);
-    const bool passTight = passJetIdTight_v15Manual(j);
-
-    if (abseta <= 2.7f)
-        return passTight && (j._muEF < 0.8f) && (j._chEmEF < 0.8f);
-
-    return passTight;
-}
-
-static inline bool passJetID(const Jet& j) {
-    if (g_disableJetID) return true;
-
-    // 2022/2023 NanoAODv12 special recipe
-    if (g_era == "12022" || g_era == "22022" ||
-        g_era == "12023" || g_era == "22023") {
-        return passJetIdTightLepVeto_v12(j);
-    }
-
-    // 2024/2025 NanoAODv15-style manual recipe
-    if (g_era == "2024" || g_era == "2025") {
-        return passJetIdTightLepVeto_v15Manual(j);
-    }
-
-    // fallback
-    return ((j._jetId & (1 << 2)) != 0);
-}
-
-// -------------------------------------
-//              JET VETO 
-// -------------------------------------
-    
-inline bool passesJetVetoMapMinimalSelection(const Jet& j, float corr_pt) {
-    if (corr_pt <= 15.f) return false;
-    if (!passJetID(j)) return false;
-    if ((j._chEmEF + j._neEmEF) >= 0.9f) return false;
-    return true;
-}
-
-inline bool isVetoedJet(float eta, float phi) {
-  if (g_disableJetVeto)
-    return false;
-  if (!jetVetoMaps) { 
-    static int nWarns = 0;
-    if (nWarns < 3) {
-        std::cerr << "[ERROR] Jet veto corr not loaded!" << std::endl;
-        if (++nWarns == 3)
-            std::cerr << "[ERROR] (Further jet veto warnings suppressed...)\n";
-    }
-    return false; 
-   }
-
-  const JecEraConfig cfg = jecConfigForEra(g_era, __inputfilename);
-  if (cfg.vetoMapKey.empty()) return false; // no maps listed for this era
-  try {
-    const double val = jetVetoMaps->at(cfg.vetoMapKey)->evaluate({std::string("jetvetomap"), (double)eta, (double)phi});
-    return (val != 0.0);
-    } catch (const std::exception& e) {
-        static int warned = 0;
-        if (warned++ < 5) {
-            std::cerr
-                << "[JET VETO ERROR] era=" << g_era
-                << " key=" << cfg.vetoMapKey
-                << " type=jetvetomap"
-                << " eta=" << eta
-                << " phi=" << phi
-                << " error=" << e.what()
-                << "\n";
-        }
-        return false;
-    }
-}
-
-// -------------------------------------
 //           JET SEPERATION
 // -------------------------------------
 
@@ -2293,91 +2992,127 @@ bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
     return true;
 }
 
-bool passMuonHLT(TrigObjs* trig, Muon const& m, bool isMC, uint32_t evt, uint32_t lumi)
-{
+bool passMuonHLT(TrigObjs* trig, const Muon& m, bool isMC, uint32_t evt,uint32_t lumi) {
+    static int triggerDebugCalls = 0;
 
-static int debugCounter = 0;
-const int maxDebug = 1;
-bool debug = (debugCounter < maxDebug);
-++debugCounter;
+    const bool debug =
+        debugTrigger() &&
+        triggerDebugCalls++ < 2;
 
-if (debug) {
-std::cout << "\n[passMuonHLT] ===== Call " << debugCounter << " =====\n";
-std::cout << "  isMC = " << isMC << "\n";
-}
+    if (debug) {
+        std::cerr
+            << "\n[passMuonHLT] ===== Call "
+            << triggerDebugCalls
+            << " =====\n"
+            << "  isMC = " << isMC << "\n";
+    }
 
-if (!trig) {
-if (debug) std::cout << "  [ERROR] trig pointer is null -> return false\n";
-return false;
-}
+    if (!trig) {
+        if (debug) {
+            std::cerr
+                << "  trig pointer is null -> return false\n";
+        }
 
-if (debug) {
-std::cout << "  Number of trigger objects: " << trig->size() << "\n";
-}
+        return false;
+    }
 
-if (trig->size() == 0) {
-if (debug) std::cout << "  [WARN] No trigger objects in event -> return false\n";
-return false;
-}
+    if (debug) {
+        std::cerr
+            << "  Number of trigger objects: "
+            << trig->size()
+            << "\n";
+    }
 
-    float corrected_pt = correctedBsPt(m, isMC, evt, lumi);
-    
-if (debug) {
-std::cout << "  Muon: pt_corr = " << corrected_pt
-  << ", eta = " << m._eta
-  << ", phi = " << m._phi << "\n";
-}
+    if (trig->empty()) {
+        if (debug) {
+            std::cerr
+                << "  No trigger objects -> return false\n";
+        }
 
-if (corrected_pt < 26.0f) {
-if (debug) std::cout << "  Muon fails pT > 26 GeV requirement -> return false\n";
-return false;
-}
+        return false;
+    }
 
-    int idx = 0;
-    for (auto it = trig->begin(); it != trig->end(); ++it, ++idx) {
+    const float correctedPt =
+        correctedBsPt(m, isMC, evt, lumi);
 
-if (debug) {
-std::cout << "    [TrigObj " << idx << "] "
-<< "id = " << it->_id
-<< ", pt = " << it->_pt
-<< ", eta = " << it->_eta
-<< ", phi = " << it->_phi
-<< ", filterBits(dec) = " << it->_filterBits
-<< ", filterBits(hex) = 0x" << std::hex << it->_filterBits << std::dec
-<< "\n";
-}
+    if (debug) {
+        std::cerr
+            << "  Muon:"
+            << " ptCorr=" << correctedPt
+            << " eta=" << m._eta
+            << " phi=" << m._phi
+            << "\n";
+    }
 
-        // Only require that this is a muon trigger object.
-        if (std::abs(it->_id) != 13) {
-            if (debug) std::cout << "      -> skip: abs(id) != 13\n";
+    if (correctedPt < 26.0f) {
+        if (debug) {
+            std::cerr
+                << "  Muon fails corrected pT >= 26 GeV\n";
+        }
+
+        return false;
+    }
+
+    int index = 0;
+
+    for (const auto& obj : *trig) {
+        if (debug) {
+            std::cerr
+                << "    [TrigObj " << index << "]"
+                << " id=" << obj._id
+                << " pt=" << obj._pt
+                << " eta=" << obj._eta
+                << " phi=" << obj._phi
+                << " filterBits(dec)=" << obj._filterBits
+                << " filterBits(hex)=0x"
+                << std::hex << obj._filterBits
+                << std::dec
+                << "\n";
+        }
+
+        ++index;
+
+        if (std::abs(obj._id) != 13) {
+            if (debug) {
+                std::cerr
+                    << "      skip: abs(id) != 13\n";
+            }
+
             continue;
         }
 
-        // ΔR matching between offline muon and trigger object
-        float deta = m._eta - it->_eta;
-        float dphi = std::fabs(m._phi - it->_phi);
-        if (dphi > M_PI) dphi = 2.0f * M_PI - dphi;
-        float dR = std::sqrt(deta * deta + dphi * dphi);
+        const float deta = m._eta - obj._eta;
+        const float dphi = TVector2::Phi_mpi_pi(m._phi - obj._phi);
+        const float dR   = std::sqrt(deta * deta + dphi * dphi);
 
         if (debug) {
-            std::cout << "      deta = " << deta
-                      << ", dphi = " << dphi
-                      << ", dR = " << dR << "\n";
+            std::cerr
+                << "      deta=" << deta
+                << " dphi=" << dphi
+                << " dR=" << dR
+                << "\n";
         }
 
         if (dR < 0.1f) {
             if (debug) {
-                std::cout << "      ==> MATCH: dR < 0.3, muon PASSES HLT match\n";
+                std::cerr
+                    << "      MATCH: dR < 0.1\n";
             }
+
             return true;
-        } else if (debug) {
-            std::cout << "      -> no match: dR >= 0.3\n";
+        }
+
+        if (debug) {
+            std::cerr
+                << "      no match: dR >= 0.1\n";
         }
     }
 
     if (debug) {
-        std::cout << "  No trigger object matched this muon -> return false\n";
+        std::cerr
+            << "  No trigger object matched this muon\n";
     }
+
     return false;
 }
 
@@ -2548,7 +3283,11 @@ std::cout << "[STEP3 - CATEGORIZE ENTRY] totalpvsGood="
     // -------------------------------------
     //             MUONS 
     // -------------------------------------
-   
+
+// ------------------------
+// Debug
+// ------------------------
+if (debugMuon()) {
 static int kitSeedDbg = 0;
 if (kitSeedDbg < 5) {
 std::cerr << "[KIT SEED DBG] "
@@ -2562,7 +3301,7 @@ std::cerr << "[KIT SEED DBG] "
 << "\n";
 ++kitSeedDbg;
 }
-
+}
     // --- KIT, Rochester, noMuCorr Dimuon Set ---
     const float sf1 = muCorrScale(mu1, __isMC, evt, lumi);
     const float sf2 = muCorrScale(mu2, __isMC, evt, lumi); 
@@ -2714,33 +3453,34 @@ std::cerr
         for (size_t ijet = 0; ijet < jets->size(); ++ijet) {
             const auto& j = jets->at(ijet);
 
-            float genJetPt_veto = 0.f;
-            bool hasGenJet_veto = false;
+            const int runNumber =
+                __isMC
+                    ? 0
+                    : static_cast<int>(
+                        event._run
+                    );
 
-            if (__isMC && j._genJetIdx >= 0 && j._genJetIdx < (int)genjets->size()) {
-                const auto& gj = genjets->at(j._genJetIdx);
-                genJetPt_veto = gj._pt;
-                hasGenJet_veto = true;
-            }
+            const CorrectedJet correctedJet =
+                buildCorrectedJet(
+                    j,
+                    static_cast<int>(ijet),
+                    rho,
+                    __isMC,
+                    genjets,
+                    runNumber,
+                    static_cast<unsigned int>(
+                        event._lumi
+                    ),
+                    static_cast<unsigned long long>(
+                        event._event
+                    ),
+                    JetSyst::Nominal
+                );
 
-            const int runNum_veto = __isMC ? 0 : static_cast<int>(event._run);
-
-            const float corr_pt_veto = getCorrectedJetPt(
-                j,
-                rho,
-                __isMC,
-                genJetPt_veto,
-                hasGenJet_veto,
-                runNum_veto,
-                static_cast<unsigned int>(event._lumi),
-                static_cast<unsigned long long>(event._event),
-                static_cast<int>(ijet)
-            );
-
-            if (!passesJetVetoMapMinimalSelection(j, corr_pt_veto))
+            if (!correctedJet.valid)
                 continue;
 
-            if (isVetoedJet(j._eta, j._phi)) {
+            if (correctedJet.vetoedByMap) {
                 eventFailsJetVetoMap = true;
                 break;
             }
@@ -2756,37 +3496,71 @@ std::cerr
     const auto& j = jets->at(ijet);
     ++jets_in;
 
-    float genJetPt = 0.f;
-    bool hasGenJet = false;
+    const int runNumber = __isMC ? 0 : static_cast<int>(event._run);
 
-    if (__isMC && j._genJetIdx >= 0 && j._genJetIdx < (int)genjets->size()) {
-        const auto& gj = genjets->at(j._genJetIdx);
-        genJetPt = gj._pt;
-        hasGenJet = true;
-    }
+    const CorrectedJet correctedJet =
+        buildCorrectedJet(
+            j,
+            static_cast<int>(ijet),
+            rho,
+            __isMC,
+            genjets,
+            runNumber,
+            static_cast<unsigned int>(
+                event._lumi
+            ),
+            static_cast<unsigned long long>(
+                event._event
+            ),
+            JetSyst::Nominal
+        );
+    
+    if (!correctedJet.valid)
+        continue;
 
-    const int runNum = __isMC ? 0 : static_cast<int>(event._run);
+// ------------------------
+// Debug
+// ------------------------
+if (debugJERC()) {
+static int correctedJetDebug = 0;
+if (correctedJetDebug++ < 5) {
+std::cerr
+<< "[CORRECTED JET]"
+<< " index="
+<< correctedJet.sourceIndex
+<< " variation="
+<< static_cast<int>(
+correctedJet.variation
+)
+<< " storedPt="
+<< correctedJet.storedPt
+<< " rawPt="
+<< correctedJet.rawPt
+<< " correctedPt="
+<< correctedJet.correctedPt
+<< " storedMass="
+<< correctedJet.storedMass
+<< " rawMass="
+<< correctedJet.rawMass
+<< " correctedMass="
+<< correctedJet.correctedMass
+<< " genMatched="
+<< correctedJet.hasGenJet
+<< " passJetID="
+<< correctedJet.passesJetID
+<< " vetoed="
+<< correctedJet.vetoedByMap
+<< "\n";
+} }
 
-    const float corr_pt = getCorrectedJetPt(
-        j,
-        rho,
-        __isMC,
-        genJetPt,
-        hasGenJet,
-        runNum,
-        static_cast<unsigned int>(event._lumi),
-        static_cast<unsigned long long>(event._event),
-        static_cast<int>(ijet)
-    );
-
-    const float raw_mass = getRawJetMass(j);
-    const float raw_pt   = getRawJetPt(j);
-    const float corr_mass = (raw_pt > 0.f ? raw_mass * (corr_pt / raw_pt) : raw_mass);
+    const float corr_pt                 = correctedJet.correctedPt;
+    const float corr_mass               = correctedJet.correctedMass;
+    const TLorentzVector& correctedP4   = correctedJet.p4;
 
     ++jets_after_vetoMap;
 
     if (!g_disableJetCriteria) {
-        if (!passJetID(j))
+        if (!correctedJet.passesJetID)
             continue;
         ++jets_after_id;
 
@@ -2822,44 +3596,11 @@ std::cerr
             continue;
         ++jets_after_dR2;
     }
-
+    
     ++jets_pass;
 
-        // Save corrected four-vector for later dijet kinematics
-        TLorentzVector p4;
-        p4.SetPtEtaPhiM(corr_pt, j._eta, j._phi, corr_mass);
-        p4jets.push_back(p4);
-
-
-static int jerc_dbg = 0;
-if (jerc_dbg < 5) {
-
-const double ratio = (raw_pt > 0.0 ? corr_pt / raw_pt : -1.0);
-
-std::cerr << "\n";
-std::cerr << "====================== JERC DEBUG ======================\n";
-
-std::cerr << std::left
-<< std::setw(20) << "Jet pT"        << " : " << j._pt       << "\n"
-<< std::setw(20) << "Raw factor"    << " : " << j._rawFactor << "\n"
-<< std::setw(20) << "Raw pT"        << " : " << raw_pt      << "\n"
-<< std::setw(20) << "Corrected pT"  << " : " << corr_pt     << "\n"
-<< std::setw(20) << "Raw mass"      << " : " << raw_mass    << "\n"
-<< std::setw(20) << "Corrected mass"<< " : " << corr_mass   << "\n"
-<< std::setw(20) << "Raw/Corr ratio"<< " : " << ratio       << "\n"
-<< std::setw(20) << "Eta"           << " : " << j._eta      << "\n"
-<< std::setw(20) << "Phi"           << " : " << j._phi      << "\n"
-<< std::setw(20) << "Has gen jet"   << " : " << std::boolalpha << hasGenJet << "\n"
-<< std::setw(20) << "Gen jet pT"    << " : " << genJetPt    << "\n";
-
-std::cerr << "========================================================\n";
-
-++jerc_dbg;
-
-if (jerc_dbg == 5) {
-std::cerr << "[JERC DBG] Further debug messages suppressed.\n";
-}
-}
+    // Save corrected four-vector for later dijet kinematics
+    p4jets.push_back(correctedP4);
 
         // Save corrected jet copy for b-tag efficiency / veto logic
         analysis::core::Jet jSF = j;
@@ -2901,7 +3642,7 @@ std::cout
 << " btagM="          << btagM
 << " passL="          << (jb._btagPNetB >= btagL)
 << " passM="          << (jb._btagPNetB >= btagM)
-<< std::endl;
+<< s }td::endl;
 ++dbg_btag;
 }*/
 
@@ -3008,220 +3749,197 @@ std::cout
         for (size_t ijet = 0; ijet < jets->size(); ++ijet) {
             const auto& j = jets->at(ijet);
 
-            float genJetPt = 0.f;
-            bool hasGenJet = false;
+            const int runNumber =
+                __isMC
+                    ? 0
+                    : static_cast<int>(event._run);
 
-            if (__isMC &&
-                genjets &&
-                j._genJetIdx >= 0 &&
-                j._genJetIdx < static_cast<int>(genjets->size())) {
+            const CorrectedJet shiftedJet =
+                buildCorrectedJet(
+                    j,
+                    static_cast<int>(ijet),
+                    rho,
+                    __isMC,
+                    genjets,
+                    runNumber,
+                    static_cast<unsigned int>(event._lumi),
+                    static_cast<unsigned long long>(event._event),
+                    syst
+                );
 
-                const auto& gj = genjets->at(j._genJetIdx);
-                genJetPt = gj._pt;
-                hasGenJet = true;
+            if (!shiftedJet.valid)
+                continue;
+
+            if (shiftedJet.vetoedByMap) {
+                out.pass_veto_map = false;
+                out.pass_vbf = false;
+                return out;
             }
 
-            const int runNum =
-                __isMC ? 0 : static_cast<int>(event._run);
-
-            const float corr_pt_syst = getCorrectedJetPt(
-                j,
-                rho,
-                __isMC,
-                genJetPt,
-                hasGenJet,
-                runNum,
-                static_cast<unsigned int>(event._lumi),
-                static_cast<unsigned long long>(event._event),
-                static_cast<int>(ijet),
-                syst
-            );
-
-            const float raw_mass = getRawJetMass(j);
-            const float raw_pt   = getRawJetPt(j);
-
-            const float corr_mass_syst =
-                (raw_pt > 0.f)
-                    ? raw_mass * (corr_pt_syst / raw_pt)
-                    : raw_mass;
-
-            // Apply the same jet selection used for nominal jets
             if (!g_disableJetCriteria) {
-                if (!passJetID(j)) continue;
+                if (!shiftedJet.passesJetID)
+                    continue;
 
-                // The veto map depends on eta/phi, which are not shifted by JEC/JER.
-                // Reapply the same veto-map decision used by the nominal collection.
-                if (passesJetVetoMapMinimalSelection(j, corr_pt_syst) &&
-                    isVetoedJet(j._eta, j._phi)) {
+                const float abseta =
+                    std::abs(shiftedJet.eta);
 
-                    out.pass_veto_map = false;
-                    out.pass_vbf = false;
-                    return out;
+                if (shiftedJet.correctedPt <= 25.f)
+                    continue;
+
+                if (isHFHorn(abseta) &&
+                    eraNeedsHF50(g_era) &&
+                    shiftedJet.correctedPt <= 50.f) {
+                    continue;
                 }
 
-                const float abseta = std::abs(j._eta);
-
-                if (corr_pt_syst <= 25.f) continue;
-
-                if (isHFHorn(abseta) && eraNeedsHF50(g_era)) {
-                    if (corr_pt_syst <= 50.f) continue;
+                if (isHEHorn(abseta) &&
+                    eraNeedsHE50(g_era) &&
+                    shiftedJet.correctedPt <= 50.f) {
+                    continue;
                 }
 
-                if (isHEHorn(abseta) && eraNeedsHE50(g_era)) {
-                    if (corr_pt_syst <= 50.f) continue;
-                }
-
-                if (abseta >= 4.7f) continue;
+                if (abseta >= 4.7f)
+                    continue;
 
                 if (jetMuondR(
-                        j._eta,
-                        j._phi,
+                        shiftedJet.eta,
+                        shiftedJet.phi,
                         mu1._eta,
-                        mu1._phi
-                    ) <= 0.4) {
+                        mu1._phi) <= 0.4) {
                     continue;
                 }
 
                 if (jetMuondR(
-                        j._eta,
-                        j._phi,
+                        shiftedJet.eta,
+                        shiftedJet.phi,
                         mu2._eta,
-                        mu2._phi
-                    ) <= 0.4) {
+                        mu2._phi) <= 0.4) {
                     continue;
                 }
             }
 
-            TLorentzVector p4;
-            p4.SetPtEtaPhiM(
-                corr_pt_syst,
-                j._eta,
-                j._phi,
-                corr_mass_syst
-            );
-
-            shiftedJets.push_back(p4);
+            shiftedJets.push_back(shiftedJet.p4);
         }
+            
+            out.njets = static_cast<int>(shiftedJets.size());
 
-        out.njets = static_cast<int>(shiftedJets.size());
+            // No shifted jets
+            if (shiftedJets.empty()) {
+                return out;
+            }
 
-        // No shifted jets
-        if (shiftedJets.empty()) {
-            return out;
-        }
+            // For exactly one shifted jet, use it as jet 1
+            if (shiftedJets.size() == 1) {
+                out.pt_j1  = shiftedJets[0].Pt();
+                out.eta_j1 = shiftedJets[0].Eta();
+                return out;
+            }
 
-        // For exactly one shifted jet, use it as jet 1
-        if (shiftedJets.size() == 1) {
-            out.pt_j1  = shiftedJets[0].Pt();
-            out.eta_j1 = shiftedJets[0].Eta();
-            return out;
-        }
+            // ------------------------------------------------------------
+            // For >=2 shifted jets, choose the maximum-mjj pair
+            // ------------------------------------------------------------
+            double best_mjj_syst = -1.0;
+            int i_best_syst = -1;
+            int j_best_syst = -1;
 
-        // ------------------------------------------------------------
-        // For >=2 shifted jets, choose the maximum-mjj pair
-        // ------------------------------------------------------------
-        double best_mjj_syst = -1.0;
-        int i_best_syst = -1;
-        int j_best_syst = -1;
+            for (size_t i = 0; i < shiftedJets.size(); ++i) {
+                for (size_t j = i + 1; j < shiftedJets.size(); ++j) {
+                    const double mjj =
+                        (shiftedJets[i] + shiftedJets[j]).M();
 
-        for (size_t i = 0; i < shiftedJets.size(); ++i) {
-            for (size_t j = i + 1; j < shiftedJets.size(); ++j) {
-                const double mjj =
-                    (shiftedJets[i] + shiftedJets[j]).M();
-
-                if (mjj > best_mjj_syst) {
-                    best_mjj_syst = mjj;
-                    i_best_syst = static_cast<int>(i);
-                    j_best_syst = static_cast<int>(j);
+                    if (mjj > best_mjj_syst) {
+                        best_mjj_syst = mjj;
+                        i_best_syst = static_cast<int>(i);
+                        j_best_syst = static_cast<int>(j);
+                    }
                 }
             }
-        }
 
-        if (i_best_syst < 0 || j_best_syst < 0) {
+            if (i_best_syst < 0 || j_best_syst < 0) {
+                return out;
+            }
+
+            const TLorentzVector& jetA =
+                shiftedJets[i_best_syst];
+
+            const TLorentzVector& jetB =
+                shiftedJets[j_best_syst];
+
+            // Define leading/subleading by pT within the maximum-mjj pair
+            const TLorentzVector& lead =
+                (jetA.Pt() >= jetB.Pt()) ? jetA : jetB;
+
+            const TLorentzVector& sub =
+                (jetA.Pt() >= jetB.Pt()) ? jetB : jetA;
+
+            const TLorentzVector dijet_syst = lead + sub;
+
+            out.mjj       = static_cast<float>(dijet_syst.M());
+            out.pt_jj     = static_cast<float>(dijet_syst.Pt());
+            out.pt_j1     = static_cast<float>(lead.Pt());
+            out.pt_j2     = static_cast<float>(sub.Pt());
+            out.eta_j1    = static_cast<float>(lead.Eta());
+            out.eta_j2    = static_cast<float>(sub.Eta());
+            out.y_j1      = static_cast<float>(lead.Rapidity());
+            out.y_j2      = static_cast<float>(sub.Rapidity());
+
+            out.deta_jj =
+                static_cast<float>(std::abs(lead.Eta() - sub.Eta()));
+
+            out.dphi_jj =
+                static_cast<float>(
+                    std::abs(
+                        TVector2::Phi_mpi_pi(
+                            lead.Phi() - sub.Phi()
+                        )
+                    )
+                );
+
+            out.dphi_mumu_jj =
+                static_cast<float>(
+                    std::abs(
+                        TVector2::Phi_mpi_pi(
+                            corr_p4dimuon.Phi() - dijet_syst.Phi()
+                        )
+                    )
+                );
+
+            out.deta_mumu_jj =
+                static_cast<float>(
+                    std::abs(corr_p4dimuon.Eta() - dijet_syst.Eta())
+                );
+
+            out.z =
+                static_cast<float>(
+                    corr_p4dimuon.Rapidity()
+                    - 0.5 * (lead.Rapidity() + sub.Rapidity())
+                );
+
+            const double px_sum =
+                corr_p4dimuon.Px() + lead.Px() + sub.Px();
+
+            const double py_sum =
+                corr_p4dimuon.Py() + lead.Py() + sub.Py();
+
+            const double vec_sum =
+                std::sqrt(px_sum * px_sum + py_sum * py_sum);
+
+            const double scalar_sum =
+                corr_p4dimuon.Pt() + lead.Pt() + sub.Pt();
+
+            out.ptBalance =
+                (scalar_sum > 0.0)
+                    ? static_cast<float>(vec_sum / scalar_sum)
+                    : 0.f;
+
+            out.pass_vbf =
+                out.njets >= 2 &&
+                out.pt_j1 >= _leadJetPt &&
+                out.pt_j2 >= _subleadJetPt &&
+                out.mjj > _dijetMass_VBF &&
+                out.deta_jj > _dijetdEta_VBF;
+
             return out;
-        }
-
-        const TLorentzVector& jetA =
-            shiftedJets[i_best_syst];
-
-        const TLorentzVector& jetB =
-            shiftedJets[j_best_syst];
-
-        // Define leading/subleading by pT within the maximum-mjj pair
-        const TLorentzVector& lead =
-            (jetA.Pt() >= jetB.Pt()) ? jetA : jetB;
-
-        const TLorentzVector& sub =
-            (jetA.Pt() >= jetB.Pt()) ? jetB : jetA;
-
-        const TLorentzVector dijet_syst = lead + sub;
-
-        out.mjj       = static_cast<float>(dijet_syst.M());
-        out.pt_jj     = static_cast<float>(dijet_syst.Pt());
-        out.pt_j1     = static_cast<float>(lead.Pt());
-        out.pt_j2     = static_cast<float>(sub.Pt());
-        out.eta_j1    = static_cast<float>(lead.Eta());
-        out.eta_j2    = static_cast<float>(sub.Eta());
-        out.y_j1      = static_cast<float>(lead.Rapidity());
-        out.y_j2      = static_cast<float>(sub.Rapidity());
-
-        out.deta_jj =
-            static_cast<float>(std::abs(lead.Eta() - sub.Eta()));
-
-        out.dphi_jj =
-            static_cast<float>(
-                std::abs(
-                    TVector2::Phi_mpi_pi(
-                        lead.Phi() - sub.Phi()
-                    )
-                )
-            );
-
-        out.dphi_mumu_jj =
-            static_cast<float>(
-                std::abs(
-                    TVector2::Phi_mpi_pi(
-                        corr_p4dimuon.Phi() - dijet_syst.Phi()
-                    )
-                )
-            );
-
-        out.deta_mumu_jj =
-            static_cast<float>(
-                std::abs(corr_p4dimuon.Eta() - dijet_syst.Eta())
-            );
-
-        out.z =
-            static_cast<float>(
-                corr_p4dimuon.Rapidity()
-                - 0.5 * (lead.Rapidity() + sub.Rapidity())
-            );
-
-        const double px_sum =
-            corr_p4dimuon.Px() + lead.Px() + sub.Px();
-
-        const double py_sum =
-            corr_p4dimuon.Py() + lead.Py() + sub.Py();
-
-        const double vec_sum =
-            std::sqrt(px_sum * px_sum + py_sum * py_sum);
-
-        const double scalar_sum =
-            corr_p4dimuon.Pt() + lead.Pt() + sub.Pt();
-
-        out.ptBalance =
-            (scalar_sum > 0.0)
-                ? static_cast<float>(vec_sum / scalar_sum)
-                : 0.f;
-
-        out.pass_vbf =
-            out.njets >= 2 &&
-            out.pt_j1 >= _leadJetPt &&
-            out.pt_j2 >= _subleadJetPt &&
-            out.mjj > _dijetMass_VBF &&
-            out.deta_jj > _dijetdEta_VBF;
-
-        return out;
     };
 
     // -------------------------------------
@@ -3336,6 +4054,10 @@ std::cout << "[BTAG EVT DBG] era=" << g_era
 ++dbg_btag_evt;
 }*/
 
+// ------------------------
+// Debug
+// ------------------------
+if (debugWeights()) {
 static int DbgEvt = 0;
 if (DbgEvt++ < 5) {
 std::cerr << "[WEIGHT DBG]\n"
@@ -3353,9 +4075,14 @@ std::cerr << "[WEIGHT DBG]\n"
 << "  totalWeight_PU   :" << totalWeight_PU << "\n"
 << "\n";
 }
+}
 
+// ------------------------
+// Debug
+// ------------------------
+if (debugWeights() && __isMC) {
 static int sf_dbg = 0;
-if (__isMC && sf_dbg < 20) {
+if (__isMC && sf_dbg < 10) {
 std::cout << "[SF DBG]"
 << " totalWeight=" << totalWeight
 << " mu1_SF=" << mu1_SF
@@ -3374,7 +4101,7 @@ std::cout << "[SF DBG]"
 << " zptDownW=" << w_zpt_down
 << "\n";
 ++sf_dbg;
-}
+} }
 
     // -------------------------------------
     //        PRE-SELECTION HISTOGRAMS  
@@ -3592,8 +4319,57 @@ std::cout << "[SF DBG]"
                     jerDownVars = buildJetSystVars(JetSyst::JERDown);
                 }
 
+// ------------------------
+// Debug
+// ------------------------
+if (debugJERC() && __isMC) {
+static int jetSystDebug = 0;
+if (jetSystDebug < 10) {
+const bool nominalPassVBF =
+has2jet &&
+dijetmass > _dijetMass_VBF &&
+dijetdeta > _dijetdEta_VBF;
+std::cerr
+<< "[JET SYST DEBUG]"
+<< " run=" << event._run
+<< " lumi=" << event._lumi
+<< " event=" << event._event
+
+<< " | Nominal"
+<< " njets=" << p4jets.size()
+<< " mjj=" << dijetmass
+<< " passVBF=" << nominalPassVBF
+
+<< " | JECUp"
+<< " njets=" << jecUpVars.njets
+<< " mjj=" << jecUpVars.mjj
+<< " passVBF=" << jecUpVars.pass_vbf
+
+<< " | JECDown"
+<< " njets=" << jecDownVars.njets
+<< " mjj=" << jecDownVars.mjj
+<< " passVBF=" << jecDownVars.pass_vbf
+
+<< " | JERUp"
+<< " njets=" << jerUpVars.njets
+<< " mjj=" << jerUpVars.mjj
+<< " passVBF=" << jerUpVars.pass_vbf
+
+<< " | JERDown"
+<< " njets=" << jerDownVars.njets
+<< " mjj=" << jerDownVars.mjj
+<< " passVBF=" << jerDownVars.pass_vbf
+<< "\n";
+
+++jetSystDebug;
+} }
+
+// ------------------------
+// Debug
+// ------------------------
+if (debugTrigger()) {
 static int trig_weight_dbg = 0;
-if (__isMC && trig_weight_dbg < 20) {
+if (__isMC && trig_weight_dbg++ < 10) {
 std::cout << "[TRIG WEIGHT DBG]"
 << " totalWeight=" << totalWeight
 << " trigNomPair=" << trigNomPair
@@ -3609,6 +4385,7 @@ std::cout << "[TRIG WEIGHT DBG]"
 << " trig2_down=" << trig2_down
 << "\n";
 ++trig_weight_dbg;
+}
 }
 
                 if (__isMC) {
@@ -3626,7 +4403,7 @@ std::cout << "[TRIG WEIGHT DBG]"
                 }
 
 /*static int vtxDbg = 0;
-if (vtxDbg < 20) {
+if (vtxDbg < 10) {
 std::cout << "[VTX DBG] totalpvsGood=" << totalpvsGood
 << " totalWeight_noPU=" << totalWeight_noPU
 << " totalWeight_PU=" << totalWeight_PU
@@ -4309,8 +5086,18 @@ void process()
     SET_BRANCH_UCHAR_ARRAY(Electron_cutBased);
     SET_BRANCH_BOOL_ARRAY(Electron_mvaIso_WP90);
 
+/*std::cerr
+    << "[BRANCH CHECK] fixedGridRhoFastjetAll exists = "
+    << (ROOT_CHAIN->GetBranch("fixedGridRhoFastjetAll") != nullptr)
+    << "\n";
+
+std::cerr
+    << "[BRANCH CHECK] Rho_fixedGridRhoFastjetAll exists = "
+    << (ROOT_CHAIN->GetBranch("Rho_fixedGridRhoFastjetAll") != nullptr)
+    << "\n";*/
+
     //Setting Branch Array for Rho Properties
-    SET_BRANCH_FLOAT(fixedGridRhoFastjetAll);
+    SET_BRANCH_FLOAT(Rho_fixedGridRhoFastjetAll);
    
     //Setting Branch Array for Rho Properties
     SET_BRANCH_BOOL(Flag_goodVertices);
@@ -4414,7 +5201,6 @@ std::cout << "[BRANCH CHECK] Flag_goodVertices exists = "
 std::cout << "[BRANCH CHECK] PV_npvsGood exists = "
           << (ROOT_CHAIN->GetBranch("PV_npvsGood") != nullptr) << "\n";
 
-
 // --- DEBUG COUNTERS ---
 long long n_afterGolden = 0;
 long long n_afterFlags  = 0;
@@ -4439,6 +5225,7 @@ long long n_afterPair   = 0;
         electrons->clear();
         rhos->clear();
 
+        event->_event = eventNumber;
         event->_run  = run;                
         event->_lumi = luminosityBlock;    
         const uint32_t evt  = (uint32_t)(eventNumber & 0xffffffffULL);
@@ -4555,10 +5342,11 @@ long long n_afterPair   = 0;
         }
 
         Rho rhoObj;
-        rhoObj._fixedGridRhoFastjetAll = fixedGridRhoFastjetAll; 
+        rhoObj._fixedGridRhoFastjetAll = Rho_fixedGridRhoFastjetAll; 
         rhos->push_back(rhoObj);
 
         float rho = rhos->at(0)._fixedGridRhoFastjetAll;
+
 
 /*static int dbg1 = 0;
 if (dbg1 < 15) {
@@ -4751,7 +5539,7 @@ std::cout << "\n[JET CUT-FLOW] Total Jets = " << jets_in << " | "
 
 void sigHandler(int sig)
 {
-	cout << "### Signal: " << sig << " caughter. Exiting..." << endl;
+	cout << "### Signal: " << sig << " caught. Exiting..." << endl;
 	__continueRunning = false;
 }
 
