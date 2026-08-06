@@ -208,7 +208,7 @@ const double ePdf   = oneSyst(h_pdfUp,   h_pdfDown);
 const double eIsr   = oneSyst(h_isrUp,   h_isrDown);
 const double eFsr   = oneSyst(h_fsrUp,   h_fsrDown);
 
-const double statRel = h_mcStatBand ? h_mcStatBand->GetBinError(i) : 0.0;
+const double statRel =  h_mcStatBand    ? h_mcStatBand->GetBinError(i)  : 0.0;
 
 const double theoryAbs = std::sqrt(eScale*eScale +
                                    ePdf*ePdf +
@@ -219,9 +219,6 @@ const double theoryRel = (nom > 0 ? theoryAbs / nom : 0.0);
 
 const double orangeRel = std::sqrt(statRel*statRel +
                                    theoryRel*theoryRel);
-
-double relErrRaw = theoryRel;
-double relErr = std::min(relErrRaw, 0.45);   // cap display
 
 /*if (nom > 5.0 && relErrRaw > 0.45) {
 std::cout
@@ -269,18 +266,33 @@ return band;
 }
 
 
-
 static TH1* buildAzureExperimentalBand(
     const std::string& name,
     TH1* h_nom,
     TH1* h_mcStatBand,
-    TH1* h_puUp,     TH1* h_puDown,
-    TH1* h_muonUp,   TH1* h_muonDown,
-    TH1* h_triggerUp,   TH1* h_triggerDown,
-    TH1* h_btagUp,   TH1* h_btagDown,
-    TH1* h_zptUp,    TH1* h_zptDown, 
-    TH1* h_theoryBand
-) {
+
+    TH1* h_puUp,
+    TH1* h_puDown,
+
+    TH1* h_muonUp,
+    TH1* h_muonDown,
+
+    TH1* h_triggerUp,
+    TH1* h_triggerDown,
+
+    TH1* h_btagUp,
+    TH1* h_btagDown,
+
+    TH1* h_zptUp,
+    TH1* h_zptDown,
+
+    TH1* h_jecUp,
+    TH1* h_jecDown,
+
+    TH1* h_jerUp,
+    TH1* h_jerDown,
+
+    TH1* h_orangeBand) {
   if (!h_nom) return nullptr;
 
   TH1* band = (TH1*)h_nom->Clone(name.c_str());
@@ -297,27 +309,40 @@ auto oneSyst = [&](TH1* up, TH1* down) {
   return std::max(u, d);
 };
 
-    const double ePU   = oneSyst(h_puUp,   h_puDown);
-    const double eMuon = oneSyst(h_muonUp, h_muonDown);
-    const double eTrig = oneSyst(h_triggerUp, h_triggerDown);
-    const double eBTag = oneSyst(h_btagUp, h_btagDown);
-    const double eZPt  = oneSyst(h_zptUp,  h_zptDown);
+    const double ePU    = oneSyst(h_puUp,   h_puDown);
+    const double eMuon  = oneSyst(h_muonUp, h_muonDown);
+    const double eTrig  = oneSyst(h_triggerUp, h_triggerDown);
+    const double eBTag  = oneSyst(h_btagUp, h_btagDown);
+    const double eZPt   = oneSyst(h_zptUp,  h_zptDown);
+    const double eJEC   = oneSyst(h_jecUp,  h_jecDown);
+    const double eJER   = oneSyst(h_jerUp,  h_jerDown);
 
-const double statRel   = h_mcStatBand ? h_mcStatBand->GetBinError(i) : 0.0;
-const double theoryRel = h_theoryBand ? h_theoryBand->GetBinError(i) : 0.0;
+// h_orangeBand is the cumulative orange band:
+// MC stat + theory.
+const double orangeRel =
+    h_orangeBand
+        ? h_orangeBand->GetBinError(i)
+        : (
+            h_mcStatBand
+                ? h_mcStatBand->GetBinError(i)
+                : 0.0
+          );
 
-const double expAbs = std::sqrt(ePU*ePU +
-                                eMuon*eMuon +
-                                eTrig*eTrig 
-                                //eBTag*eBTag +
-                                //eZPt*eZPt
-                                );
+const double expAbs = std::sqrt(ePU     *   ePU +
+                                eMuon   *   eMuon +
+                                eTrig   *   eTrig +
+                                //eBTag *   eBTag +
+                                //eZPt  *   eZPt
+                                eJEC    *   eJEC  +
+                                eJER    *   eJER );
 
 const double expRel = (nom > 0 ? expAbs / nom : 0.0);
 
-const double azureRel = std::sqrt(statRel*statRel +
-                                  theoryRel*theoryRel +
-                                  expRel*expRel);
+const double azureRel =
+    std::sqrt(
+        orangeRel * orangeRel +
+        expRel    * expRel
+    );
 
 /*std::cout << "[EXP DEBUG] bin=" << i
 << " nom=" << nom
@@ -327,9 +352,6 @@ const double azureRel = std::sqrt(statRel*statRel +
 << " BTag=" << eBTag/nom
 << " ZPt=" << eZPt/nom
 << "\n";*/
-
-double relErrRaw = expRel;
-double relErr = std::min(relErrRaw, 0.45);   // cap display
 
 /*if(i==20) {
 std::cout
@@ -663,7 +685,7 @@ TH1* h_fsrDownTot = buildTotalVariation("h_fsrDownTot_"+var, systDir, systVar, "
                                         f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
                                         f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
 
-TH1* h_theoryBand = buildOrangeTheoryBand("h_theoryBand_"+var, h_mctot, h_mcBand,
+TH1* h_orangeBand = buildOrangeTheoryBand("h_orangeBand_"+var, h_mctot, h_mcBand,
                                           h_scaleUpTot, h_scaleDownTot,
                                           h_pdfUpTot,   h_pdfDownTot,
                                           h_isrUpTot,   h_isrDownTot,
@@ -724,14 +746,119 @@ TH1* h_zptDownTot = buildTotalVariation("h_zptDownTot_"+var, expSystDir, systVar
                                         f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
                                         f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
 
-TH1* h_expBand = buildAzureExperimentalBand("h_expBand_"+var, h_mctot, h_mcBand,
-                                            h_puUpTot,     h_puDownTot,
-                                            h_muonSFUpTot, h_muonSFDownTot,
-                                            h_triggerUpTot,   h_triggerDownTot,
-                                            h_btagUpTot,   h_btagDownTot,
-                                            h_zptUpTot,    h_zptDownTot,
-                                            h_theoryBand);
+TH1* h_jecUpTot =
+    buildTotalVariation(
+        "h_jecUpTot_" + var,
+        expSystDir,
+        systVar,
+        "jecUp",
+        h_mctot,
+        f_DY, h_DY,
+        f_EWK, h_EWK,
+        f_TT, h_TT,
+        f_WZ2L2Q, h_WZ2L2Q,
+        f_WZ3LNu, h_WZ3L,
+        f_ZZ2L2Nu, h_ZZ2L2N,
+        f_ZZ2L2Q, h_ZZ2L2Q,
+        f_ZZ4L, h_ZZ4L,
+        f_WWW, h_WWW,
+        f_WWZ, h_WWZ,
+        f_WZZ, h_WZZ,
+        f_ZZZ, h_ZZZ
+    );
 
+TH1* h_jecDownTot =
+    buildTotalVariation(
+        "h_jecDownTot_" + var,
+        expSystDir,
+        systVar,
+        "jecDown",
+        h_mctot,
+        f_DY, h_DY,
+        f_EWK, h_EWK,
+        f_TT, h_TT,
+        f_WZ2L2Q, h_WZ2L2Q,
+        f_WZ3LNu, h_WZ3L,
+        f_ZZ2L2Nu, h_ZZ2L2N,
+        f_ZZ2L2Q, h_ZZ2L2Q,
+        f_ZZ4L, h_ZZ4L,
+        f_WWW, h_WWW,
+        f_WWZ, h_WWZ,
+        f_WZZ, h_WZZ,
+        f_ZZZ, h_ZZZ
+    );
+
+TH1* h_jerUpTot =
+    buildTotalVariation(
+        "h_jerUpTot_" + var,
+        expSystDir,
+        systVar,
+        "jerUp",
+        h_mctot,
+        f_DY, h_DY,
+        f_EWK, h_EWK,
+        f_TT, h_TT,
+        f_WZ2L2Q, h_WZ2L2Q,
+        f_WZ3LNu, h_WZ3L,
+        f_ZZ2L2Nu, h_ZZ2L2N,
+        f_ZZ2L2Q, h_ZZ2L2Q,
+        f_ZZ4L, h_ZZ4L,
+        f_WWW, h_WWW,
+        f_WWZ, h_WWZ,
+        f_WZZ, h_WZZ,
+        f_ZZZ, h_ZZZ
+    );
+
+TH1* h_jerDownTot =
+    buildTotalVariation(
+        "h_jerDownTot_" + var,
+        expSystDir,
+        systVar,
+        "jerDown",
+        h_mctot,
+        f_DY, h_DY,
+        f_EWK, h_EWK,
+        f_TT, h_TT,
+        f_WZ2L2Q, h_WZ2L2Q,
+        f_WZ3LNu, h_WZ3L,
+        f_ZZ2L2Nu, h_ZZ2L2N,
+        f_ZZ2L2Q, h_ZZ2L2Q,
+        f_ZZ4L, h_ZZ4L,
+        f_WWW, h_WWW,
+        f_WWZ, h_WWZ,
+        f_WZZ, h_WZZ,
+        f_ZZZ, h_ZZZ
+    );
+
+TH1* h_expBand =
+    buildAzureExperimentalBand(
+        "h_expBand_" + var,
+        h_mctot,
+        h_mcBand,
+
+        h_puUpTot,
+        h_puDownTot,
+
+        h_muonSFUpTot,
+        h_muonSFDownTot,
+
+        h_triggerUpTot,
+        h_triggerDownTot,
+
+        h_btagUpTot,
+        h_btagDownTot,
+
+        h_zptUpTot,
+        h_zptDownTot,
+
+        h_jecUpTot,
+        h_jecDownTot,
+
+        h_jerUpTot,
+        h_jerDownTot,
+
+        h_orangeBand
+    );
 
   TH1* h_ratio = (TH1*)h_data->Clone(("h_ratio_"+var).c_str());
   h_ratio->SetDirectory(nullptr);
@@ -760,9 +887,20 @@ TH1* h_expBand = buildAzureExperimentalBand("h_expBand_"+var, h_mctot, h_mcBand,
   h_ratio->SetStats(0);
   h_ratio->Draw("AXIS");
 
-if (h_expBand)    h_expBand->Draw("E2 SAME");  // total, draw first
-if (h_theoryBand) h_theoryBand->Draw("E2 SAME");  // orange on top
-h_mcBand->Draw("E2 SAME");
+// Draw widest cumulative band first.
+if (h_expBand) {
+    h_expBand->Draw("E2 SAME");
+}
+
+if (h_orangeBand) {
+    h_orangeBand->Draw("E2 SAME");
+}
+
+if (h_mcBand) {
+    h_mcBand->Draw("E2 SAME");
+}
+
+// Data/MC points remain visible on top.
 h_ratio->Draw("E1 SAME");
 
   // Horizontal dotted guide lines every 0.2 in Data/MC
@@ -794,6 +932,48 @@ h_ratio->Draw("E1 SAME");
     v1r->Draw("SAME"); v2r->Draw("SAME");
   }
 
+TLegend* ratioLegend =
+    new TLegend(
+        0.16,
+        0.79,
+        0.94,
+        0.96
+    );
+
+ratioLegend->SetNColumns(3);
+ratioLegend->SetBorderSize(0);
+ratioLegend->SetFillStyle(0);
+ratioLegend->SetTextFont(42);
+ratioLegend->SetTextSize(0.075);
+ratioLegend->SetMargin(0.18);
+ratioLegend->SetEntrySeparation(0.00);
+
+if (h_mcBand) {
+    ratioLegend->AddEntry(
+        h_mcBand,
+        "MC stat.",
+        "f"
+    );
+}
+
+if (h_orangeBand) {
+    ratioLegend->AddEntry(
+        h_orangeBand,
+        "Stat. #oplus theory",
+        "f"
+    );
+}
+
+if (h_expBand) {
+    ratioLegend->AddEntry(
+        h_expBand,
+        "Total unc.",
+        "f"
+    );
+}
+
+ratioLegend->Draw();
+
   gSystem->Exec("mkdir -p " + outdir);
   const TString baseName = "OverlayRatio_" + TString(var.c_str());
   c->SaveAs(outdir + baseName + ".pdf");
@@ -806,7 +986,7 @@ h_ratio->Draw("E1 SAME");
   delete h_VV; delete h_VVV; delete h_data_draw; delete h_mctot; delete h_ratio;
   delete h_scaleUpTot; delete h_scaleDownTot; delete h_pdfUpTot; delete h_pdfDownTot;
   delete h_isrUpTot; delete h_isrDownTot; delete h_fsrUpTot; delete h_fsrDownTot;
-  delete h_theoryBand;
+  delete h_orangeBand;
   delete h_expBand;
   delete h_puUpTot; delete h_puDownTot;
   delete h_muonSFUpTot; delete h_muonSFDownTot;

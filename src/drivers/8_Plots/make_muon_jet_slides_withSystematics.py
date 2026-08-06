@@ -38,41 +38,55 @@ ERA_LABELS = {
     "2024": "2024",
     "2025": "2025",
 }
-SYST_ORDER = ["QCD", "PDF", "ISR", "FSR", "Pileup", "MuonSF", "Trigger", "BTag", "ZPt"]
+
+SYST_ORDER = [
+    "QCD",
+    "PDF",
+    "ISR",
+    "FSR",
+    "Pileup",
+    "MuonSF",
+    "Trigger",
+    "JEC",
+    "JER",
+    "BTag",
+    "ZPt",
+]
+
 PLOT_GROUPS = [
 
     # Standard overlay PDFs
     {
         "name": "Muons",
         "type": "pdf",
-        "path": "Muons/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW",
+        "path": "Muons/KIT/noScaleSmear_noBTagRW_noZPtRW",
     },
 
     {
         "name": "Jets",
         "type": "pdf",
-        "path": "Jets/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW",
+        "path": "Jets/KIT/noScaleSmear_noBTagRW_noZPtRW",
     },
 
     # BTag efficiency PDFs
     {
         "name": "BTagEfficiency",
         "type": "pdf",
-        "path": "BTagEfficiency/KIT/noScaleSmear_noJERC_noJER_noBTagRW_noZPtRW",
+        "path": "BTagEfficiency/KIT/noScaleSmear_noBTagRW_noZPtRW",
     },
     
     # Pileup reweighting PDFs
     {
         "name": "PileupReweighting",
         "type": "pdf",
-        "path": "PileupReweighting/KIT/noScaleSmear_noJERC_noJER_BTagRW_ZPtRW",
+        "path": "PileupReweighting/KIT/noScaleSmear_noBTagRW_noZPtRW",
     },
     
     # Mass resolution single PNG
     {
         "name": "MassResolution",
         "type": "png",
-        "path": "Mass_Resolutions/ZCR/KIT/noScaleSmear_noJERC_noJER_BTagRW_ZPtRW",
+        "path": "Mass_Resolutions/ZCR/KIT/noScaleSmear_noBTagRW_noZPtRW",
     },
 ]
 CONFIG = "noScaleSmear_noBTagRW_noZPtRW"
@@ -336,7 +350,7 @@ def add_systematics_summary_slides(prs, csv_path: Optional[Path], include_detail
         headers,
         rows,
         footer=f"Read from {csv_path.name}; values are envelope = max(|up|, |down|).",
-        font_size=10,
+        font_size=9,
     )
 
     # 2) BDT input range comparison table
@@ -523,7 +537,7 @@ def main():
 
     parser.add_argument(
         "--out",
-        default="/eos/user/d/dblend/PowerPoint/Muons_Jets_KIT_noScaleSmear_noJERC_noJER_BTagRW_ZPtRW.pptx"
+        default="/eos/user/d/dblend/PowerPoint/Muons_Jets_KIT_noScaleSmear_noBTagRW_noZPtRW.pptx"
     )
 
     parser.add_argument(
@@ -559,7 +573,7 @@ def main():
     title_slide.shapes.title.text = "Muon & Jet Validation"
 
     subtitle = title_slide.placeholders[1]
-    subtitle.text = "KIT / BTagRW / ZPtRW"
+    subtitle.text = "KIT / no BTagRW / no ZPtRW" 
 
     # ---------------------------------
     # Systematics table slides

@@ -34,8 +34,38 @@ static TH1* getHist(TFile* f, const std::string& path) {
     return c;
 }
 
-static void addHist(TH1* total, TFile* f, const std::string& path) {
-    TH1* h = getHist(f, path);
+static void addVariationOrNominal(
+    TH1* total,
+    TFile* file,
+    const std::string& variationPath,
+    const std::string& nominalPath)
+{
+    if (!total || !file)
+        return;
+
+    TH1* h =
+        getHist(
+            file,
+            variationPath
+        );
+
+    if (!h) {
+        h =
+            getHist(
+                file,
+                nominalPath
+            );
+
+        if (h) {
+            std::cerr
+                << "[SYST FALLBACK] Missing "
+                << variationPath
+                << "; using "
+                << nominalPath
+                << "\n";
+        }
+    }
+
     if (h) {
         total->Add(h);
         delete h;
@@ -56,15 +86,28 @@ static double integralWindow(TH1* h, double xmin, double xmax) {
 
 static TH1* buildTotal(
     const std::string& name,
-    const std::string& path,
+    const std::string& variationPath,
+    const std::string& nominalPath,
     const std::vector<TFile*>& files,
-    TH1* h_template
-) {
-    TH1* total = (TH1*)h_template->Clone(name.c_str());
+    TH1* h_template)
+{
+    TH1* total =
+        dynamic_cast<TH1*>(
+            h_template->Clone(name.c_str())
+        );
+
     total->SetDirectory(nullptr);
     total->Reset("ICES");
 
-    for (auto* f : files) addHist(total, f, path);
+    for (TFile* file : files) {
+        addVariationOrNominal(
+            total,
+            file,
+            variationPath,
+            nominalPath
+        );
+    }
+
     return total;
 }
 
@@ -244,7 +287,9 @@ void PrintSystematics(
         {"MuonSF",  "BDTExperimentalSyst_VBF", "muonSFUp",   "muonSFDown"},
         {"Trigger", "BDTExperimentalSyst_VBF", "triggerUp",  "triggerDown"},
         {"BTag",    "BDTExperimentalSyst_VBF", "btagUp",     "btagDown"},
-        {"ZPt",     "BDTExperimentalSyst_VBF", "zptUp",      "zptDown"}
+        {"ZPt",     "BDTExperimentalSyst_VBF", "zptUp",      "zptDown"},
+        {"JEC", "BDTExperimentalSyst_VBF", "jecUp", "jecDown"},
+        {"JER", "BDTExperimentalSyst_VBF", "jerUp", "jerDown"}
     };
 
     std::vector<std::string> bdtVars = {
@@ -257,8 +302,18 @@ void PrintSystematics(
         "Muon2eta",
         "CollinsSoper",
         "cosCollinsSoper",
+
         "PtBalance",
-        "Zeppenfeld"
+        "Zeppenfeld",
+
+        "Jet1eta",
+        "DiJetdeta",
+        "DiJetdphi",
+        "nJets",
+        "hdphi_mumu_jj",
+        "hdeta_mumu_jj",
+        "Jet1Pt",
+        "Jet2Pt"
     };
 
     const std::string nomPath = std::string(nominalDir.Data()) + "/" + std::string(histName.Data());
@@ -269,7 +324,14 @@ void PrintSystematics(
         return;
     }
 
-    TH1* h_nom = buildTotal("h_nom_total", nomPath, files, h_template);
+    TH1* h_nom =
+    buildTotal(
+        "h_nom_total",
+        nomPath,
+        nomPath,
+        files,
+        h_template
+    );
     const double nominalYield = useWindow ? integralWindow(h_nom, xmin, xmax) : integralAll(h_nom);
 
     std::cout << "\nSystematic yield variations for: " << histName << "\n";
@@ -289,8 +351,23 @@ void PrintSystematics(
         std::string upPath   = s.dir + "/" + std::string(histName.Data()) + "_" + s.up;
         std::string downPath = s.dir + "/" + std::string(histName.Data()) + "_" + s.down;
 
-        TH1* h_up   = buildTotal("h_" + s.label + "_up",   upPath,   files, h_template);
-        TH1* h_down = buildTotal("h_" + s.label + "_down", downPath, files, h_template);
+TH1* h_up =
+    buildTotal(
+        "h_" + s.label + "_up",
+        upPath,
+        nomPath,
+        files,
+        h_template
+    );
+
+TH1* h_down =
+    buildTotal(
+        "h_" + s.label + "_down",
+        downPath,
+        nomPath,
+        files,
+        h_template
+    );
 
         VariationResult r = calcVariation(h_nom, h_up, h_down, useWindow, xmin, xmax);
 
@@ -327,14 +404,36 @@ void PrintSystematics(
         TH1* h_temp = getHist(f_DY.get(), varNomPath);
         if (!h_temp) continue;
 
-        TH1* h_var_nom = buildTotal("h_nom_" + var, varNomPath, files, h_temp);
+       TH1* h_var_nom =
+    buildTotal(
+        "h_nom_" + var,
+        varNomPath,
+        varNomPath,
+        files,
+        h_temp
+    ); 
 
         for (const auto& s : systs) {
             const std::string upPath   = s.dir + "/" + var + "_" + s.up;
             const std::string downPath = s.dir + "/" + var + "_" + s.down;
 
-            TH1* h_up   = buildTotal("h_up_" + s.label + "_" + var, upPath, files, h_temp);
-            TH1* h_down = buildTotal("h_down_" + s.label + "_" + var, downPath, files, h_temp);
+TH1* h_up =
+    buildTotal(
+        "h_up_" + s.label + "_" + var,
+        upPath,
+        varNomPath,
+        files,
+        h_temp
+    );
+
+TH1* h_down =
+    buildTotal(
+        "h_down_" + s.label + "_" + var,
+        downPath,
+        varNomPath,
+        files,
+        h_temp
+    );
 
             VariationResult r = calcVariation(h_var_nom, h_up, h_down, false, xmin, xmax);
             if (r.valid && std::isfinite(r.envelopePct)) {

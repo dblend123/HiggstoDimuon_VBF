@@ -4,7 +4,7 @@
 # ./run_muon_and_jet_overlays_all_eras.sh KIT noScaleSmear_noBtagSF_ZPtRW
 
 CORR_MODE="${1:-KIT}"
-CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_BTagRW_ZPtRW}"
+CONFIG_DIR="${2:-noScaleSmear_noBTagRW_noZPtRW}"
 
 ERAS=(12022 22022 12023 22023 2024 2025)
 

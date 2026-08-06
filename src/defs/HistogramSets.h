@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+#include <cstdlib>
 #include "TString.h"
 #include "TH1D.h"
 #include "TDirectory.h"
@@ -139,57 +141,211 @@ namespace analysis
                 jerUp->Sumw2();      jerDown->Sumw2();
             }
             
-                  void fill(double x,
-                  double w_nom,
-                  double w_puUp,      double w_puDown,
-                  double w_muonSFUp,  double w_muonSFDown,
-                  double w_triggerUp, double w_triggerDown,
-                  double w_btagUp,    double w_btagDown,
-                  double w_zptUp,     double w_zptDown)
+            // ---------------------------------------------------------
+            // Weight-only overload.
+            //
+            // This preserves the existing behavior for callers that do
+            // not provide shifted JEC/JER values or category weights.
+            // ---------------------------------------------------------
+            void fill(
+                double x,
+                double w_nom,
+                double w_puUp,      double w_puDown,
+                double w_muonSFUp,  double w_muonSFDown,
+                double w_triggerUp, double w_triggerDown,
+                double w_btagUp,    double w_btagDown,
+                double w_zptUp,     double w_zptDown)
             {
-                fill(x, w_nom,
-                     w_puUp, w_puDown,
-                     w_muonSFUp, w_muonSFDown,
-                     w_triggerUp, w_triggerDown,
-                     w_btagUp, w_btagDown,
-                     w_zptUp, w_zptDown,
-                     x, x, x, x);
+                fill(
+                    x,
+                    w_nom,
+
+                    w_puUp,
+                    w_puDown,
+
+                    w_muonSFUp,
+                    w_muonSFDown,
+
+                    w_triggerUp,
+                    w_triggerDown,
+
+                    w_btagUp,
+                    w_btagDown,
+
+                    w_zptUp,
+                    w_zptDown,
+
+                    x,
+                    w_nom,
+
+                    x,
+                    w_nom,
+
+                    x,
+                    w_nom,
+
+                    x,
+                    w_nom
+                );
             }
 
-            void fill(double x,
-                      double w_nom,
-                      double w_puUp,      double w_puDown,
-                      double w_muonSFUp,  double w_muonSFDown,
-                      double w_triggerUp, double w_triggerDown,
-                      double w_btagUp,    double w_btagDown,
-                      double w_zptUp,     double w_zptDown,
-                      double x_jecUp,     double x_jecDown,
-                      double x_jerUp,     double x_jerDown)
+
+            // ---------------------------------------------------------
+            // Full experimental-systematic overload.
+            //
+            // JEC and JER variations each receive:
+            //   1. their own shifted observable value;
+            //   2. their own category-gated event weight.
+            // ---------------------------------------------------------
+            void fill(
+                double x,
+                double w_nom,
+
+                double w_puUp,
+                double w_puDown,
+
+                double w_muonSFUp,
+                double w_muonSFDown,
+
+                double w_triggerUp,
+                double w_triggerDown,
+
+                double w_btagUp,
+                double w_btagDown,
+
+                double w_zptUp,
+                double w_zptDown,
+
+                double x_jecUp,
+                double w_jecUp,
+
+                double x_jecDown,
+                double w_jecDown,
+
+                double x_jerUp,
+                double w_jerUp,
+
+                double x_jerDown,
+                double w_jerDown)
             {
-                nom->Fill(x, w_nom);
+                if (!nom) {
+                    std::cerr
+                        << "[ERROR] Unbooked histogram in "
+                        << "ExpSystHist1D::fill()\n";
 
-                puUp->Fill(x, w_puUp);
-                puDown->Fill(x, w_puDown);
+                    std::abort();
+                }
 
-                muonSFUp->Fill(x, w_muonSFUp);
-                muonSFDown->Fill(x, w_muonSFDown);
+                // Do not call TH1::Fill with zero weight.
+                // ROOT can still increment the Entries counter for a
+                // zero-weight Fill, which obscures category migration.
+                auto fillIfWeighted =
+                    [](TH1F* hist,
+                       double value,
+                       double weight)
+                    {
+                        if (hist && weight != 0.0) {
+                            hist->Fill(
+                                value,
+                                weight
+                            );
+                        }
+                    };
 
-                triggerUp->Fill(x, w_triggerUp);
-                triggerDown->Fill(x, w_triggerDown);
+                // Nominal
+                fillIfWeighted(
+                    nom,
+                    x,
+                    w_nom
+                );
 
-                btagUp->Fill(x, w_btagUp);
-                btagDown->Fill(x, w_btagDown);
+                // Weight-only experimental variations.
+                // Their observable value remains nominal.
+                fillIfWeighted(
+                    puUp,
+                    x,
+                    w_puUp
+                );
 
-                zptUp->Fill(x, w_zptUp);
-                zptDown->Fill(x, w_zptDown);
+                fillIfWeighted(
+                    puDown,
+                    x,
+                    w_puDown
+                );
 
-                jecUp->Fill(x_jecUp, w_nom);
-                jecDown->Fill(x_jecDown, w_nom);
+                fillIfWeighted(
+                    muonSFUp,
+                    x,
+                    w_muonSFUp
+                );
 
-                jerUp->Fill(x_jerUp, w_nom);
-                jerDown->Fill(x_jerDown, w_nom);
+                fillIfWeighted(
+                    muonSFDown,
+                    x,
+                    w_muonSFDown
+                );
+
+                fillIfWeighted(
+                    triggerUp,
+                    x,
+                    w_triggerUp
+                );
+
+                fillIfWeighted(
+                    triggerDown,
+                    x,
+                    w_triggerDown
+                );
+
+                fillIfWeighted(
+                    btagUp,
+                    x,
+                    w_btagUp
+                );
+
+                fillIfWeighted(
+                    btagDown,
+                    x,
+                    w_btagDown
+                );
+
+                fillIfWeighted(
+                    zptUp,
+                    x,
+                    w_zptUp
+                );
+
+                fillIfWeighted(
+                    zptDown,
+                    x,
+                    w_zptDown
+                );
+
+                // Shape + category variations.
+                fillIfWeighted(
+                    jecUp,
+                    x_jecUp,
+                    w_jecUp
+                );
+
+                fillIfWeighted(
+                    jecDown,
+                    x_jecDown,
+                    w_jecDown
+                );
+
+                fillIfWeighted(
+                    jerUp,
+                    x_jerUp,
+                    w_jerUp
+                );
+
+                fillIfWeighted(
+                    jerDown,
+                    x_jerDown,
+                    w_jerDown
+                );
             }
-
         };
 
         struct VtxSet

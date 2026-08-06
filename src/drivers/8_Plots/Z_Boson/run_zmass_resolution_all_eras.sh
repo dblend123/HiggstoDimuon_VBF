@@ -4,7 +4,7 @@
 # ./run_zmass_resolution_all_eras.sh KIT noJERC_noJetVeto_noBtagSF_noZPtRW sigma68
 
 CORR_MODE="${1:-KIT}"
-CONFIG_DIR="${2:-noScaleSmear_noJERC_noJER_BTagRW_ZPtRW}"
+CONFIG_DIR="${2:-noScaleSmear_noBTagRW_noZPtRW}"
 METRIC="${3:-sigma68}"   # sigma68, sigmaCB, sigmaFwhm
 
 ERAS=(12022 22022 12023 22023 2024 2025)
