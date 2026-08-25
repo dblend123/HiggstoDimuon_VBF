@@ -94,7 +94,8 @@
     w_puUp, w_puDown, \
     w_muonSFUp, w_muonSFDown, \
     w_triggerUp, w_triggerDown, \
-    w_btagUp, w_btagDown, \
+    w_btagSFUp, w_btagSFDown, \
+    w_btagEffStatUp, w_btagEffStatDown, \
     w_zptUp, w_zptDown, \
     w_jecUp, w_jecDown, \
     w_jerUp, w_jerDown, \
@@ -107,7 +108,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.z,   w_jecUp, \
         jecDownVars.z, w_jecDown, \
@@ -120,7 +121,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.ptBalance,   w_jecUp, \
         jecDownVars.ptBalance, w_jecDown, \
@@ -133,7 +134,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_mu1_pt_over_m, w_jecUp, \
         g_mu1_pt_over_m, w_jecDown, \
@@ -146,7 +147,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_mu2_pt_over_m, w_jecUp, \
         g_mu2_pt_over_m, w_jecDown, \
@@ -159,7 +160,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_mu1_eta, w_jecUp, \
         g_mu1_eta, w_jecDown, \
@@ -172,7 +173,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_mu2_eta, w_jecUp, \
         g_mu2_eta, w_jecDown, \
@@ -185,7 +186,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.eta_j1,   w_jecUp, \
         jecDownVars.eta_j1, w_jecDown, \
@@ -198,7 +199,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_m_mumu, w_jecUp, \
         g_m_mumu, w_jecDown, \
@@ -211,7 +212,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.deta_jj,   w_jecUp, \
         jecDownVars.deta_jj, w_jecDown, \
@@ -224,7 +225,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.dphi_jj,   w_jecUp, \
         jecDownVars.dphi_jj, w_jecDown, \
@@ -237,7 +238,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.njets,   w_jecUp, \
         jecDownVars.njets, w_jecDown, \
@@ -250,7 +251,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.dphi_mumu_jj,   w_jecUp, \
         jecDownVars.dphi_mumu_jj, w_jecDown, \
@@ -263,7 +264,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.deta_mumu_jj,   w_jecUp, \
         jecDownVars.deta_mumu_jj, w_jecDown, \
@@ -276,7 +277,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_phi_CS, w_jecUp, \
         g_phi_CS, w_jecDown, \
@@ -289,7 +290,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_costheta_CS, w_jecUp, \
         g_costheta_CS, w_jecDown, \
@@ -302,7 +303,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_y_mumu, w_jecUp, \
         g_y_mumu, w_jecDown, \
@@ -315,7 +316,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.y_j1,   w_jecUp, \
         jecDownVars.y_j1, w_jecDown, \
@@ -328,7 +329,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.y_j2,   w_jecUp, \
         jecDownVars.y_j2, w_jecDown, \
@@ -341,7 +342,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         g_pt_mumu, w_jecUp, \
         g_pt_mumu, w_jecDown, \
@@ -354,7 +355,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.pt_j1,   w_jecUp, \
         jecDownVars.pt_j1, w_jecDown, \
@@ -367,7 +368,7 @@
         w_puUp, w_puDown, \
         w_muonSFUp, w_muonSFDown, \
         w_triggerUp, w_triggerDown, \
-        w_btagUp, w_btagDown, \
+        w_btagSFUp, w_btagSFDown, w_btagEffStatUp, w_btagEffStatDown, \
         w_zptUp, w_zptDown, \
         jecUpVars.pt_j2,   w_jecUp, \
         jecDownVars.pt_j2, w_jecDown, \
@@ -564,8 +565,16 @@ static bool g_disableBeamConstraint = false;  // if true, skip Beamspot Constrai
 static inline bool useBeamConstraintPt(const analysis::core::Muon& mu);
 static inline float baseMuonPtForCorrections(const analysis::core::Muon& mu);
 static inline double clampProb(double x);
-static inline double getBTagEff_WP_jet(const analysis::core::Jet& j, const std::string& wp);
-static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets, const std::string& syst = "central");
+static inline double getBTagEff_WP_jet(
+    const analysis::core::Jet& j,
+    const std::string& wp,
+    const std::string& effSyst = "nominal"
+);
+static inline double btagVetoWeightExact(
+    const std::vector<analysis::core::Jet>& jets,
+    const std::string& sfSyst = "central",
+    const std::string& effSyst = "nominal"
+);
 static inline float btagWPThreshold(const std::string& wp);
 
 // ------------------------
@@ -574,7 +583,7 @@ static inline float btagWPThreshold(const std::string& wp);
 static constexpr bool DEBUG_CORRECTIONS = false;
 static constexpr bool DEBUG_JERC        = false;
 static constexpr bool DEBUG_MUON        = false;
-static constexpr bool DEBUG_WEIGHTS     = false;
+static constexpr bool DEBUG_WEIGHTS     = true;
 static constexpr bool DEBUG_TRIGGER     = false;
 static constexpr bool DEBUG_BRANCHES    = false;
 
@@ -2947,37 +2956,93 @@ static inline double btagSF_WP_jet(const Jet& j, const std::string& wp, const st
     return 1.0;
 }
 
-static inline double getBTagEff_WP_jet(const Jet& j, const std::string& wp) {
+static inline double getBTagEff_WP_jet(
+    const Jet& j,
+    const std::string& wp,
+    const std::string& effSyst)
+{
+    const int flav =
+        (j._hadronFlavour == 5
+            ? 5
+            : (j._hadronFlavour == 4
+                ? 4
+                : 0));
 
-    const int flav = (j._hadronFlavour == 5 ? 5 : (j._hadronFlavour == 4 ? 4 : 0));
+    const double pt =
+        j._pt;
 
-    const double pt     = j._pt;
-    const double abseta = std::fabs(j._eta);
+    const double abseta =
+        std::fabs(j._eta);
 
     TH2* h = nullptr;
 
     if (flav == 5)
-        h = (wp == "M" ? g_eff_b_M : g_eff_b_L);
+        h = (wp == "M"
+                ? g_eff_b_M
+                : g_eff_b_L);
+
     else if (flav == 4)
-        h = (wp == "M" ? g_eff_c_M : g_eff_c_L);
+        h = (wp == "M"
+                ? g_eff_c_M
+                : g_eff_c_L);
+
     else
-        h = (wp == "M" ? g_eff_l_M : g_eff_l_L);
+        h = (wp == "M"
+                ? g_eff_l_M
+                : g_eff_l_L);
 
-    if (!h) return 0.0;
+    if (!h)
+        return 0.0;
 
-    int binx = h->GetXaxis()->FindBin(pt);
-    int biny = h->GetYaxis()->FindBin(abseta);
+    int binx =
+        h->GetXaxis()->FindBin(pt);
 
-    // clamp overflow/underflow into valid histogram range
-    if (binx < 1) binx = 1;
-    if (binx > h->GetNbinsX()) binx = h->GetNbinsX();
-    if (biny < 1) biny = 1;
-    if (biny > h->GetNbinsY()) biny = h->GetNbinsY();
+    int biny =
+        h->GetYaxis()->FindBin(abseta);
 
-    return clampProb(h->GetBinContent(binx, biny));
+    if (binx < 1)
+        binx = 1;
+
+    if (binx > h->GetNbinsX())
+        binx = h->GetNbinsX();
+
+    if (biny < 1)
+        biny = 1;
+
+    if (biny > h->GetNbinsY())
+        biny = h->GetNbinsY();
+
+    const double eff =
+        h->GetBinContent(
+            binx,
+            biny
+        );
+
+    const double err =
+        h->GetBinError(
+            binx,
+            biny
+        );
+
+    if (effSyst == "up") {
+        return clampProb(
+            eff + err
+        );
+    }
+
+    if (effSyst == "down") {
+        return clampProb(
+            eff - err
+        );
+    }
+
+    return clampProb(eff);
 }
 
-static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>& jets, const std::string& syst)
+static inline double btagVetoWeightExact(
+    const std::vector<Jet>& jets,
+    const std::string& sfSyst,
+    const std::string& effSyst)
 {
     // pass veto  <=>  no medium jets AND at most one loose jet
     //
@@ -3015,14 +3080,39 @@ static inline double btagVetoWeightExact(const std::vector<analysis::core::Jet>&
         const double disc = jetBTagScore(j);
         if (!std::isfinite(disc) || disc < 0.0) continue;
 
-        const double epsL = clampProb(getBTagEff_WP_jet(j, "L"));
-        const double epsM = clampProb(getBTagEff_WP_jet(j, "M"));
+        const double epsL =
+            getBTagEff_WP_jet(
+                j,
+                "L",
+                effSyst
+            );
 
-        // enforce nesting numerically: Medium must not exceed Loose
-        const double epsM_clamped = std::min(epsM, epsL);
+        const double epsM =
+            getBTagEff_WP_jet(
+                j,
+                "M",
+                effSyst
+            );
 
-        const double sfL = btagSF_WP_jet(j, "L", syst);
-        const double sfM = btagSF_WP_jet(j, "M", syst);
+        const double epsM_clamped =
+            std::min(
+                epsM,
+                epsL
+            );
+
+        const double sfL =
+            btagSF_WP_jet(
+                j,
+                "L",
+                sfSyst
+            );
+
+        const double sfM =
+            btagSF_WP_jet(
+                j,
+                "M",
+                sfSyst
+            );
 
         const double pL_data = clampProb(sfL * epsL);
         const double pM_data = clampProb(sfM * epsM_clamped);
@@ -3933,10 +4023,133 @@ std::cout
         if (disc_dbg >= btagT) ++n_tight_bjets;
     }
 
-    double btagjet_SF = btagVetoWeightExact(btagJets);
+    // nominal
+    double btagjet_SF =
+        btagVetoWeightExact(
+            btagJets,
+            "central",
+            "nominal"
+        );
+
+    // official SF uncertainty
+    double btagjet_SF_up =
+        btagVetoWeightExact(
+            btagJets,
+            "up",
+            "nominal"
+        );
+
+    double btagjet_SF_down =
+        btagVetoWeightExact(
+            btagJets,
+            "down",
+            "nominal"
+        );
+
+    // efficiency-map statistical uncertainty
+    double btagjet_effStatUp =
+        btagVetoWeightExact(
+            btagJets,
+            "central",
+            "up"
+        );
+
+    double btagjet_effStatDown =
+        btagVetoWeightExact(
+            btagJets,
+            "central",
+            "down"
+        );        
 
     pass_bjet_veto = !(n_medium_bjets >= 1 || n_loose_bjets >= 2);
     if (!pass_bjet_veto) return;
+
+// ---------------------------------------------------------
+// Debug 
+// ---------------------------------------------------------
+if (debugWeights() && __isMC) {
+
+static int dbg_btag_syst = 0;
+
+if (dbg_btag_syst < 10) {
+
+std::cout
+<< "\n[BTAG SYST DBG]"
+<< " era=" << g_era
+<< " sample=" << g_sampleName
+<< "\n"
+
+<< "  nJets          = "
+<< btagJets.size()
+<< "\n"
+
+<< "  nLoose         = "
+<< n_loose_bjets
+<< "\n"
+
+<< "  nMedium        = "
+<< n_medium_bjets
+<< "\n"
+
+<< "  nominal        = "
+<< btagjet_SF
+<< "\n"
+
+<< "  SF up          = "
+<< btagjet_SF_up
+<< "\n"
+
+<< "  SF down        = "
+<< btagjet_SF_down
+<< "\n"
+
+<< "  EffStat up     = "
+<< btagjet_effStatUp
+<< "\n"
+
+<< "  EffStat down   = "
+<< btagjet_effStatDown
+<< "\n"
+
+<< "  SF up/nom      = "
+<< (
+btagjet_SF != 0.0
+? btagjet_SF_up /
+btagjet_SF
+: 0.0
+)
+<< "\n"
+
+<< "  SF down/nom    = "
+<< (
+btagjet_SF != 0.0
+? btagjet_SF_down /
+btagjet_SF
+: 0.0
+)
+<< "\n"
+
+<< "  Eff up/nom     = "
+<< (
+btagjet_SF != 0.0
+? btagjet_effStatUp /
+btagjet_SF
+: 0.0
+)
+<< "\n"
+
+<< "  Eff down/nom   = "
+<< (
+btagjet_SF != 0.0
+? btagjet_effStatDown /
+btagjet_SF
+: 0.0
+)
+<< "\n";
+
+++dbg_btag_syst;
+}
+}
 
     const bool is0jet = (p4jets.size() == 0);
     const bool is1jet = (p4jets.size() == 1);
@@ -4241,9 +4454,6 @@ std::cout
     float trig1_down        = getMuonTriggerOnlySF(mu1, __isMC, "down");
     float trig2_down        = getMuonTriggerOnlySF(mu2, __isMC, "down");
 
-    float btagjet_SF_up     = btagVetoWeightExact(btagJets, "up");
-    float btagjet_SF_down   = btagVetoWeightExact(btagJets, "down");
-
     float totalWeight       = Dataweight * mu1_SF * mu2_SF * btagjet_SF;                       // Weight (MC)
     float noWeight          = 1.0;                                                             // No Weight (DATA)
 
@@ -4270,9 +4480,29 @@ std::cout
         totalWeight_trigDown = totalWeight * (trigDownPair / trigNomPair);
     }
 
-    float totalWeight_btagUp    = Dataweight * mu1_SF * mu2_SF * btagjet_SF_up;
-    float totalWeight_btagDown  = Dataweight * mu1_SF * mu2_SF * btagjet_SF_down;
-    
+    float totalWeight_btagSFUp =
+    Dataweight *
+    mu1_SF *
+    mu2_SF *
+    btagjet_SF_up;
+
+    float totalWeight_btagSFDown =
+        Dataweight *
+        mu1_SF *
+        mu2_SF *
+        btagjet_SF_down;
+
+    float totalWeight_btagEffStatUp =
+        Dataweight *
+        mu1_SF *
+        mu2_SF *
+        btagjet_effStatUp;
+
+    float totalWeight_btagEffStatDown =
+        Dataweight *
+        mu1_SF *
+        mu2_SF *
+        btagjet_effStatDown;
     
     // -------------------------------------
     //          Z-PT REWEIGHTING  
@@ -4375,8 +4605,8 @@ std::cout << "[SF DBG]"
 << " trig1_up=" << trig1_up
 << " trig2_up=" << trig2_up
 << " btag=" << btagjet_SF
-<< " btagUp=" << btagjet_SF_up
-<< " btagDown=" << btagjet_SF_down
+<< " btagSFUp=" << btagjet_SF_up
+<< " btagSFDown=" << btagjet_SF_down
 << " zptUpW=" << w_zpt_up
 << " zptDownW=" << w_zpt_down
 << "\n";
@@ -4751,14 +4981,24 @@ std::cout << "[SF DBG]"
                 ? totalWeight_trigDown
                 : 0.0;
 
-        const double w_btagUpVBF =
+        const double w_btagSFUpVBF =
             nominalPassVBF
-                ? totalWeight_btagUp
+                ? totalWeight_btagSFUp
                 : 0.0;
 
-        const double w_btagDownVBF =
+        const double w_btagSFDownVBF =
             nominalPassVBF
-                ? totalWeight_btagDown
+                ? totalWeight_btagSFDown
+                : 0.0;
+
+        const double w_btagEffStatUpVBF =
+            nominalPassVBF
+                ? totalWeight_btagEffStatUp
+                : 0.0;
+
+        const double w_btagEffStatDownVBF =
+            nominalPassVBF
+                ? totalWeight_btagEffStatDown
                 : 0.0;
 
         const double w_zptUpVBF =
@@ -4907,8 +5147,11 @@ if (nominalPassVBF && !jerDownVars.pass_vbf)
             w_trigUpVBF,
             w_trigDownVBF,
 
-            w_btagUpVBF,
-            w_btagDownVBF,
+            w_btagSFUpVBF,
+            w_btagSFDownVBF,
+
+            w_btagEffStatUpVBF,
+            w_btagEffStatDownVBF,
 
             w_zptUpVBF,
             w_zptDownVBF,

@@ -4,12 +4,12 @@
 # This creates one combined CSV that can be read by make_muon_jet_slides_withSystematics.py.
 
 eras=(
-    12022
-    22022
-    12023
-    22023
+    #12022
+    #22022
+    #12023
+    #22023
     2024
-    2025
+    #2025
 )
 
 macro="PrintSystematics_withCSV.C"
@@ -25,7 +25,7 @@ for era in "${eras[@]}"; do
     echo "=================================================="
 
     root -l -b -q \
-    "${macro}(\"/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/KIT/noScaleSmear_noBTagRW_noZPtRW\", \"DiMuonMass_Higgs\", \"corr_DM_VBF_SR\", false, 115.0, 135.0, \"${csv_out}\", \"${era}\")"
+    "${macro}(\"/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/KIT/noScaleSmear_BTagRW_noZPtRW\", \"DiMuonMass_Higgs\", \"corr_DM_VBF_SR\", false, 115.0, 135.0, \"${csv_out}\", \"${era}\")"
 done
 
 echo

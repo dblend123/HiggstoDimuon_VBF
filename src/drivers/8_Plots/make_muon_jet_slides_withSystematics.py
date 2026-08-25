@@ -49,7 +49,8 @@ SYST_ORDER = [
     "Trigger",
     "JEC",
     "JER",
-    "BTag",
+    "BTagSF",
+    "BTagEffStat",
     "ZPt",
 ]
 

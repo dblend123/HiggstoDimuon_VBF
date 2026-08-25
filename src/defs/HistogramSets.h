@@ -93,8 +93,11 @@ namespace analysis
             TH1F* triggerUp = nullptr;
             TH1F* triggerDown = nullptr;
 
-            TH1F* btagUp = nullptr;
-            TH1F* btagDown = nullptr;
+            TH1F* btagSFUp = nullptr;
+            TH1F* btagSFDown = nullptr;
+
+            TH1F* btagEffStatUp = nullptr;
+            TH1F* btagEffStatDown = nullptr;
 
             TH1F* zptUp = nullptr;
             TH1F* zptDown = nullptr;
@@ -118,8 +121,33 @@ namespace analysis
                 triggerUp   = new TH1F(Form("%s_triggerUp",   name), Form("%s_triggerUp",   title), nbins, xmin, xmax);
                 triggerDown = new TH1F(Form("%s_triggerDown", name), Form("%s_triggerDown", title), nbins, xmin, xmax);
 
-                btagUp     = new TH1F(Form("%s_btagUp",     name), Form("%s_btagUp",     title), nbins, xmin, xmax);
-                btagDown   = new TH1F(Form("%s_btagDown",   name), Form("%s_btagDown",   title), nbins, xmin, xmax);
+                btagSFUp =
+                    new TH1F(
+                        Form("%s_btagSFUp", name),
+                        Form("%s_btagSFUp", title),
+                        nbins, xmin, xmax
+                    );
+
+                btagSFDown =
+                    new TH1F(
+                        Form("%s_btagSFDown", name),
+                        Form("%s_btagSFDown", title),
+                        nbins, xmin, xmax
+                    );
+
+                btagEffStatUp =
+                    new TH1F(
+                        Form("%s_btagEffStatUp", name),
+                        Form("%s_btagEffStatUp", title),
+                        nbins, xmin, xmax
+                    );
+
+                btagEffStatDown =
+                    new TH1F(
+                        Form("%s_btagEffStatDown", name),
+                        Form("%s_btagEffStatDown", title),
+                        nbins, xmin, xmax
+                    );
 
                 zptUp      = new TH1F(Form("%s_zptUp",      name), Form("%s_zptUp",      title), nbins, xmin, xmax);
                 zptDown    = new TH1F(Form("%s_zptDown",    name), Form("%s_zptDown",    title), nbins, xmin, xmax);
@@ -132,13 +160,14 @@ namespace analysis
 
 
                 nom->Sumw2();
-                puUp->Sumw2();       puDown->Sumw2();
-                muonSFUp->Sumw2();   muonSFDown->Sumw2();
-                triggerUp->Sumw2();  triggerDown->Sumw2();
-                btagUp->Sumw2();     btagDown->Sumw2();
-                zptUp->Sumw2();      zptDown->Sumw2();
-                jecUp->Sumw2();      jecDown->Sumw2();
-                jerUp->Sumw2();      jerDown->Sumw2();
+                puUp->Sumw2();          puDown->Sumw2();
+                muonSFUp->Sumw2();      muonSFDown->Sumw2();
+                triggerUp->Sumw2();     triggerDown->Sumw2();
+                btagSFUp->Sumw2();      btagSFDown->Sumw2();
+                btagEffStatUp->Sumw2(); btagEffStatDown->Sumw2();
+                zptUp->Sumw2();         zptDown->Sumw2();
+                jecUp->Sumw2();         jecDown->Sumw2();
+                jerUp->Sumw2();         jerDown->Sumw2();
             }
             
             // ---------------------------------------------------------
@@ -150,11 +179,12 @@ namespace analysis
             void fill(
                 double x,
                 double w_nom,
-                double w_puUp,      double w_puDown,
-                double w_muonSFUp,  double w_muonSFDown,
-                double w_triggerUp, double w_triggerDown,
-                double w_btagUp,    double w_btagDown,
-                double w_zptUp,     double w_zptDown)
+                double w_puUp,          double w_puDown,
+                double w_muonSFUp,      double w_muonSFDown,
+                double w_triggerUp,     double w_triggerDown,
+                double w_btagSFUp,      double w_btagSFDown,
+                double w_btagEffStatUp, double w_btagEffStatDown,
+                double w_zptUp,         double w_zptDown)
             {
                 fill(
                     x,
@@ -169,8 +199,11 @@ namespace analysis
                     w_triggerUp,
                     w_triggerDown,
 
-                    w_btagUp,
-                    w_btagDown,
+                    w_btagSFUp,
+                    w_btagSFDown,
+
+                    w_btagEffStatUp,
+                    w_btagEffStatDown,
 
                     w_zptUp,
                     w_zptDown,
@@ -210,8 +243,11 @@ namespace analysis
                 double w_triggerUp,
                 double w_triggerDown,
 
-                double w_btagUp,
-                double w_btagDown,
+                double w_btagSFUp,
+                double w_btagSFDown,
+
+                double w_btagEffStatUp,
+                double w_btagEffStatDown,
 
                 double w_zptUp,
                 double w_zptDown,
@@ -298,15 +334,27 @@ namespace analysis
                 );
 
                 fillIfWeighted(
-                    btagUp,
+                    btagSFUp,
                     x,
-                    w_btagUp
+                    w_btagSFUp
                 );
 
                 fillIfWeighted(
-                    btagDown,
+                    btagSFDown,
                     x,
-                    w_btagDown
+                    w_btagSFDown
+                );
+
+                fillIfWeighted(
+                    btagEffStatUp,
+                    x,
+                    w_btagEffStatUp
+                );
+
+                fillIfWeighted(
+                    btagEffStatDown,
+                    x,
+                    w_btagEffStatDown
                 );
 
                 fillIfWeighted(
@@ -683,7 +731,21 @@ namespace analysis
                                      nPtBins, ptBins, nEtaBins, etaBins);
                 h_num_l_M = new TH2F("h_num_l_M", "light numer M;jet p_{T} [GeV];|#eta|",
                                      nPtBins, ptBins, nEtaBins, etaBins);
+                
+                h_den_b_L->Sumw2();
+                h_num_b_L->Sumw2();
+                h_den_c_L->Sumw2();
+                h_num_c_L->Sumw2();
+                h_den_l_L->Sumw2();
+                h_num_l_L->Sumw2();
 
+                h_den_b_M->Sumw2();
+                h_num_b_M->Sumw2();
+                h_den_c_M->Sumw2();
+                h_num_c_M->Sumw2();
+                h_den_l_M->Sumw2();
+                h_num_l_M->Sumw2();
+                
                 parentDir->cd();
             }
 

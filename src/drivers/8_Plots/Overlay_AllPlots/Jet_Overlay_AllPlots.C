@@ -229,8 +229,11 @@ static TH1* makeAzureExperimentalBand(
     TH1* h_trigUp,
     TH1* h_trigDown,
 
-    TH1* h_btagUp,
-    TH1* h_btagDown,
+    TH1* h_btagSFUp,
+    TH1* h_btagSFDown,
+
+    TH1* h_btagEffStatUp,
+    TH1* h_btagEffStatDown,
 
     TH1* h_zptUp,
     TH1* h_zptDown,
@@ -307,10 +310,18 @@ static TH1* makeAzureExperimentalBand(
                 i
             );
 
-        const double dBTag =
+        const double dBTagSF =
             deviation(
-                h_btagUp,
-                h_btagDown,
+                h_btagSFUp,
+                h_btagSFDown,
+                h_nom,
+                i
+            );
+
+        const double dBTagEffStat =
+            deviation(
+                h_btagEffStatUp,
+                h_btagEffStatDown,
                 h_nom,
                 i
             );
@@ -344,7 +355,8 @@ static TH1* makeAzureExperimentalBand(
                 dPU    * dPU    +
                 dMuon  * dMuon  +
                 dTrig  * dTrig  +
-                // dBTag * dBTag +
+                dBTagSF * dBTagSF +
+                dBTagEffStat * dBTagEffStat +
                 // dZPt  * dZPt  +
                 dJEC   * dJEC   +
                 dJER   * dJER
@@ -791,8 +803,10 @@ leg->SetEntrySeparation(0.01);
         TH1* h_muonSFDownTot = nullptr;
         TH1* h_trigUpTot = nullptr;
         TH1* h_trigDownTot = nullptr;
-        TH1* h_btagUpTot = nullptr;
-        TH1* h_btagDownTot = nullptr;
+        TH1* h_btagSFUp = nullptr;
+        TH1* h_btagEffStatUp = nullptr;
+        TH1* h_btagSFDown = nullptr;
+        TH1* h_btagEffStatDown = nullptr;
         TH1* h_zptUpTot = nullptr;
         TH1* h_zptDownTot = nullptr;
         TH1* h_jecUpTot = nullptr;
@@ -807,8 +821,10 @@ leg->SetEntrySeparation(0.01);
             h_muonSFDownTot = makeVariationTotal("h_muonSFDownTot_" + var, expSystDir, systVar, "_muonSFDown", bkgSamples);
             h_trigUpTot     = makeVariationTotal("h_trigUpTot_"     + var, expSystDir, systVar, "_triggerUp",     bkgSamples);
             h_trigDownTot   = makeVariationTotal("h_trigDownTot_"   + var, expSystDir, systVar, "_triggerDown",   bkgSamples);
-            h_btagUpTot     = makeVariationTotal("h_btagUpTot_"     + var, expSystDir, systVar, "_btagUp",     bkgSamples);
-            h_btagDownTot   = makeVariationTotal("h_btagDownTot_"   + var, expSystDir, systVar, "_btagDown",   bkgSamples);
+            h_btagSFUp     = makeVariationTotal("h_btagSFUp_"     + var, expSystDir, systVar, "_btagSFUp",     bkgSamples);
+            h_btagEffStatUp     = makeVariationTotal("h_btagEffStatUp_"     + var, expSystDir, systVar, "_btagEffStatUp",     bkgSamples);
+            h_btagSFDown   = makeVariationTotal("h_btagSFDown_"   + var, expSystDir, systVar, "_btagSFDown",   bkgSamples);
+            h_btagEffStatDown   = makeVariationTotal("h_btagEffStatDown_"   + var, expSystDir, systVar, "_btagEffStatDown",   bkgSamples);
             h_zptUpTot      = makeVariationTotal("h_zptUpTot_"      + var, expSystDir, systVar, "_zptUp",      bkgSamples);
             h_zptDownTot    = makeVariationTotal("h_zptDownTot_"    + var, expSystDir, systVar, "_zptDown",    bkgSamples);
             h_jecUpTot      = makeVariationTotal("h_jecUpTot_"      + var, expSystDir, systVar, "_jecUp",   bkgSamples);
@@ -816,14 +832,35 @@ leg->SetEntrySeparation(0.01);
             h_jerUpTot      = makeVariationTotal("h_jerUpTot_"      + var, expSystDir, systVar, "_jerUp",   bkgSamples);
             h_jerDownTot    = makeVariationTotal("h_jerDownTot_"    + var, expSystDir, systVar, "_jerDown", bkgSamples);
 
-            h_azureBand     = makeAzureExperimentalBand("h_azureExperimentalBand_" + var, h_mctot, h_mcBand,
-                                                    h_puUpTot,       h_puDownTot,
-                                                    h_muonSFUpTot,   h_muonSFDownTot,
-                                                    h_trigUpTot,     h_trigDownTot,
-                                                    h_btagUpTot,     h_btagDownTot,
-                                                    h_zptUpTot,      h_zptDownTot,
-                                                    h_jecUpTot,      h_jecDownTot,
-                                                    h_jerUpTot,      h_jerDownTot);
+            h_azureBand = makeAzureExperimentalBand(
+                "h_azureExperimentalBand_" + var,
+                h_mctot,
+                h_orangeBand,
+
+                h_puUpTot,
+                h_puDownTot,
+
+                h_muonSFUpTot,
+                h_muonSFDownTot,
+
+                h_trigUpTot,
+                h_trigDownTot,
+
+                h_btagSFUp,
+                h_btagSFDown,
+
+                h_btagEffStatUp,
+                h_btagEffStatDown,
+
+                h_zptUpTot,
+                h_zptDownTot,
+
+                h_jecUpTot,
+                h_jecDownTot,
+
+                h_jerUpTot,
+                h_jerDownTot
+            );        
         }
 
         TH1* h_ratio = (TH1*)h_data->Clone(("h_ratio_"+var).c_str());
@@ -945,8 +982,10 @@ c->SaveAs(outdir + baseName + ".png");
         delete h_muonSFDownTot;
         delete h_trigUpTot;
         delete h_trigDownTot;
-        delete h_btagUpTot;
-        delete h_btagDownTot;
+        delete h_btagSFUp;
+        delete h_btagEffStatUp;
+        delete h_btagSFDown;
+        delete h_btagEffStatDown;
         delete h_zptUpTot;
         delete h_zptDownTot;
         delete h_jecUpTot;

@@ -34,6 +34,7 @@
 #include <iostream>
 #include <memory>
 #include <algorithm>
+#include <cmath>
 
 // ------------------------- Helper: split path --------------------------
 static std::vector<std::string> splitPath(const std::string& p) {
@@ -164,16 +165,63 @@ static TH2* makeEfficiencyMap(TH2* hNum, TH2* hDen, const std::string& name)
       const double den = hDen->GetBinContent(ix, iy);
       const double num = hNum->GetBinContent(ix, iy);
 
-      if (den > 0.0) {
-        const double eff = num / den;
-        const double err = std::sqrt(std::max(0.0, eff * (1.0 - eff) / den));
-        hEff->SetBinContent(ix, iy, eff);
-        hEff->SetBinError(ix, iy, err);
-      } else {
-        hEff->SetBinContent(ix, iy, 0.0);
-        hEff->SetBinError(ix, iy, 0.0);
-      }
-    }
+        if (den > 0.0) {
+            const double eff =
+                std::clamp(
+                    num / den,
+                    0.0,
+                    1.0
+                );            
+            const double sumW   = hDen->GetBinContent(ix, iy);
+            const double sumW2  = std::pow(hDen->GetBinError(ix, iy), 2);
+            double nEff = 0.0;
+
+            if (sumW2 > 0.0) {
+                nEff =
+                    (sumW * sumW) /
+                    sumW2;
+            }
+
+            double err = 0.0;
+
+            if (nEff > 0.0) {
+                err =
+                    std::sqrt(
+                        std::max(
+                            0.0,
+                            eff * (1.0 - eff) /
+                            nEff
+                        )
+                    );
+            }
+
+            hEff->SetBinContent(
+                ix,
+                iy,
+                eff
+            );
+
+            hEff->SetBinError(
+                ix,
+                iy,
+                err
+            );
+        }
+        else {
+
+            hEff->SetBinContent(
+                ix,
+                iy,
+                0.0
+            );
+
+            hEff->SetBinError(
+                ix,
+                iy,
+                0.0
+            );
+        }
+     }
   }
 
   return hEff;

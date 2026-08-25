@@ -286,35 +286,43 @@ void PrintSystematics(
         {"Pileup",  "BDTExperimentalSyst_VBF", "puUp",       "puDown"},
         {"MuonSF",  "BDTExperimentalSyst_VBF", "muonSFUp",   "muonSFDown"},
         {"Trigger", "BDTExperimentalSyst_VBF", "triggerUp",  "triggerDown"},
-        {"BTag",    "BDTExperimentalSyst_VBF", "btagUp",     "btagDown"},
+        {"BTagSF",    "BDTExperimentalSyst_VBF", "btagSFUp",     "btagSFDown"},
+        {"BTagEffStat",    "BDTExperimentalSyst_VBF", "btagEffStatUp",     "btagEffStatDown"},
         {"ZPt",     "BDTExperimentalSyst_VBF", "zptUp",      "zptDown"},
         {"JEC", "BDTExperimentalSyst_VBF", "jecUp", "jecDown"},
         {"JER", "BDTExperimentalSyst_VBF", "jerUp", "jerDown"}
     };
 
-    std::vector<std::string> bdtVars = {
-        "DiMuonMass_Higgs",
-        "DiMuonpt",
-        "DiMuonrapidity",
-        "Muon1PTdDM",
-        "Muon2PTdDM",
-        "Muon1eta",
-        "Muon2eta",
-        "CollinsSoper",
-        "cosCollinsSoper",
-
-        "PtBalance",
-        "Zeppenfeld",
-
-        "Jet1eta",
-        "DiJetdeta",
-        "DiJetdphi",
-        "nJets",
-        "hdphi_mumu_jj",
-        "hdeta_mumu_jj",
-        "Jet1Pt",
-        "Jet2Pt"
+    struct BDTVarDef {
+        std::string name;
+        std::string nominalDir;
     };
+
+    std::vector<BDTVarDef> bdtVars = {
+
+        // Muon / dimuon quantities
+        {"DiMuonMass_Higgs", "corr_DM_VBF_SR"},
+        {"DiMuonpt",         "corr_DM_VBF_SR"},
+        {"DiMuonrapidity",   "corr_DM_VBF_SR"},
+        {"Muon1PTdDM",       "corr_DM_VBF_SR"},
+        {"Muon2PTdDM",       "corr_DM_VBF_SR"},
+        {"Muon1eta",         "corr_DM_VBF_SR"},
+        {"Muon2eta",         "corr_DM_VBF_SR"},
+        {"CollinsSoper",     "corr_DM_VBF_SR"},
+        {"cosCollinsSoper",  "corr_DM_VBF_SR"},
+        {"PtBalance",        "corr_DM_VBF_SR"},
+        {"Zeppenfeld",       "corr_DM_VBF_SR"},
+
+        // Jet quantities
+        {"Jet1eta",          "corr_Jet_VBF_SR"},
+        {"DiJetdeta",        "corr_Jet_VBF_SR"},
+        {"DiJetdphi",        "corr_Jet_VBF_SR"},
+        {"nJets",            "corr_Jet_VBF_SR"},
+        {"hdphi_mumu_jj",    "corr_Jet_VBF_SR"},
+        {"hdeta_mumu_jj",    "corr_Jet_VBF_SR"},
+        {"Jet1Pt",           "corr_Jet_VBF_SR"},
+        {"Jet2Pt",           "corr_Jet_VBF_SR"}
+    };    
 
     const std::string nomPath = std::string(nominalDir.Data()) + "/" + std::string(histName.Data());
     TH1* h_template = getHist(f_DY.get(), nomPath);
@@ -398,47 +406,91 @@ TH1* h_down =
         maxVal[s.label] = -std::numeric_limits<double>::infinity();
     }
 
-    for (const auto& var : bdtVars) {
-        const std::string varNomPath = std::string(nominalDir.Data()) + "/" + var;
+    for (const auto& v : bdtVars) {
 
-        TH1* h_temp = getHist(f_DY.get(), varNomPath);
-        if (!h_temp) continue;
+        const std::string& var = v.name;
 
-       TH1* h_var_nom =
-    buildTotal(
-        "h_nom_" + var,
-        varNomPath,
-        varNomPath,
-        files,
-        h_temp
-    ); 
+        const std::string varNomPath =
+            v.nominalDir + "/" + var;
+
+        TH1* h_temp =
+            getHist(
+                f_DY.get(),
+                varNomPath
+            );
+
+        if (!h_temp)
+            continue;
+
+        TH1* h_var_nom =
+            buildTotal(
+                "h_nom_" + var,
+                varNomPath,
+                varNomPath,
+                files,
+                h_temp
+            );
 
         for (const auto& s : systs) {
-            const std::string upPath   = s.dir + "/" + var + "_" + s.up;
-            const std::string downPath = s.dir + "/" + var + "_" + s.down;
 
-TH1* h_up =
-    buildTotal(
-        "h_up_" + s.label + "_" + var,
-        upPath,
-        varNomPath,
-        files,
-        h_temp
-    );
+            const std::string upPath =
+                s.dir + "/" +
+                var + "_" +
+                s.up;
 
-TH1* h_down =
-    buildTotal(
-        "h_down_" + s.label + "_" + var,
-        downPath,
-        varNomPath,
-        files,
-        h_temp
-    );
+            const std::string downPath =
+                s.dir + "/" +
+                var + "_" +
+                s.down;
 
-            VariationResult r = calcVariation(h_var_nom, h_up, h_down, false, xmin, xmax);
-            if (r.valid && std::isfinite(r.envelopePct)) {
-                minVal[s.label] = std::min(minVal[s.label], r.envelopePct);
-                maxVal[s.label] = std::max(maxVal[s.label], r.envelopePct);
+            TH1* h_up =
+                buildTotal(
+                    "h_up_" +
+                        s.label +
+                        "_" +
+                        var,
+                    upPath,
+                    varNomPath,
+                    files,
+                    h_temp
+                );
+
+            TH1* h_down =
+                buildTotal(
+                    "h_down_" +
+                        s.label +
+                        "_" +
+                        var,
+                    downPath,
+                    varNomPath,
+                    files,
+                    h_temp
+                );
+
+            VariationResult r =
+                calcVariation(
+                    h_var_nom,
+                    h_up,
+                    h_down,
+                    false,
+                    xmin,
+                    xmax
+                );
+
+            if (r.valid &&
+                std::isfinite(r.envelopePct)) {
+
+                minVal[s.label] =
+                    std::min(
+                        minVal[s.label],
+                        r.envelopePct
+                    );
+
+                maxVal[s.label] =
+                    std::max(
+                        maxVal[s.label],
+                        r.envelopePct
+                    );
             }
 
             delete h_up;

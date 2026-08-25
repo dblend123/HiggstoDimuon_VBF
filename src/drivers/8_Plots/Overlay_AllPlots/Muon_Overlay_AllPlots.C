@@ -280,8 +280,11 @@ static TH1* buildAzureExperimentalBand(
     TH1* h_triggerUp,
     TH1* h_triggerDown,
 
-    TH1* h_btagUp,
-    TH1* h_btagDown,
+    TH1* h_btagSFUp,
+    TH1* h_btagSFDown,
+
+    TH1* h_btagEffStatUp,
+    TH1* h_btagEffStatDown,
 
     TH1* h_zptUp,
     TH1* h_zptDown,
@@ -312,7 +315,8 @@ auto oneSyst = [&](TH1* up, TH1* down) {
     const double ePU    = oneSyst(h_puUp,   h_puDown);
     const double eMuon  = oneSyst(h_muonUp, h_muonDown);
     const double eTrig  = oneSyst(h_triggerUp, h_triggerDown);
-    const double eBTag  = oneSyst(h_btagUp, h_btagDown);
+    const double eBTagSF  = oneSyst(h_btagSFUp, h_btagSFDown);
+    const double eBTagEffStat  = oneSyst(h_btagEffStatUp, h_btagEffStatDown);
     const double eZPt   = oneSyst(h_zptUp,  h_zptDown);
     const double eJEC   = oneSyst(h_jecUp,  h_jecDown);
     const double eJER   = oneSyst(h_jerUp,  h_jerDown);
@@ -331,7 +335,8 @@ const double orangeRel =
 const double expAbs = std::sqrt(ePU     *   ePU +
                                 eMuon   *   eMuon +
                                 eTrig   *   eTrig +
-                                //eBTag *   eBTag +
+                                eBTagSF *   eBTagSF +
+                                eBTagEffStat *   eBTagEffStat +
                                 //eZPt  *   eZPt
                                 eJEC    *   eJEC  +
                                 eJER    *   eJER );
@@ -349,7 +354,8 @@ const double azureRel =
 << " PU=" << ePU/nom
 << " Muon=" << eMuon/nom
 << " Trig=" << eTrig/nom
-<< " BTag=" << eBTag/nom
+<< " BTagSF=" << eBTagSF/nom
+<< " BTagEffStat=" << eBTagEffStat/nom
 << " ZPt=" << eZPt/nom
 << "\n";*/
 
@@ -360,7 +366,8 @@ std::cout
 << " PU=" << ePU/nom
 << " Muon=" << eMuon/nom
 << " Trig=" << eTrig/nom
-<< " BTag=" << eBTag/nom
+<< " BTagSF=" << eBTagSF/nom
+<< " BTagEffStat=" << eBTagEffStat/nom
 << " ZPt=" << eZPt/nom
 << "\n";
 }*/
@@ -725,12 +732,22 @@ TH1* h_triggerDownTot = buildTotalVariation("h_triggerDownTot_"+var, expSystDir,
                                          f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
                                          f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
                                          f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
-TH1* h_btagUpTot = buildTotalVariation("h_btagUpTot_"+var, expSystDir, systVar, "btagUp", h_mctot,
+TH1* h_btagSFUp = buildTotalVariation("h_btagSFUp_"+var, expSystDir, systVar, "btagSFUp", h_mctot,
                                        f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
                                        f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
                                        f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
                                        f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
-TH1* h_btagDownTot = buildTotalVariation("h_btagDownTot_"+var, expSystDir, systVar, "btagDown", h_mctot,
+TH1* h_btagSFDown = buildTotalVariation("h_btagSFDown_"+var, expSystDir, systVar, "btagSFDown", h_mctot,
+                                         f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
+                                         f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
+                                         f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
+                                         f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
+TH1* h_btagEffStatUp = buildTotalVariation("h_btagEffStatUp_"+var, expSystDir, systVar, "btagEffStatUp", h_mctot,
+                                       f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
+                                       f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
+                                       f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
+                                       f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
+TH1* h_btagEffStatDown = buildTotalVariation("h_btagEffStatDown_"+var, expSystDir, systVar, "btagEffStatDown", h_mctot,
                                          f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
                                          f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
                                          f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
@@ -845,8 +862,11 @@ TH1* h_expBand =
         h_triggerUpTot,
         h_triggerDownTot,
 
-        h_btagUpTot,
-        h_btagDownTot,
+        h_btagSFUp,
+        h_btagSFDown,
+
+        h_btagEffStatUp,
+        h_btagEffStatDown,
 
         h_zptUpTot,
         h_zptDownTot,
@@ -991,7 +1011,8 @@ ratioLegend->Draw();
   delete h_puUpTot; delete h_puDownTot;
   delete h_muonSFUpTot; delete h_muonSFDownTot;
   delete h_triggerUpTot; delete h_triggerDownTot;
-  delete h_btagUpTot; delete h_btagDownTot;
+  delete h_btagSFUp; delete h_btagSFDown;
+  delete h_btagEffStatUp; delete h_btagEffStatDown;
   delete h_zptUpTot; delete h_zptDownTot;
   delete hs; delete h_frame; delete h_mcBand;
 }
