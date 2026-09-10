@@ -40,6 +40,8 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include "TMatrixDSym.h"
+#include <memory>
 
 // ------------------------- Building Polynomial in u = log(x + shift), order N --------------------------
 // f(x) = p0 + p1*u + p2*u^2 + ... + pN*u^N
@@ -165,13 +167,76 @@ static int countUsableBins(const TH1* h, double xmin, double xmax) {
 // ------------------------- stats helpers --------------------------
 struct FitInfo {
   TF1* f = nullptr;
+
   int orderUsed = -1;
+  int npar = 0;
+
   double chi2 = 0.0;
   int ndf = 0;
-  int npar = 0;
-  double pval = 1.0; // fit p-value from chi2 distribution
-  double ftest_pval = -1.0; // p-value for (orderUsed vs orderUsed+1) comparison (if computed)
+  double pval = 1.0;
+  double ftest_pval = -1.0;
+
+  std::unique_ptr<TMatrixDSym> cov;
+
+  bool useLogX = false;
 };
+
+static double fitSigma(
+    const FitInfo& fit,
+    double x
+)
+{
+    if (!fit.f || !fit.cov)
+        return 0.0;
+
+    if (fit.npar <= 0)
+        return 0.0;
+
+    if (fit.cov->GetNrows() != fit.npar)
+        return 0.0;
+
+    const double base =
+        fit.useLogX
+            ? std::log(x + 1.0)
+            : x;
+
+    std::vector<double> grad(
+        fit.npar,
+        1.0
+    );
+
+    for (int i = 1; i < fit.npar; ++i) {
+        grad[i] =
+            std::pow(
+                base,
+                i
+            );
+    }
+
+    double variance = 0.0;
+
+    for (int i = 0; i < fit.npar; ++i) {
+        for (int j = 0; j < fit.npar; ++j) {
+
+            variance +=
+                grad[i] *
+                (*fit.cov)(i, j) *
+                grad[j];
+        }
+    }
+
+    if (!std::isfinite(variance))
+        return 0.0;
+
+    // Tiny negative values can occur from floating-point precision.
+    variance =
+        std::max(
+            0.0,
+            variance
+        );
+
+    return std::sqrt(variance);
+}
 
 static double chi2PValue(double chi2, int ndf) {
   if (ndf <= 0) return 1.0;
@@ -221,13 +286,20 @@ static TH1D* makePullHist(const TH1* h, TF1* f, double xmin, double xmax,
 
 // Fit a segment with order, capture fit stats.
 // Also optionally compute F-test vs (order+1) if enough bins.
-static FitInfo fitSegmentWithStats(const TH1* h, const std::string& baseName,
-                                  double xmin, double xmax, int orderRequested,
-                                  bool doFtest=true,
-                                  bool useLogX=false)
-{
+static FitInfo fitSegmentWithStats(
+    const TH1* h,
+    const std::string& baseName,
+    const std::string& category,
+    double xmin,
+    double xmax,
+    int orderRequested,
+    bool doFtest=true,
+    bool useLogX=false) {
+
   FitInfo out;
   if (!h) return out;
+
+  out.useLogX = useLogX;
 
   int usable = countUsableBins(h, xmin, xmax);
   int order = orderRequested;
@@ -253,14 +325,19 @@ static FitInfo fitSegmentWithStats(const TH1* h, const std::string& baseName,
 
   TFitResultPtr r = const_cast<TH1*>(h)->Fit(out.f, "RSQ0");
   if ((int)r == 0 && r.Get()) { // ROOT uses status==0 for OK
+    
+    out.cov  = std::make_unique<TMatrixDSym>(r->GetCovarianceMatrix());
+
     out.chi2 = r->Chi2();
     out.ndf  = r->Ndf();
-    out.pval = chi2PValue(out.chi2, out.ndf);
+    out.pval = chi2PValue(
+        out.chi2,
+        out.ndf);
+        
   } else {
     std::cerr << "[WARN] Fit failed for " << baseName << " order=" << order << "\n";
   }
 
-  // F-test against order+1 (nested) if possible
   // F-test against order+1 (nested) if possible
   if (doFtest) {
     const int order2 = order + 1;
@@ -290,23 +367,87 @@ static FitInfo fitSegmentWithStats(const TH1* h, const std::string& baseName,
         out.ftest_pval = fTestPValue(chi1, ndf1, p1, chi2, ndf2, p2);
 
         // Keep the better (lower chi2) model as the "segment fit"
-        if (chi2 < chi1) {
+        const bool preferHigherOrder =
+            std::isfinite(out.ftest_pval) &&
+            out.ftest_pval >= 0.0 &&
+            out.ftest_pval < 0.05;
+
+        if (preferHigherOrder) {
+
           delete out.f;
+
           out.f = f2;
+
           out.orderUsed = order2;
           out.npar = p2;
+
           out.chi2 = chi2;
           out.ndf  = ndf2;
-          out.pval = chi2PValue(out.chi2, out.ndf);
+
+          out.pval =
+              chi2PValue(
+                  out.chi2,
+                  out.ndf
+              );
+
+          // IMPORTANT:
+          // Replace the old covariance with the covariance
+          // belonging to the newly selected polynomial.
+        out.cov =
+            std::make_unique<TMatrixDSym>(
+                r2->GetCovarianceMatrix()
+        );
         } else {
+
           delete f2;
         }
-      } else {
-        delete f2;
-      }
+
+        } else {
+            delete f2;
+        }
     }
   }
 
+  // ------------------------------------------------
+  // Print FINAL selected fit and its covariance
+  // ------------------------------------------------
+if (out.f && out.cov) {
+
+  std::cout
+      << "\n[FINAL FIT COVARIANCE] "
+      << category
+      << " / "
+      << baseName
+      << "\n";
+
+  std::cout
+      << "Selected order = pol"
+      << out.orderUsed
+      << "\n";
+
+  std::cout << "Parameters:\n";
+
+  for (int i = 0; i < out.npar; ++i) {
+
+    std::cout
+        << "  p" << i
+        << " = "
+        << out.f->GetParameter(i)
+        << " +/- "
+        << std::sqrt(
+            std::max(
+                0.0,
+                (*out.cov)(i, i)
+            )
+        )
+        << "\n";
+  }
+
+  std::cout
+      << "Covariance matrix:\n";
+
+  out.cov->Print();
+}  
   return out;
 }
 
@@ -319,6 +460,84 @@ static TF1* g_high = nullptr;
 static double smoothStep(double x, double x0, double w) {
   if (w <= 0) return (x > x0) ? 1.0 : 0.0;
   return 0.5 * (1.0 + TMath::TanH((x - x0)/w));
+}
+
+static double combinedSigma(
+    double x,
+    const FitInfo& iL,
+    const FitInfo& iM,
+    const FitInfo& iH
+)
+{
+    const double xcl =
+        std::min(
+            200.0,
+            std::max(
+                5.0,
+                x
+            )
+        );
+
+    const double w1 = 8.0;
+    const double w2 = 10.0;
+
+    const double s1 =
+        smoothStep(
+            xcl,
+            60.0,
+            w1
+        );
+
+    const double s2 =
+        smoothStep(
+            xcl,
+            120.0,
+            w2
+        );
+
+    const double sigL =
+        fitSigma(
+            iL,
+            xcl
+        );
+
+    const double sigM =
+        fitSigma(
+            iM,
+            xcl
+        );
+
+    const double sigH =
+        fitSigma(
+            iH,
+            xcl
+        );
+
+    // Same coefficients used by the nominal smooth blend.
+    const double aL =
+        (1.0 - s2) *
+        (1.0 - s1);
+
+    const double aM =
+        (1.0 - s2) *
+        s1;
+
+    const double aH =
+        s2;
+
+    // Fits are independent because they come from separate
+    // pT regions, so combine their uncertainties in quadrature.
+    const double variance =
+        aL * aL * sigL * sigL +
+        aM * aM * sigM * sigM +
+        aH * aH * sigH * sigH;
+
+    return std::sqrt(
+        std::max(
+            0.0,
+            variance
+        )
+    );
 }
 
 // Smooth blend: low -> mid around x=60, mid -> high around x=120
@@ -396,7 +615,7 @@ static TCanvas* drawWithPulls(const std::string& title,
   // --- top pad
   p1->cd();
   h->GetXaxis()->SetRangeUser(5, 200);
-  h->GetYaxis()->SetTitle("SF = Data/DY");
+  h->GetYaxis()->SetTitle("SF = (Data - non-DY)/DY");
   h->SetMarkerStyle(20);
   h->Draw("E1");
 
@@ -468,7 +687,7 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
                        "/ZPt_Corrections/" + muCorr + "/" + cfg + "/Fits";
   gSystem->Exec(("mkdir -p " + outDir).c_str());
 
-  std::string outRoot = outDir + "/ZPtSF_Fits_" + year + "_" + muCorr + "_" + cfg + ".root";
+  std::string outRoot = outDir + "/ZPtSF_Fits_" + year + ".root";
 
   TFile* fin = TFile::Open(inSFFile, "READ");
   if (!fin || fin->IsZombie()) {
@@ -485,17 +704,36 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
   };
 
   for (const auto& cat : cats) {
-    const std::string hpath = cat + "/SF_DataOverDY";
+    const std::string hpath = cat + "/SF_DataMinusNonDY_OverDY";
     TH1* h = getHist(fin, hpath);
     if (!h) continue;
 
     sanitizeSF(h, 5.0);
-    applyRelErrorFloor(h, xLowMin, xLowMax, 0.05);  // 5% floor in low region
+    //applyRelErrorFloor(h, xLowMin, xLowMax, 0.05);  // 5% floor in low region
+    // Use the propagated statistical uncertainties from
+    // (Data - nonDY) / DY for the nominal goodness-of-fit test.
+    // Do not add an arbitrary error floor here.
+    // applyRelErrorFloor(h, xLowMin, xLowMax, 0.05);
+
 
     // --- Fit segments w/ stats (+ F-test vs N+1)
-    FitInfo iL = fitSegmentWithStats(h, "f_low",  xLowMin,  xLowMax,  orderLow,  true, true);  // <-- log(x+1)
-    FitInfo iM = fitSegmentWithStats(h, "f_mid",  xMidMin,  xMidMax,  orderMid,  true, false); // normal pol
-    FitInfo iH = fitSegmentWithStats(h, "f_high", xHighMin, xHighMax, orderHigh, true, false); // normal pol
+    FitInfo iL = fitSegmentWithStats(
+        h, "f_low", cat,
+        xLowMin, xLowMax,
+        orderLow, true, true
+    );
+
+    FitInfo iM = fitSegmentWithStats(
+        h, "f_mid", cat,
+        xMidMin, xMidMax,
+        orderMid, true, false
+    );
+
+    FitInfo iH = fitSegmentWithStats(
+        h, "f_high", cat,
+        xHighMin, xHighMax,
+        orderHigh, true, false
+    );
 
     TF1* fL = iL.f;
     TF1* fM = iM.f;
@@ -503,6 +741,110 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
 
     // Final combined TF1 (piecewise function)
     TF1* fC = makeCombined("f_combined", fL, fM, fH);
+    // ------------------------------------------------------------
+    // Goodness of fit of the actual combined function
+    // ------------------------------------------------------------
+    const int nparEffective =
+        iL.npar +
+        iM.npar +
+        iH.npar;
+
+    double combinedChi2 = 0.0;
+    int combinedNdf = 0;
+    int combinedNpts = 0;
+
+    computeChi2NdfFromHist(
+        h,
+        fC,
+        0.0,
+        200.0,
+        nparEffective,
+        combinedChi2,
+        combinedNdf,
+        combinedNpts
+    );
+
+    const double combinedPValue =
+        combinedNdf > 0
+            ? TMath::Prob(combinedChi2, combinedNdf)
+            : 0.0;
+
+// ------------------------------------------------------------
+// Use the measured, background-subtracted binned SF directly.
+// This preserves the variable-width 10/20 GeV bins.
+// ------------------------------------------------------------
+TH1* hZPtNom =
+    (TH1*)h->Clone("zptWeightNom");
+
+TH1* hZPtUp =
+    (TH1*)h->Clone("zptWeightUp");
+
+TH1* hZPtDown =
+    (TH1*)h->Clone("zptWeightDown");
+
+hZPtNom->SetDirectory(nullptr);
+hZPtUp->SetDirectory(nullptr);
+hZPtDown->SetDirectory(nullptr);
+
+for (int ibin = 1;
+     ibin <= hZPtNom->GetNbinsX();
+     ++ibin)
+{
+    const double nominal =
+        h->GetBinContent(ibin);
+
+    const double error =
+        h->GetBinError(ibin);
+
+    const double up =
+        nominal + error;
+
+    const double down =
+        std::max(
+            0.0,
+            nominal - error
+        );
+
+    hZPtNom->SetBinContent(ibin, nominal);
+    hZPtNom->SetBinError(ibin, error);
+
+    hZPtUp->SetBinContent(ibin, up);
+    hZPtUp->SetBinError(ibin, 0.0);
+
+    hZPtDown->SetBinContent(ibin, down);
+    hZPtDown->SetBinError(ibin, 0.0);
+}
+
+// Give the underflow and overflow bins safe frozen values.
+const int firstBin = 1;
+const int lastBin = hZPtNom->GetNbinsX();
+
+hZPtNom->SetBinContent(
+    0,
+    hZPtNom->GetBinContent(firstBin)
+);
+hZPtNom->SetBinContent(
+    lastBin + 1,
+    hZPtNom->GetBinContent(lastBin)
+);
+
+hZPtUp->SetBinContent(
+    0,
+    hZPtUp->GetBinContent(firstBin)
+);
+hZPtUp->SetBinContent(
+    lastBin + 1,
+    hZPtUp->GetBinContent(lastBin)
+);
+
+hZPtDown->SetBinContent(
+    0,
+    hZPtDown->GetBinContent(firstBin)
+);
+hZPtDown->SetBinContent(
+    lastBin + 1,
+    hZPtDown->GetBinContent(lastBin)
+);
 
     // --- Pull distributions
     TH1D* pullLow  = makePullHist(h, fL, xLowMin,  xLowMax,  "pull_low");
@@ -539,12 +881,16 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
     // --- Write outputs into ROOT file
     fout->mkdir(cat.c_str());
     fout->cd(cat.c_str());
-    h->Write("SF_DataOverDY");
+    h->Write("SF_DataMinusNonDY_OverDY");
 
     if (fL) fL->Write("f_low");
     if (fM) fM->Write("f_mid");
     if (fH) fH->Write("f_high");
     if (fC) fC->Write("f_combined");
+
+    hZPtNom->Write();
+    hZPtUp->Write();
+    hZPtDown->Write();
 
     // store pull hists
     if (pullLow)  pullLow->Write("pull_low");
@@ -563,11 +909,49 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
     std::cout << "\n=== " << cat << " ===\n";
     std::cout << " low : pol"  << iL.orderUsed << "  chi2/ndf=" << iL.chi2 << "/" << iL.ndf
               << "  p=" << iL.pval << "  Ftest p=" << iL.ftest_pval << "\n";
-    std::cout << "[INFO] Applied low-region rel error floor = 5%\n";
+    //std::cout << "[INFO] Applied low-region rel error floor = 5%\n";
     std::cout << " mid : pol"  << iM.orderUsed << "  chi2/ndf=" << iM.chi2 << "/" << iM.ndf
               << "  p=" << iM.pval << "  Ftest p=" << iM.ftest_pval << "\n";
     std::cout << " high: pol"  << iH.orderUsed << "  chi2/ndf=" << iH.chi2 << "/" << iH.ndf
               << "  p=" << iH.pval << "  Ftest p=" << iH.ftest_pval << "\n";
+    std::cout
+        << " combined: chi2=" << combinedChi2
+        << " npts=" << combinedNpts
+        << " npar=" << nparEffective
+        << " ndf=" << combinedNdf
+        << " chi2/ndf="
+        << (combinedNdf > 0
+                ? combinedChi2 / combinedNdf
+                : 0.0)
+        << " p=" << combinedPValue
+        << "\n";
+
+std::cout << "\n[COMBINED FIT PULLS] " << cat << "\n";
+
+for (int i = 1; i <= h->GetNbinsX(); ++i) {
+    const double x = h->GetBinCenter(i);
+    const double y = h->GetBinContent(i);
+    const double e = h->GetBinError(i);
+
+    if (e <= 0.0 || y == 0.0)
+        continue;
+
+    const double prediction = fC->Eval(x);
+    const double pull = (y - prediction) / e;
+
+    std::cout
+        << " bin=" << i
+        << " range=["
+        << h->GetXaxis()->GetBinLowEdge(i)
+        << ","
+        << h->GetXaxis()->GetBinUpEdge(i)
+        << "]"
+        << " SF=" << y
+        << " fit=" << prediction
+        << " error=" << e
+        << " pull=" << pull
+        << "\n";
+}
 
     // cleanup
     delete c;
@@ -575,6 +959,9 @@ void FitZPtSF_Piecewise_StackedPlots(const char* inSFFile,
     delete pullLow; delete pullMid; delete pullHigh; delete pullAll;
     delete h;
     delete fL; delete fM; delete fH; delete fC;
+    delete hZPtNom;
+    delete hZPtUp;
+    delete hZPtDown;
   }
 
   fout->Close();

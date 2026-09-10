@@ -65,28 +65,28 @@
 //             UNCERTAINTY 
 // -------------------------------------
 
-#define FILL_BDT_SYST_HIST(set, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown) \
-    set.h_z.fill(g_z, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_ptBalance.fill(g_ptBalance, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_mu1_pt_over_m.fill(g_mu1_pt_over_m, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_mu2_pt_over_m.fill(g_mu2_pt_over_m, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_mu1_eta.fill(g_mu1_eta, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_mu2_eta.fill(g_mu2_eta, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_jet1_eta.fill(g_jet1_eta, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_m_mumu.fill(g_m_mumu, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_deta_jj.fill(g_deta_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_dphi_jj.fill(g_dphi_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_njets.fill(g_njets, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_phi_CS.fill(g_phi_CS, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_costheta_CS.fill(g_costheta_CS, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_y_mumu.fill(g_y_mumu, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_y_j1.fill(g_y_j1, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_y_j2.fill(g_y_j2, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_pt_mumu.fill(g_pt_mumu, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_pt_j1.fill(g_pt_j1, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
-    set.h_pt_j2.fill(g_pt_j2, w_nom, w_scaleUp, w_scaleDown, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
+#define FILL_BDT_SYST_HIST(set, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown) \
+    set.h_z.fill(g_z, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_ptBalance.fill(g_ptBalance, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu1_pt_over_m.fill(g_mu1_pt_over_m, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu2_pt_over_m.fill(g_mu2_pt_over_m, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu1_eta.fill(g_mu1_eta, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_mu2_eta.fill(g_mu2_eta, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_jet1_eta.fill(g_jet1_eta, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_m_mumu.fill(g_m_mumu, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_deta_jj.fill(g_deta_jj, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_dphi_jj.fill(g_dphi_jj, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_njets.fill(g_njets, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_dphi_mumu_jj.fill(g_dphi_mumu_jj, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_deta_mumu_jj.fill(g_deta_mumu_jj, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_phi_CS.fill(g_phi_CS, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_costheta_CS.fill(g_costheta_CS, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_y_mumu.fill(g_y_mumu, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_y_j1.fill(g_y_j1, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_y_j2.fill(g_y_j2, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_pt_mumu.fill(g_pt_mumu, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_pt_j1.fill(g_pt_j1, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown); \
+    set.h_pt_j2.fill(g_pt_j2, w_nom, w_scale0, w_scale1, w_scale3, w_scale5, w_scale7, w_scale8, w_pdfUp, w_pdfDown, w_isrUp, w_isrDown, w_fsrUp, w_fsrDown);
 
 #define FILL_BDT_EXP_SYST_HIST( \
     set, \
@@ -469,9 +469,18 @@ static TRandom3 g_rng(42); // or seed per event if you prefer
 // ------------------------
 struct ZPtReweighter {
   std::unique_ptr<TFile> f;
-  std::unique_ptr<TF1> f0;
-  std::unique_ptr<TF1> f1;
-  std::unique_ptr<TF1> f2;
+  
+std::unique_ptr<TH1> hNom0;
+std::unique_ptr<TH1> hNom1;
+std::unique_ptr<TH1> hNom2;
+
+std::unique_ptr<TH1> hUp0;
+std::unique_ptr<TH1> hUp1;
+std::unique_ptr<TH1> hUp2;
+
+std::unique_ptr<TH1> hDown0;
+std::unique_ptr<TH1> hDown1;
+std::unique_ptr<TH1> hDown2;
 
   double xmin = 0.0;
   double xmax = 200.0;
@@ -480,7 +489,9 @@ struct ZPtReweighter {
             const std::string& dir0 = "corr_DM_Pre-Selection_Z0j",
             const std::string& dir1 = "corr_DM_Pre-Selection_Z1j",
             const std::string& dir2 = "corr_DM_Pre-Selection_Z2j",
-            const std::string& fname = "f_combined",
+            const std::string& nomName  = "zptWeightNom",
+            const std::string& upName   = "zptWeightUp",
+            const std::string& downName = "zptWeightDown",
             double xMin = 0.0, double xMax = 200.0)
   {
     xmin = xMin;
@@ -492,38 +503,102 @@ struct ZPtReweighter {
       return false;
     }
 
-    auto getClone = [&](const std::string& d) -> std::unique_ptr<TF1> {
-      const std::string path = d + "/" + fname;
-      TF1* tf = dynamic_cast<TF1*>(f->Get(path.c_str()));
-      if (!tf) {
-        std::cerr << "[ZPtRW] ERROR missing TF1: " << path << " in " << rootPath << "\n";
+auto getClone =
+[&](const std::string& dir,
+    const std::string& histName)
+-> std::unique_ptr<TH1>
+{
+    const std::string path =
+        dir + "/" + histName;
+
+    TH1* h =
+        dynamic_cast<TH1*>(
+            f->Get(path.c_str())
+        );
+
+    if (!h) {
+        std::cerr
+            << "[ZPtRW] ERROR missing histogram "
+            << path
+            << "\n";
+
         return nullptr;
-      }
-      // Clone so we can safely keep it after file operations; detach from directory.
-      TF1* c = dynamic_cast<TF1*>(tf->Clone((d + "_" + fname + "_clone").c_str()));
-      return std::unique_ptr<TF1>(c);
-    };
+    }
 
-    f0 = getClone(dir0);
-    f1 = getClone(dir1);
-    f2 = getClone(dir2);
+    TH1* c =
+        dynamic_cast<TH1*>(
+            h->Clone(
+                (dir + "_" + histName).c_str()
+            )
+        );
 
-    return (bool)f0 && (bool)f1 && (bool)f2;
+    if (!c) {
+        std::cerr
+            << "[ZPtRW] ERROR cloning histogram "
+            << path
+            << "\n";
+
+        return nullptr;
+    }
+
+    c->SetDirectory(nullptr);
+
+    return std::unique_ptr<TH1>(c);
+};
+
+    hNom0 = getClone(dir0, nomName);
+    hNom1 = getClone(dir1, nomName);
+    hNom2 = getClone(dir2, nomName);
+    hUp0 = getClone(dir0, upName);
+    hUp1 = getClone(dir1, upName);
+    hUp2 = getClone(dir2, upName);
+    hDown0 = getClone(dir0, downName);
+    hDown1 = getClone(dir1, downName);
+    hDown2 = getClone(dir2, downName);
+
+  const bool loaded =
+    hNom0 && hNom1 && hNom2 &&
+    hUp0 && hUp1 && hUp2 &&
+    hDown0 && hDown1 && hDown2;
+
+    if (loaded) {
+        std::cerr
+            << "[ZPtRW] Loaded binned weights successfully\n"
+            << "  0j bins = " << hNom0->GetNbinsX() << "\n"
+            << "  1j bins = " << hNom1->GetNbinsX() << "\n"
+            << "  2j bins = " << hNom2->GetNbinsX() << "\n"
+            << "  range   = ["
+            << hNom0->GetXaxis()->GetXmin()
+            << ", "
+            << hNom0->GetXaxis()->GetXmax()
+            << "] GeV\n";
+    }
+
+    return loaded;
+
   }
 
-  double eval(double zpt, int njets) const {
-    if (!f0 || !f1 || !f2) return 1.0;
+double eval(double zpt, int njets, const std::string& syst="nominal") const {
+    TH1* h = nullptr;
 
-    // clamp to fit range so you don’t extrapolate wildly
-    const double x = std::clamp(zpt, xmin, xmax);
+    if (njets <= 0) {
+        h = (syst == "up") ? hUp0.get() : (syst == "down") ? hDown0.get() : hNom0.get();
+    } else if (njets == 1) {
+        h = (syst == "up") ? hUp1.get() : (syst == "down") ? hDown1.get() : hNom1.get();
+    } else {
+        h = (syst == "up") ? hUp2.get() : (syst == "down") ? hDown2.get() : hNom2.get();
+    }
 
-    const TF1* ff = (njets <= 0 ? f0.get() : (njets == 1 ? f1.get() : f2.get()));
-    double w = ff->Eval(x);
+    if (!h) return 1.0;
 
-    // safety: no negative/NaN weights
+    const double x = std::clamp(zpt, xmin, std::nextafter(xmax, xmin));
+    const int bin = h->FindBin(x);
+    double w = h->GetBinContent(bin);
+
     if (!std::isfinite(w) || w <= 0.0) w = 1.0;
     return w;
-  }
+}
+
 };
 
 // ------------------------
@@ -583,7 +658,7 @@ static inline float btagWPThreshold(const std::string& wp);
 static constexpr bool DEBUG_CORRECTIONS = false;
 static constexpr bool DEBUG_JERC        = false;
 static constexpr bool DEBUG_MUON        = false;
-static constexpr bool DEBUG_WEIGHTS     = true;
+static constexpr bool DEBUG_WEIGHTS     = false;
 static constexpr bool DEBUG_TRIGGER     = false;
 static constexpr bool DEBUG_BRANCHES    = false;
 
@@ -700,6 +775,11 @@ static unsigned long long nJerUpOut    = 0;
 static unsigned long long nJerDownPass = 0;
 static unsigned long long nJerDownIn   = 0;
 static unsigned long long nJerDownOut  = 0;
+
+// ------------------------
+// QCD-scale normalization
+// ------------------------
+std::vector<double> g_LHEScaleSumw;
 
 // ------------------------
 // Era handling
@@ -969,13 +1049,18 @@ static void initZPtRW() {
         return;
     }
 
-    if (!g_zptRW.load(g_zptRWFile, "corr_DM_Pre-Selection_Z0j", "corr_DM_Pre-Selection_Z1j", "corr_DM_Pre-Selection_Z2j", "f_combined", 0.0, 200.0)) {
-        std::cerr << "[ZPtRW] ERROR: failed to load; disabling\n";
-        g_disableZPtRW = true;
-        return;
+    if (!g_zptRW.load(g_zptRWFile,
+                  "corr_DM_Pre-Selection_Z0j",
+                  "corr_DM_Pre-Selection_Z1j",
+                  "corr_DM_Pre-Selection_Z2j",
+                  "zptWeightNom",
+                  "zptWeightUp",
+                  "zptWeightDown",
+                  0.0, 200.0)) {
+    std::cerr << "[ZPtRW] ERROR: failed to load; disabling\n";
+    g_disableZPtRW = true;
+    return;
     }
-
-    std::cerr << "[ZPtRW] Loaded ZpT weights from " << g_zptRWFile << "\n";
 }
 
 // -------------------------------------
@@ -4509,7 +4594,12 @@ btagjet_SF
     // -------------------------------------
 
     double w_zpt = 1.0;
+    double w_zpt_up = 1.0;
+    double w_zpt_down = 1.0;
     double totalWeight_beforeZPt = totalWeight;
+    double totalWeight_zptUp = totalWeight;
+    double totalWeight_zptDown = totalWeight;    
+    
     if (corr_p4dimuon.M() > 70 && corr_p4dimuon.M() < 110) {
         if (is0jet) {
             FILL_CORR_MUON_HIST(hists.corr_setDM_PreSelection_Z0j, totalWeight); 
@@ -4523,31 +4613,37 @@ btagjet_SF
     }
     
     // Only apply to DY MC
-    if (!g_disableZPtRW && __isMC && g_sampleName == "DY") {
-      const double zpt = corr_p4dimuon.Pt();
+if (!g_disableZPtRW && __isMC && g_sampleName == "DY") {
+    const double zpt = corr_p4dimuon.Pt();
 
-      int nj = 2;
-      if (is0jet) nj = 0;
-      else if (is1jet) nj = 1;
-      else nj = 2;
+    int nj = 2;
+    if (is0jet) nj = 0;
+    else if (is1jet) nj = 1;
 
-      w_zpt = g_zptRW.eval(zpt, nj);
-      totalWeight *= w_zpt;
-    }
+    w_zpt      = g_zptRW.eval(zpt, nj, "nominal");
+    w_zpt_up   = g_zptRW.eval(zpt, nj, "up");
+    w_zpt_down = g_zptRW.eval(zpt, nj, "down");
 
-    double w_zpt_up   = w_zpt;
-    double w_zpt_down = w_zpt;
+    totalWeight         = totalWeight_beforeZPt * w_zpt;
+    totalWeight_zptUp   = totalWeight_beforeZPt * w_zpt_up;
+    totalWeight_zptDown = totalWeight_beforeZPt * w_zpt_down;
+}
 
-    double totalWeight_zptUp   = totalWeight;
-    double totalWeight_zptDown = totalWeight;
+// All other experimental variations must retain the nominal ZPt correction.
+totalWeight_puUp   *= w_zpt;
+totalWeight_puDown *= w_zpt;
 
-    if (!g_disableZPtRW && __isMC && g_sampleName == "DY") {
-        w_zpt_up   = std::max(0.0, 1.0 + 2.0 * (w_zpt - 1.0));
-        w_zpt_down = 1.0;
+totalWeight_muSFUp   *= w_zpt;
+totalWeight_muSFDown *= w_zpt;
 
-        totalWeight_zptUp   = totalWeight_beforeZPt * w_zpt_up;
-        totalWeight_zptDown = totalWeight_beforeZPt * w_zpt_down;
-    }
+totalWeight_trigUp   *= w_zpt;
+totalWeight_trigDown *= w_zpt;
+
+totalWeight_btagSFUp   *= w_zpt;
+totalWeight_btagSFDown *= w_zpt;
+
+totalWeight_btagEffStatUp   *= w_zpt;
+totalWeight_btagEffStatDown *= w_zpt;
 
     // -------------------------------------
     //          B-TAG REWEIGHTING  
@@ -4575,7 +4671,9 @@ std::cerr << "[WEIGHT DBG]\n"
 << event._run << " / "
 << event._lumi << " / "
 << event._event << "\n"
-<< "  Zpt            : " << w_zpt << "\n"
+<< " ZPt nominal : " << w_zpt << "\n"
+<< " ZPt up      : " << w_zpt_up << "\n"
+<< " ZPt down    : " << w_zpt_down << "\n"
 << "  mu1_SF         : " << mu1_SF << "\n"
 << "  mu2_SF         : " << mu2_SF << "\n"
 << "  btagjet_SF     : " << btagjet_SF << "\n"
@@ -5210,12 +5308,6 @@ if (nominalPassVBF && !jerDownVars.pass_vbf)
             gMvaTree->Fill();
         }
 
-        double w_scaleUp =
-            totalWeight;
-
-        double w_scaleDown =
-            totalWeight;
-
         double w_pdfUp =
             totalWeight;
 
@@ -5234,52 +5326,66 @@ if (nominalPassVBF && !jerDownVars.pass_vbf)
         double w_fsrDown =
             totalWeight;
 
+    // ---------------------------------------------------------
+    // Coherent 7-point QCD-scale variations.
+    //
+    // NanoAOD 9-point ordering:
+    //   keep    0, 1, 3, 4, 5, 7, 8
+    //   exclude 2 and 6
+    //
+    // Index 4 is central and is represented by totalWeight.
+    // Store the six noncentral variations as separate templates.
+    // ---------------------------------------------------------
+    double w_scale0 = totalWeight;
+    double w_scale1 = totalWeight;
+    double w_scale3 = totalWeight;
+    double w_scale5 = totalWeight;
+    double w_scale7 = totalWeight;
+    double w_scale8 = totalWeight;
 
-        // QCD-scale envelope
-        if (event._nLHEScaleWeight > 0) {
+    auto getNormalizedScaleWeight =
+        [&](int index) -> double {
 
-            double maxScale = 1.0;
-            double minScale = 1.0;
-
-            for (int iw = 0;
-                 iw < event._nLHEScaleWeight;
-                 ++iw) {
-
-                if (event._nLHEScaleWeight == 9 &&
-                    (iw == 2 || iw == 6)) {
-                    continue;
-                }
-
-                const double ratio =
-                    event._LHEScaleWeight[iw];
-
-                if (!std::isfinite(ratio) ||
-                    ratio <= 0.0) {
-                    continue;
-                }
-
-                maxScale =
-                    std::max(
-                        maxScale,
-                        ratio
-                    );
-
-                minScale =
-                    std::min(
-                        minScale,
-                        ratio
-                    );
+            // If the event does not contain the expected 9 weights,
+            // make this variation identical to nominal.
+            if (event._nLHEScaleWeight != 9 ||
+                event._LHEScaleWeight.size() <=
+                    static_cast<size_t>(index)) {
+                return totalWeight;
             }
 
-            w_scaleUp =
-                totalWeight *
-                maxScale;
+            const double ratio =
+                event._LHEScaleWeight[index];
 
-            w_scaleDown =
-                totalWeight *
-                minScale;
-        }
+            if (!std::isfinite(ratio) ||
+                ratio <= 0.0) {
+                return totalWeight;
+            }
 
+            // LHEScaleSumw must correspond to the same 9-point set.
+            if (g_LHEScaleSumw.size() != 9) {
+                return totalWeight;
+            }
+
+            const double normalization =
+                g_LHEScaleSumw[index];
+
+            if (!std::isfinite(normalization) ||
+                normalization <= 0.0) {
+                return totalWeight;
+            }
+
+            return totalWeight *
+                   ratio /
+                   normalization;
+        };
+
+    w_scale0 = getNormalizedScaleWeight(0);
+    w_scale1 = getNormalizedScaleWeight(1);
+    w_scale3 = getNormalizedScaleWeight(3);
+    w_scale5 = getNormalizedScaleWeight(5);
+    w_scale7 = getNormalizedScaleWeight(7);
+    w_scale8 = getNormalizedScaleWeight(8);
 
         // PDF RMS
         if (event._nLHEPdfWeight > 0) {
@@ -5354,24 +5460,28 @@ if (nominalPassVBF && !jerDownVars.pass_vbf)
                 event._PSWeight[3];
         }
 
-
         FILL_BDT_SYST_HIST(
-            hists.BDTTheorySyst_VBF,
+        hists.BDTTheorySyst_VBF,
 
-            totalWeight,
+        totalWeight,
 
-            w_scaleUp,
-            w_scaleDown,
+        w_scale0,
+        w_scale1,
+        w_scale3,
+        w_scale5,
+        w_scale7,
+        w_scale8,
 
-            w_pdfUp,
-            w_pdfDown,
+        w_pdfUp,
+        w_pdfDown,
 
-            w_isrUp,
-            w_isrDown,
+        w_isrUp,
+        w_isrDown,
 
-            w_fsrUp,
-            w_fsrDown
-        );
+        w_fsrUp,
+        w_fsrDown
+    );
+
     }
 
 
@@ -5678,9 +5788,9 @@ static TheoryRunsNorm readTheoryRunsNorm(TChain* eventsChain)
 
         double genEventSumw = 0.0;
 
-        UInt_t nLHEScaleSumw = 0;
-        UInt_t nLHEPdfSumw   = 0;
-        UInt_t nPSSumw       = 0;
+        Int_t nLHEScaleSumw = 0;
+        Int_t nLHEPdfSumw   = 0;
+        Int_t nPSSumw       = 0;
 
         double LHEScaleSumw[512] = {0.0};
         double LHEPdfSumw[512]   = {0.0};
@@ -6132,12 +6242,25 @@ std::cerr
     flags       = new std::vector<Flag>();
     event       = new Event();
 
-    TheoryRunsNorm theoryNorm;
+	TheoryRunsNorm theoryNorm;
+    g_LHEScaleSumw.clear();
+
     if (__isMC) {
         theoryNorm = readTheoryRunsNorm(ROOT_CHAIN);
+        g_LHEScaleSumw = theoryNorm.LHEScaleSumw;
+
+        for (size_t i = 0;
+             i < g_LHEScaleSumw.size();
+             ++i) {
+
+            std::cout
+                << "[Runs] LHEScaleSumw[" << i << "] = "
+                << g_LHEScaleSumw[i]
+                << "\n";
+        }
     }
 
-	//	Main Event Loop
+    //	Main Event Loop
 	uint32_t numEntries         = streamer._chain->GetEntries();
     uint32_t updateInterval     = numEntries / 100; // Update every 1% of progress
     if (updateInterval == 0) updateInterval = 1; // Handle very small numbers of entries
@@ -6648,7 +6771,7 @@ int main(int argc, char** argv)
         ("subleadJetEta",   po::value<double>(&_subleadJetEta)->default_value(_subleadJetEta),  "SubLeading Jet Eta Cut")
         ("dijetMass_VBF",   po::value<double>(&_dijetMass_VBF)->default_value(_dijetMass_VBF),  "DiJet Mass VBF-Category Cut")
         ("dijetdEta_VBF",   po::value<double>(&_dijetdEta_VBF)->default_value(_dijetdEta_VBF),  "DiJet deta VBF-Category Cut")
-	    ("zptRWFile",       po::value<std::string>(&g_zptRWFile)->default_value("None"),        "ROOT file containing ZpT TF1s (f_combined)")
+        ("zptRWFile",       po::value<std::string>(&g_zptRWFile)->default_value("None"),        "ROOT file containing binned Z-pT weight histograms")
         ("btagEffFile",     po::value<std::string>(&g_btagEffFile)->default_value("None"),      "Path to b-tag efficiency ROOT file")
         ("weights",         po::value<std::string>(&g_weightsFile)->default_value("None"),      "path to weights config (key=value)")
         ("sample",          po::value<std::string>(&g_sampleName)->default_value("DATA"),       "sample name (e.g. DY, TT, WZ, VBF, DATA)")

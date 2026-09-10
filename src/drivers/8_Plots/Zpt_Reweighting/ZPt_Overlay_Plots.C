@@ -53,6 +53,17 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <cmath>
+
+// Variable Z-pT binning used to derive the correction
+static const double zPtBinEdges[] = {
+    0, 10, 20, 30, 40, 50, 60,
+    70, 80, 90, 100, 110, 120,
+    140, 160, 180, 200
+};
+
+static const int nZPtBins =
+    sizeof(zPtBinEdges) / sizeof(zPtBinEdges[0]) - 1;
 
 // ------------------------- Helper: split path --------------------------
 static std::vector<std::string> splitPath(const std::string& p) {
@@ -100,6 +111,31 @@ static TH1* getHist(TFile* f, const std::string& path) {
   c->SetDirectory(nullptr);
   c->Sumw2();
   return c;
+}
+
+// Rebin a histogram using the common variable-width Z-pT bins
+static TH1* rebinZPt(TH1* h, const std::string& newName)
+{
+    if (!h) return nullptr;
+
+    TH1* hRebinned = h->Rebin(
+        nZPtBins,
+        newName.c_str(),
+        zPtBinEdges
+    );
+
+    if (!hRebinned) {
+        std::cerr << "[ERROR] Variable rebin failed for "
+                  << newName << "\n";
+        delete h;
+        return nullptr;
+    }
+
+    hRebinned->SetDirectory(nullptr);
+    hRebinned->Sumw2();
+
+    delete h;
+    return hRebinned;
 }
 
 // ------------------------- Helper: safe divide -------------------------
@@ -169,8 +205,6 @@ static TH1* sumGroupHists(const std::string& baseDir,
       continue;
     }
 
-    if (rebin > 1) h->Rebin(rebin);
-
     if (!hsum) {
       hsum = (TH1*)h->Clone(("SUM_" + sub).c_str());
       hsum->SetDirectory(nullptr);
@@ -180,10 +214,17 @@ static TH1* sumGroupHists(const std::string& baseDir,
     }
     delete h;
   }
+  if (hsum) {
+    static int groupCounter = 0;
+
+    hsum = rebinZPt(
+        hsum,
+        "hGroupedRebinned_" + std::to_string(groupCounter++)
+    );
+  }
 
   return hsum;
 }
-
 // ------------------------- Make one category plot+SF -------------------
 static void makeOneCategory(const std::string& outBase,
                             const std::string& catDir,
@@ -199,14 +240,25 @@ static void makeOneCategory(const std::string& outBase,
   TH1* hDY   = getHist(fDY,   histPath);
   if (!hData || !hDY) { delete hData; delete hDY; return; }
 
-  if (rebin > 1) { hData->Rebin(rebin); hDY->Rebin(rebin); }
+hData = rebinZPt(hData, "hDataRebinned_" + catDir);
+hDY   = rebinZPt(hDY,   "hDYRebinned_"   + catDir);
 
-  TH1* hEWK = (fEWK ? getHist(fEWK, histPath) : nullptr);
-  TH1* hTT  = (fTT  ? getHist(fTT,  histPath) : nullptr);
-  if (rebin > 1) {
-    if (hEWK) hEWK->Rebin(rebin);
-    if (hTT)  hTT->Rebin(rebin);
-  }
+if (!hData || !hDY) {
+    delete hData;
+    delete hDY;
+    return;
+}
+
+TH1* hEWK = (fEWK ? getHist(fEWK, histPath) : nullptr);
+TH1* hTT  = (fTT  ? getHist(fTT,  histPath) : nullptr);
+
+if (hEWK) {
+    hEWK = rebinZPt(hEWK, "hEWKRebinned_" + catDir);
+}
+
+if (hTT) {
+    hTT = rebinZPt(hTT, "hTTRebinned_" + catDir);
+}
 
   // MC total
   TH1* hMC = (TH1*)hDY->Clone(("MCtot_" + catDir).c_str());
@@ -233,15 +285,51 @@ static void makeOneCategory(const std::string& outBase,
   if (hVVV) std::cout << "  hVVV  : bins=" << hVVV->GetNbinsX() << "\n";
 
   // SFs
-  TH1* sfDY = (TH1*)hData->Clone(("SF_DataOverDY_" + catDir).c_str());
-  sfDY->SetDirectory(nullptr);
-  protectDivide(sfDY, hDY);
-  sfDY->Divide(hDY);
+// ------------------------------------------------------------
+// Z-pT correction: (Data - nonDY) / DY
+// ------------------------------------------------------------
+TH1* hNonDY = (TH1*)hDY->Clone(("NonDY_" + catDir).c_str());
+hNonDY->Reset("ICES");
+hNonDY->SetDirectory(nullptr);
+hNonDY->Sumw2();
 
-  TH1* sfMC = (TH1*)hData->Clone(("SF_DataOverMC_" + catDir).c_str());
-  sfMC->SetDirectory(nullptr);
-  protectDivide(sfMC, hMC);
-  sfMC->Divide(hMC);
+if (hEWK) hNonDY->Add(hEWK);
+if (hTT)  hNonDY->Add(hTT);
+if (hVV)  hNonDY->Add(hVV);
+if (hVVV) hNonDY->Add(hVVV);
+
+TH1* sfDY = (TH1*)hData->Clone(
+    ("SF_DataMinusNonDY_OverDY_" + catDir).c_str()
+);
+sfDY->SetDirectory(nullptr);
+sfDY->Sumw2();
+
+// Numerator = Data - non-DY
+sfDY->Add(hNonDY, -1.0);
+
+// Protect problematic bins before division
+for (int i = 1; i <= sfDY->GetNbinsX(); ++i) {
+    const double numerator   = sfDY->GetBinContent(i);
+    const double denominator = hDY->GetBinContent(i);
+
+    if (!std::isfinite(numerator) ||
+        !std::isfinite(denominator) ||
+        numerator <= 0.0 ||
+        denominator <= 0.0) {
+        sfDY->SetBinContent(i, 0.0);
+        sfDY->SetBinError(i, 0.0);
+    }
+}
+
+sfDY->Divide(hDY);
+
+// Diagnostic Data / total MC
+TH1* sfMC = (TH1*)hData->Clone(
+    ("SF_DataOverMC_" + catDir).c_str()
+);
+sfMC->SetDirectory(nullptr);
+protectDivide(sfMC, hMC);
+sfMC->Divide(hMC);
 
   // ---------------- Plot: stack top, ratio bottom ----------------
   gSystem->Exec(("mkdir -p " + outBase).c_str());
@@ -321,13 +409,19 @@ static void makeOneCategory(const std::string& outBase,
   // Write SF hists into output ROOT file
   fout->mkdir(catDir.c_str());
   fout->cd(catDir.c_str());
-  sfDY->Write("SF_DataOverDY");
+  sfDY->Write("SF_DataMinusNonDY_OverDY");
   sfMC->Write("SF_DataOverMC");
 
   // cleanup
-  delete ratio;
-  delete hData; delete hDY; delete hEWK; delete hTT; delete hMC;
-  delete sfDY; delete sfMC;
+delete ratio;
+delete hData;
+delete hDY;
+delete hEWK;
+delete hTT;
+delete hMC;
+delete hNonDY;
+delete sfDY;
+delete sfMC;
 }
 
 // --------------------------- User-facing entry point -------------------

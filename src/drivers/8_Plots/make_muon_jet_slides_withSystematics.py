@@ -60,37 +60,37 @@ PLOT_GROUPS = [
     {
         "name": "Muons",
         "type": "pdf",
-        "path": "Muons/KIT/noScaleSmear_noBTagRW_noZPtRW",
+        "path": "Muons/KIT/noScaleSmear_BTagRW_ZPtRW",
     },
 
     {
         "name": "Jets",
         "type": "pdf",
-        "path": "Jets/KIT/noScaleSmear_noBTagRW_noZPtRW",
+        "path": "Jets/KIT/noScaleSmear_BTagRW_ZPtRW",
     },
 
     # BTag efficiency PDFs
     {
         "name": "BTagEfficiency",
         "type": "pdf",
-        "path": "BTagEfficiency/KIT/noScaleSmear_noBTagRW_noZPtRW",
+        "path": "BTagEfficiency/KIT/noScaleSmear_BTagRW_ZPtRW",
     },
     
     # Pileup reweighting PDFs
     {
         "name": "PileupReweighting",
         "type": "pdf",
-        "path": "PileupReweighting/KIT/noScaleSmear_noBTagRW_noZPtRW",
+        "path": "PileupReweighting/KIT/noScaleSmear_BTagRW_ZPtRW",
     },
     
     # Mass resolution single PNG
     {
         "name": "MassResolution",
         "type": "png",
-        "path": "Mass_Resolutions/ZCR/KIT/noScaleSmear_noBTagRW_noZPtRW",
+        "path": "Mass_Resolutions/ZCR/KIT/noScaleSmear_BTagRW_ZPtRW",
     },
 ]
-CONFIG = "noScaleSmear_noBTagRW_noZPtRW"
+CONFIG = "noScaleSmear_BTagRW_ZPtRW"
 CORR = "KIT"
 
 
@@ -538,7 +538,7 @@ def main():
 
     parser.add_argument(
         "--out",
-        default="/eos/user/d/dblend/PowerPoint/Muons_Jets_KIT_noScaleSmear_noBTagRW_noZPtRW.pptx"
+        default="/eos/user/d/dblend/PowerPoint/Muons_Jets_KIT_noScaleSmear_BTagRW_ZPtRW.pptx"
     )
 
     parser.add_argument(

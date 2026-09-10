@@ -15,8 +15,12 @@ namespace analysis
         {
             TH1F* nom = nullptr;
 
-            TH1F* scaleUp = nullptr;
-            TH1F* scaleDown = nullptr;
+            TH1F* scale0 = nullptr;
+            TH1F* scale1 = nullptr;
+            TH1F* scale3 = nullptr;
+            TH1F* scale5 = nullptr;
+            TH1F* scale7 = nullptr;
+            TH1F* scale8 = nullptr;
 
             TH1F* pdfUp = nullptr;
             TH1F* pdfDown = nullptr;
@@ -31,8 +35,12 @@ namespace analysis
             {
                 nom       = new TH1F(name, title, nbins, xmin, xmax);
 
-                scaleUp   = new TH1F(Form("%s_scaleUp",   name), Form("%s_scaleUp",   title), nbins, xmin, xmax);
-                scaleDown = new TH1F(Form("%s_scaleDown", name), Form("%s_scaleDown", title), nbins, xmin, xmax);
+                scale0   = new TH1F(Form("%s_scale0",   name), Form("%s_scale0",   title), nbins, xmin, xmax);
+                scale1   = new TH1F(Form("%s_scale1",   name), Form("%s_scale1",   title), nbins, xmin, xmax);
+                scale3   = new TH1F(Form("%s_scale3",   name), Form("%s_scale3",   title), nbins, xmin, xmax);
+                scale5   = new TH1F(Form("%s_scale5",   name), Form("%s_scale5",   title), nbins, xmin, xmax);
+                scale7   = new TH1F(Form("%s_scale7",   name), Form("%s_scale7",   title), nbins, xmin, xmax);
+                scale8   = new TH1F(Form("%s_scale8",   name), Form("%s_scale8",   title), nbins, xmin, xmax);
 
                 pdfUp     = new TH1F(Form("%s_pdfUp",     name), Form("%s_pdfUp",     title), nbins, xmin, xmax);
                 pdfDown   = new TH1F(Form("%s_pdfDown",   name), Form("%s_pdfDown",   title), nbins, xmin, xmax);
@@ -44,7 +52,12 @@ namespace analysis
                 fsrDown   = new TH1F(Form("%s_fsrDown",   name), Form("%s_fsrDown",   title), nbins, xmin, xmax);
 
                 nom->Sumw2();
-                scaleUp->Sumw2();   scaleDown->Sumw2();
+                scale0->Sumw2();
+                scale1->Sumw2();
+                scale3->Sumw2();
+                scale5->Sumw2();
+                scale7->Sumw2();
+                scale8->Sumw2();
                 pdfUp->Sumw2();     pdfDown->Sumw2();
                 isrUp->Sumw2();     isrDown->Sumw2();
                 fsrUp->Sumw2();     fsrDown->Sumw2();
@@ -52,7 +65,12 @@ namespace analysis
 
             void fill(double x,
                       double w_nom,
-                      double w_scaleUp, double w_scaleDown,
+                      double w_scale0,
+                      double w_scale1,
+                      double w_scale3,
+                      double w_scale5,
+                      double w_scale7,
+                      double w_scale8,
                       double w_pdfUp,   double w_pdfDown,
                       double w_isrUp,   double w_isrDown,
                       double w_fsrUp,   double w_fsrDown)
@@ -65,8 +83,12 @@ namespace analysis
 
                 nom->Fill(x, w_nom);
 
-                scaleUp->Fill(x, w_scaleUp);
-                scaleDown->Fill(x, w_scaleDown);
+                scale0->Fill(x, w_scale0);
+                scale1->Fill(x, w_scale1);
+                scale3->Fill(x, w_scale3);
+                scale5->Fill(x, w_scale5);
+                scale7->Fill(x, w_scale7);
+                scale8->Fill(x, w_scale8);
 
                 pdfUp->Fill(x, w_pdfUp);
                 pdfDown->Fill(x, w_pdfDown);

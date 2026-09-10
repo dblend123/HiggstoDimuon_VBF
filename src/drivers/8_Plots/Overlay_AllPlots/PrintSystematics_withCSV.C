@@ -21,6 +21,7 @@
 #include <sstream>
 #include <fstream>
 #include <string>
+#include <array>
 
 static TH1* getHist(TFile* f, const std::string& path) {
     if (!f) return nullptr;
@@ -139,6 +140,96 @@ static VariationResult calcVariation(
     r.envelopePct = std::max(std::abs(r.upPct), std::abs(r.downPct));
     r.valid       = true;
     return r;
+}
+
+static VariationResult calcQCDScaleVariation(
+    TH1* h_nom,
+    const std::string& systDir,
+    const std::string& histName,
+    const std::string& nominalPath,
+    const std::vector<TFile*>& files,
+    TH1* h_template,
+    bool useWindow,
+    double xmin,
+    double xmax)
+{
+    VariationResult result;
+
+    if (!h_nom || !h_template)
+        return result;
+
+    result.nominal =
+        useWindow
+            ? integralWindow(h_nom, xmin, xmax)
+            : integralAll(h_nom);
+
+    if (result.nominal <= 0.0)
+        return result;
+
+    double maximumYield = result.nominal;
+    double minimumYield = result.nominal;
+
+    const std::array<int, 6> scaleIndices = {
+        0, 1, 3, 5, 7, 8
+    };
+
+    for (int index : scaleIndices) {
+        const std::string variationPath =
+            systDir + "/" +
+            histName +
+            "_scale" +
+            std::to_string(index);
+
+        TH1* variationTotal =
+            buildTotal(
+                "h_qcd_scale" +
+                    std::to_string(index) +
+                    "_" + histName,
+                variationPath,
+                nominalPath,
+                files,
+                h_template
+            );
+
+        if (!variationTotal)
+            continue;
+
+        const double variedYield =
+            useWindow
+                ? integralWindow(
+                    variationTotal,
+                    xmin,
+                    xmax
+                )
+                : integralAll(variationTotal);
+
+        maximumYield =
+            std::max(maximumYield, variedYield);
+
+        minimumYield =
+            std::min(minimumYield, variedYield);
+
+        delete variationTotal;
+    }
+
+    result.upPct =
+        100.0 *
+        (maximumYield - result.nominal) /
+        result.nominal;
+
+    result.downPct =
+        100.0 *
+        (minimumYield - result.nominal) /
+        result.nominal;
+
+    result.envelopePct =
+        std::max(
+            std::abs(result.upPct),
+            std::abs(result.downPct)
+        );
+
+    result.valid = true;
+    return result;
 }
 
 static std::string csvEscape(const std::string& in) {
@@ -279,7 +370,6 @@ void PrintSystematics(
     };
 
     std::vector<SystDef> systs = {
-        {"QCD",     "BDTTheorySyst_VBF",       "scaleUp",    "scaleDown"},
         {"PDF",     "BDTTheorySyst_VBF",       "pdfUp",      "pdfDown"},
         {"ISR",     "BDTTheorySyst_VBF",       "isrUp",      "isrDown"},
         {"FSR",     "BDTTheorySyst_VBF",       "fsrUp",      "fsrDown"},
@@ -355,6 +445,54 @@ void PrintSystematics(
               << "\n";
     std::cout << "---------------------------------------------------\n";
 
+VariationResult qcdResult =
+    calcQCDScaleVariation(
+        h_nom,
+        "BDTTheorySyst_VBF",
+        histName.Data(),
+        nomPath,
+        files,
+        h_template,
+        useWindow,
+        xmin,
+        xmax
+    );
+
+if (!qcdResult.valid) {
+    std::cout
+        << std::left 
+        << std::setw(15)
+        << "QCD"
+        << "  Nnom <= 0\n";
+} else {
+    std::cout
+        << std::left
+        << std::setw(15)
+        << "QCD"
+        << std::right
+        << std::setw(12)
+        << std::fixed
+        << std::setprecision(4)
+        << qcdResult.upPct
+        << std::setw(12)
+        << qcdResult.downPct
+        << std::setw(12)
+        << qcdResult.envelopePct
+        << "\n";
+
+    writeSingleCsvRow(
+        csv,
+        era,
+        histName.Data(),
+        nominalDir.Data(),
+        integration,
+        xmin,
+        xmax,
+        "QCD",
+        qcdResult
+    );
+}
+
     for (const auto& s : systs) {
         std::string upPath   = s.dir + "/" + std::string(histName.Data()) + "_" + s.up;
         std::string downPath = s.dir + "/" + std::string(histName.Data()) + "_" + s.down;
@@ -401,11 +539,19 @@ TH1* h_down =
     std::map<std::string, double> minVal;
     std::map<std::string, double> maxVal;
 
-    for (const auto& s : systs) {
-        minVal[s.label] = std::numeric_limits<double>::infinity();
-        maxVal[s.label] = -std::numeric_limits<double>::infinity();
-    }
+    minVal["QCD"] =
+        std::numeric_limits<double>::infinity();
 
+    maxVal["QCD"] =
+        -std::numeric_limits<double>::infinity();
+
+    for (const auto& s : systs) {
+        minVal[s.label] =
+            std::numeric_limits<double>::infinity();
+
+        maxVal[s.label] =
+            -std::numeric_limits<double>::infinity();
+    }
     for (const auto& v : bdtVars) {
 
         const std::string& var = v.name;
@@ -430,6 +576,35 @@ TH1* h_down =
                 files,
                 h_temp
             );
+
+VariationResult qcdVarResult =
+    calcQCDScaleVariation(
+        h_var_nom,
+        "BDTTheorySyst_VBF",
+        var,
+        varNomPath,
+        files,
+        h_temp,
+        false,
+        xmin,
+        xmax
+    );
+
+if (qcdVarResult.valid &&
+    std::isfinite(qcdVarResult.envelopePct)) {
+
+    minVal["QCD"] =
+        std::min(
+            minVal["QCD"],
+            qcdVarResult.envelopePct
+        );
+
+    maxVal["QCD"] =
+        std::max(
+            maxVal["QCD"],
+            qcdVarResult.envelopePct
+        );
+}
 
         for (const auto& s : systs) {
 
@@ -509,6 +684,47 @@ TH1* h_down =
               << std::right << std::setw(18) << "Range (%)"
               << "\n";
     std::cout << "--------------------------------------\n";
+
+if (std::isfinite(minVal["QCD"]) &&
+    std::isfinite(maxVal["QCD"])) {
+
+    std::ostringstream qcdRange;
+
+    qcdRange
+        << std::fixed
+        << std::setprecision(2)
+        << minVal["QCD"]
+        << " - "
+        << maxVal["QCD"];
+
+    std::cout
+        << std::left
+        << std::setw(20)
+        << "QCD"
+        << std::right
+        << std::setw(18)
+        << qcdRange.str()
+        << "\n";
+
+    writeRangeCsvRow(
+        csv,
+        era,
+        histName.Data(),
+        nominalDir.Data(),
+        "QCD",
+        minVal["QCD"],
+        maxVal["QCD"]
+    );
+} else {
+    std::cout
+        << std::left
+        << std::setw(20)
+        << "QCD"
+        << std::right
+        << std::setw(18)
+        << "n/a"
+        << "\n";
+}
 
     for (const auto& s : systs) {
         if (!std::isfinite(minVal[s.label]) || !std::isfinite(maxVal[s.label])) {

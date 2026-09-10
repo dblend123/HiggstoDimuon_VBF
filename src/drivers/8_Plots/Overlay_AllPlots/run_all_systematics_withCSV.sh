@@ -25,7 +25,7 @@ for era in "${eras[@]}"; do
     echo "=================================================="
 
     root -l -b -q \
-    "${macro}(\"/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/KIT/noScaleSmear_BTagRW_noZPtRW\", \"DiMuonMass_Higgs\", \"corr_DM_VBF_SR\", false, 115.0, 135.0, \"${csv_out}\", \"${era}\")"
+    "${macro}(\"/eos/user/d/dblend/Analyzed_SkimmedFiles/${era}/KIT/noScaleSmear_BTagRW_ZPtRW\", \"DiMuonMass_Higgs\", \"corr_DM_VBF_SR\", false, 115.0, 135.0, \"${csv_out}\", \"${era}\")"
 done
 
 echo

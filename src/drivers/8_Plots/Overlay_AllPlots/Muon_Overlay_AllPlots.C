@@ -22,6 +22,7 @@
 #include <memory>
 #include <algorithm>
 #include <cmath>
+#include <array>
 
 // ---------- helpers ----------
 static TH1* getHist(TFile* f, const std::string& path) {
@@ -337,7 +338,7 @@ const double expAbs = std::sqrt(ePU     *   ePU +
                                 eTrig   *   eTrig +
                                 eBTagSF *   eBTagSF +
                                 eBTagEffStat *   eBTagEffStat +
-                                //eZPt  *   eZPt
+                                eZPt  *   eZPt +
                                 eJEC    *   eJEC  +
                                 eJER    *   eJER );
 
@@ -651,16 +652,87 @@ if (systVar.empty()) {
             << "; drawing gray stat band only.\n";
 }
 
-TH1* h_scaleUpTot = buildTotalVariation("h_scaleUpTot_"+var, systDir, systVar, "scaleUp", h_mctot,
-                                        f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
-                                        f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
-                                        f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
-                                        f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
-TH1* h_scaleDownTot = buildTotalVariation("h_scaleDownTot_"+var, systDir, systVar, "scaleDown", h_mctot,
-                                          f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
-                                          f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
-                                          f_ZZ2L2Nu,h_ZZ2L2N, f_ZZ2L2Q,h_ZZ2L2Q, f_ZZ4L,h_ZZ4L,
-                                          f_WWW,h_WWW, f_WWZ,h_WWZ, f_WZZ,h_WZZ, f_ZZZ,h_ZZZ);
+TH1* h_scaleUpTot =
+    static_cast<TH1*>(
+        h_mctot->Clone(
+            ("h_scaleUpTot_" + var).c_str()
+        )
+    );
+
+TH1* h_scaleDownTot =
+    static_cast<TH1*>(
+        h_mctot->Clone(
+            ("h_scaleDownTot_" + var).c_str()
+        )
+    );
+
+h_scaleUpTot->SetDirectory(nullptr);
+h_scaleDownTot->SetDirectory(nullptr);
+
+const std::array<int, 6> scaleIndices = {
+    0, 1, 3, 5, 7, 8
+};
+
+std::vector<TH1*> scaleTotals;
+
+for (int index : scaleIndices) {
+    TH1* scaleTotal =
+        buildTotalVariation(
+            "h_scale" +
+                std::to_string(index) +
+                "Tot_" + var,
+            systDir,
+            systVar,
+            "scale" +
+                std::to_string(index),
+            h_mctot,
+
+            f_DY, h_DY,
+            f_EWK, h_EWK,
+            f_TT, h_TT,
+
+            f_WZ2L2Q, h_WZ2L2Q,
+            f_WZ3LNu, h_WZ3L,
+
+            f_ZZ2L2Nu, h_ZZ2L2N,
+            f_ZZ2L2Q, h_ZZ2L2Q,
+            f_ZZ4L, h_ZZ4L,
+
+            f_WWW, h_WWW,
+            f_WWZ, h_WWZ,
+            f_WZZ, h_WZZ,
+            f_ZZZ, h_ZZZ
+        );
+
+    if (scaleTotal)
+        scaleTotals.push_back(scaleTotal);
+}
+
+for (int bin = 1;
+     bin <= h_mctot->GetNbinsX();
+     ++bin) {
+
+    double upper =
+        h_mctot->GetBinContent(bin);
+
+    double lower =
+        h_mctot->GetBinContent(bin);
+
+    for (TH1* variation : scaleTotals) {
+        const double content =
+            variation->GetBinContent(bin);
+
+        upper = std::max(upper, content);
+        lower = std::min(lower, content);
+    }
+
+    h_scaleUpTot->SetBinContent(bin, upper);
+    h_scaleDownTot->SetBinContent(bin, lower);
+}
+
+for (TH1* variation : scaleTotals)
+    delete variation;
+
 TH1* h_pdfUpTot = buildTotalVariation("h_pdfUpTot_"+var, systDir, systVar, "pdfUp", h_mctot,
                                       f_DY,h_DY, f_EWK,h_EWK, f_TT,h_TT,
                                       f_WZ2L2Q,h_WZ2L2Q, f_WZ3LNu,h_WZ3L,
@@ -1032,7 +1104,7 @@ void Muon_Overlay_AllPlots(TString basePath, TString era = "12022") {
   else if (era == "22022") eraLumiPb =  26671.60971;
   else if (era == "12023") eraLumiPb =  18704.13341;
   else if (era == "22023") eraLumiPb =  9693.130053;
-  else if (era == "2024")  eraLumiPb =  104805.9585;
+  else if (era == "2024")  eraLumiPb =  108960.00;
   else if (era == "2025")  eraLumiPb =  114040.38;
   else {
     std::cerr << "[WARN] Unknown era \"" << era << "\"; setting eraLumiPb = 0\n";

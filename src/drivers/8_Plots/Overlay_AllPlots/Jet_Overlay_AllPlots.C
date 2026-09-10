@@ -18,6 +18,7 @@
 #include <fstream>
 #include <iomanip>
 #include <cmath>
+#include <array>
 
 static TH1* getHist(TFile* f, const std::string& path) {
     if (!f) return nullptr;
@@ -82,6 +83,89 @@ static TH1* makeVariationTotal(
     }
 
     return total;
+}
+
+static void makeScaleEnvelopeTotals(
+    const std::string& outName,
+    const std::string& systDir,
+    const std::string& systVar,
+    TH1* h_nominalTotal,
+    const std::vector<std::pair<TFile*, TH1*>>& samples,
+    TH1*& h_scaleUp,
+    TH1*& h_scaleDown)
+{
+    h_scaleUp = nullptr;
+    h_scaleDown = nullptr;
+
+    if (!h_nominalTotal ||
+        systVar.empty()) {
+        return;
+    }
+
+    h_scaleUp =
+        dynamic_cast<TH1*>(
+            h_nominalTotal->Clone(
+                (outName + "_scaleUp").c_str()
+            )
+        );
+
+    h_scaleDown =
+        dynamic_cast<TH1*>(
+            h_nominalTotal->Clone(
+                (outName + "_scaleDown").c_str()
+            )
+        );
+
+    h_scaleUp->SetDirectory(nullptr);
+    h_scaleDown->SetDirectory(nullptr);
+
+    const std::array<int, 6> scaleIndices = {
+        0, 1, 3, 5, 7, 8
+    };
+
+    std::vector<TH1*> scaleTotals;
+
+    for (int index : scaleIndices) {
+        TH1* total =
+            makeVariationTotal(
+                outName +
+                    "_scale" +
+                    std::to_string(index),
+                systDir,
+                systVar,
+                "_scale" +
+                    std::to_string(index),
+                samples
+            );
+
+        if (total)
+            scaleTotals.push_back(total);
+    }
+
+    for (int bin = 1;
+         bin <= h_nominalTotal->GetNbinsX();
+         ++bin) {
+
+        double upper =
+            h_nominalTotal->GetBinContent(bin);
+
+        double lower =
+            h_nominalTotal->GetBinContent(bin);
+
+        for (TH1* variation : scaleTotals) {
+            const double content =
+                variation->GetBinContent(bin);
+
+            upper = std::max(upper, content);
+            lower = std::min(lower, content);
+        }
+
+        h_scaleUp->SetBinContent(bin, upper);
+        h_scaleDown->SetBinContent(bin, lower);
+    }
+
+    for (TH1* variation : scaleTotals)
+        delete variation;
 }
 
 static TH1* makeOrangeTheoryBand(
@@ -357,7 +441,7 @@ static TH1* makeAzureExperimentalBand(
                 dTrig  * dTrig  +
                 dBTagSF * dBTagSF +
                 dBTagEffStat * dBTagEffStat +
-                // dZPt  * dZPt  +
+                dZPt  * dZPt  +
                 dJEC   * dJEC   +
                 dJER   * dJER
             );
@@ -759,8 +843,24 @@ leg->SetEntrySeparation(0.01);
         TH1* h_fsrDownTot = nullptr;
 
         if (!systVar.empty()) {
-            h_scaleUpTot   = makeVariationTotal("h_scaleUpTot_"   + var, systDir, systVar, "_scaleUp",   bkgSamples);
-            h_scaleDownTot = makeVariationTotal("h_scaleDownTot_" + var, systDir, systVar, "_scaleDown", bkgSamples);
+                makeScaleEnvelopeTotals(
+                "h_scaleEnvelope_" + var,
+                systDir,
+                systVar,
+                h_mctot,
+                bkgSamples,
+                h_scaleUpTot,
+                h_scaleDownTot
+            );
+
+            h_pdfUpTot =
+                makeVariationTotal(
+                    "h_pdfUpTot_" + var,
+                    systDir,
+                    systVar,
+                    "_pdfUp",
+                    bkgSamples
+                );
             h_pdfUpTot     = makeVariationTotal("h_pdfUpTot_"     + var, systDir, systVar, "_pdfUp",     bkgSamples);
             h_pdfDownTot   = makeVariationTotal("h_pdfDownTot_"   + var, systDir, systVar, "_pdfDown",   bkgSamples);
             h_isrUpTot     = makeVariationTotal("h_isrUpTot_"     + var, systDir, systVar, "_isrUp",     bkgSamples);
@@ -967,8 +1067,6 @@ c->SaveAs(outdir + baseName + ".png");
         delete c;
         delete h_mcBand;
         delete h_orangeBand;
-        delete h_scaleUpTot;
-        delete h_scaleDownTot;
         delete h_pdfUpTot;
         delete h_pdfDownTot;
         delete h_isrUpTot;
