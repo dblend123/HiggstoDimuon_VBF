@@ -2,8 +2,8 @@
 """
 tmva100_DataPreparation.py
 
-Read NanoAOD-derived analysis ntuples, define the 18 BDT input features, split
-each event deterministically into one of 4 folds, and snapshot per-era ROOT
+Read NanoAOD-derived analysis ntuples, define the 19 BDT input features, split
+each event deterministically into one of 5 folds, and snapshot per-era ROOT
 files used by training/testing/scoring (tmva101/102/103).
 
 Backgrounds are written per process category (DY, EWK, TT, VV, VVV) and also
@@ -24,7 +24,7 @@ VARIABLES = [
     "z", "pt_balance",
     "mu1_pt_over_m", "mu2_pt_over_m", "mu1_eta", "mu2_eta",
     "y_mumu", "pt_mumu",
-    "jet1_eta", "deta_jj", "dphi_jj", "njets", "pt_j1", "pt_j2",
+    "jet1_eta", "mjj",  "deta_jj", "dphi_jj", "njets", "pt_j1", "pt_j2",
     "dphi_mumu_jj", "deta_mumu_jj",
     "phi_CS", "costheta_CS",
 ]
@@ -33,7 +33,7 @@ ROOT.gInterpreter.Declare('#include "TVector2.h"')
 
 
 def define_variables(df):
-    """Define the 18 BDT inputs + an event weight column."""
+    """Define the 19 BDT inputs + an event weight column."""
     df = (df
         .Define("z",          "fabs(y_mumu - 0.5f*(y_j1 + y_j2))")
         .Define("px_sum",     "pt_mumu*cos(phi_mumu) + pt_j1*cos(phi_j1) + pt_j2*cos(phi_j2)")
@@ -58,18 +58,39 @@ def define_variables(df):
 
 
 def add_fold_and_split(df):
-    """Add a deterministic 4-fold hash plus a train/test flag."""
-    cols = set(df.GetColumnNames())
-    if {"run", "luminosityBlock", "event"}.issubset(cols):
-        return (df
-            .Define("fold",
-                    "( ( ( (int)run * 1315423911 + (int)luminosityBlock * 2654435761u + (int)event ) & 0x7fffffff ) % 4 )")
-            .Define("ev_hash",
-                    "((ULong64_t)run * 1315423911ull) ^ ((ULong64_t)luminosityBlock * 2654435761ull) ^ (ULong64_t)event")
-            .Define("is_train", "(ev_hash & 1ull) == 0ull"))
+    """Preserve analyzer fold when present; otherwise create five folds."""
+    cols = set(str(c) for c in df.GetColumnNames())
+
+    if "fold" in cols:
+        return df.Define("is_train", "fold >= 0 && fold <= 2")
+
+    if {"run", "lumi", "event"}.issubset(cols):
+        return (
+            df.Define(
+                "fold",
+                """
+                int(
+                    (
+                        ((ULong64_t)run  * 1315423911ull) ^
+                        ((ULong64_t)lumi * 2654435761ull) ^
+                        (ULong64_t)event
+                    ) % 5ull
+                )
+                """
+            )
+            .Define("is_train", "fold >= 0 && fold <= 2")
+        )
+
     if "event" in cols:
-        return df.Define("fold", "((int)event % 4)").Define("is_train", "((int)event % 2) == 0")
-    return df.Define("fold", "int(rdfentry_ % 4)").Define("is_train", "(rdfentry_ % 2) == 0")
+        return (
+            df.Define("fold", "int(((ULong64_t)event) % 5ull)")
+              .Define("is_train", "fold >= 0 && fold <= 2")
+        )
+
+    return (
+        df.Define("fold", "int(rdfentry_ % 5ull)")
+          .Define("is_train", "fold >= 0 && fold <= 2")
+    )
 
 
 def build_df(files, treename, force_define=False):
@@ -143,12 +164,15 @@ def parse_args():
         "WWW", "WWZ", "WZZ", "ZZZ",
         "WZto2L2Q", "WZto3LNu", "ZZto2L2Nu", "ZZto2L2Q", "ZZto4L",
     ])
-    p.add_argument("--treename-in",  default="Events")
+    p.add_argument("--treename-in", default="mva")
     p.add_argument("--treename-out", default="mva")
     p.add_argument("--weight-branch", default="weight")
     p.add_argument("--force-define", action="store_true")
-    p.add_argument("--make-all", action="store_true",
-                   help="Also write {era}_all_*.root that contain all four folds.")
+    p.add_argument(
+        "--make-all",
+        action="store_true",
+        help="Also write {era}_all_*.root containing all five folds.",
+    )
     p.add_argument("--keep-branches", default="",
                    help="Comma-separated extra branches to copy through.")
     return p.parse_args()

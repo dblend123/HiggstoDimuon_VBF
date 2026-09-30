@@ -43,10 +43,8 @@ def parse_args():
     p.add_argument("--mass-max", type=float, default=150)
     p.add_argument("--alpha", type=float, default=1e-3, help="KS p-value threshold")
     p.add_argument("--dthr-pct", type=float, default=0.20, help="KS D(%) threshold")
-    p.add_argument("--abs-weights", dest="abs_weights", action="store_true", default=True,
-                   help="Use |weight| for yields/significance (default: enabled)")
-    p.add_argument("--signed-weights", dest="abs_weights", action="store_false",
-                   help="Disable absolute-value transform (negative/invalid weights are still removed)")
+    p.add_argument("--abs-weights", dest="abs_weights", action="store_true", default=False, help="Use absolute weights for diagnostic purposes only",)
+    p.add_argument("--signed-weights", dest="abs_weights", action="store_false", help="Use signed MC weights for physical yields (default)",)
     p.add_argument("--output", default="bdt_analysis.pdf")
     p.add_argument("--multibin-min-n", type=int, default=4,
                    help="Minimum number of BDT categories for multi-bin optimization")
@@ -303,11 +301,10 @@ def resolve_genjet_branch(path, treename, preferred="auto"):
 
 
 def sanitize_weights(w, use_abs=False):
-    w = np.asarray(w, dtype=np.float64)
+    w = np.asarray(w, dtype=np.float64).copy()
     w[~np.isfinite(w)] = 0.0
     if use_abs:
         w = np.abs(w)
-    w[w < 0.0] = 0.0
     return w
 
 

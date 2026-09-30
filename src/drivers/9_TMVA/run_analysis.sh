@@ -6,15 +6,19 @@
 #   ./run_analysis.sh                 # all eras (default)
 #   ./run_analysis.sh -e 12022        # single era (skips the combined step)
 
-set -e
+set -euo pipefail
 source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
-cd /eos/user/m/memmad/HiggstoDimuon_VBF
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 export MPLBACKEND=Agg
 
-OUT=src/drivers/9_TMVA/Outputs
-DIAG_SCRIPT=src/drivers/9_TMVA/vbf_bdt/bdt_validation.py
-CAT_SCRIPT=src/drivers/9_TMVA/vbf_bdt/bdt_event_categorization.py
-ALL_ERAS=(12022 22022 12023 22023 2024 2025)
+OUT="${SCRIPT_DIR}/Outputs"
+DIAG_SCRIPT="${SCRIPT_DIR}/bdt_validation.py"
+CAT_SCRIPT="${SCRIPT_DIR}/bdt_event_categorization.py"
+
+ALL_ERAS=(2024)
 ERAS=("${ALL_ERAS[@]}")
 
 while [[ $# -gt 0 ]]; do
@@ -33,17 +37,17 @@ for era in "${ERAS[@]}"; do
 done
 
 # Step 2 — Per-era categorization
-for era in "${ERAS[@]}"; do
-    echo ">>> [Categorization] era=${era}"
-    CATDIR="$OUT/Categorization/$era"; mkdir -p "$CATDIR"
-    python3 "$CAT_SCRIPT" --eras "$era" --outputs-dir "$OUT" \
-        --outdir "$CATDIR" --log-level INFO |& tee "$CATDIR/run.log"
-done
-
+#for era in "${ERAS[@]}"; do
+#    echo ">>> [Categorization] era=${era}"
+#    CATDIR="$OUT/Categorization/$era"; mkdir -p "$CATDIR"
+#    python3 "$CAT_SCRIPT" --eras "$era" --outputs-dir "$OUT" \
+#        --outdir "$CATDIR" --log-level INFO |& tee "$CATDIR/run.log"
+#done
+#
 # Step 3 — Combined multi-era categorization (skipped for single-era runs)
-if [[ ${#ERAS[@]} -gt 1 ]]; then
-    echo ">>> [Categorization] combined (${ALL_ERAS[*]})"
-    CATDIR="$OUT/Categorization/combined"; mkdir -p "$CATDIR"
-    python3 "$CAT_SCRIPT" --eras "${ALL_ERAS[@]}" --outputs-dir "$OUT" \
-        --outdir "$CATDIR" --log-level INFO |& tee "$CATDIR/run.log"
-fi
+#if [[ ${#ERAS[@]} -gt 1 ]]; then
+#    echo ">>> [Categorization] combined (${ALL_ERAS[*]})"
+#    CATDIR="$OUT/Categorization/combined"; mkdir -p "$CATDIR"
+#    python3 "$CAT_SCRIPT" --eras "${ALL_ERAS[@]}" --outputs-dir "$OUT" \
+#        --outdir "$CATDIR" --log-level INFO |& tee "$CATDIR/run.log"
+#fi

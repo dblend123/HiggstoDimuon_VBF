@@ -683,6 +683,11 @@ static inline bool debugTrigger() {
 // ------------------------
 TTree* gMvaTree = nullptr;
 
+TTree* gMvaTreeJecUp   = nullptr;
+TTree* gMvaTreeJecDown = nullptr;
+TTree* gMvaTreeJerUp   = nullptr;
+TTree* gMvaTreeJerDown = nullptr;
+
 float g_z             = -99.f;
 float g_ptBalance     = -99.f;
 
@@ -691,6 +696,7 @@ float g_mu2_pt_over_m = -99.f;
 float g_mu1_eta       = -99.f;
 float g_mu2_eta       = -99.f;
 float g_jet1_eta      = -99.f;
+float g_mjj           = -99.f;
 float g_m_mumu        = -99.f;
 float g_deta_jj       = -99.f;
 float g_dphi_jj       = -99.f;
@@ -709,6 +715,40 @@ float g_pt_j1         = -99.f;
 float g_pt_j2         = -99.f;   
 
 float g_weight        = 1.f;
+
+// Experimental weight variations
+float g_weight_puUp             = 1.f;
+float g_weight_puDown           = 1.f;
+float g_weight_muSFUp           = 1.f;
+float g_weight_muSFDown         = 1.f;
+float g_weight_triggerUp        = 1.f;
+float g_weight_triggerDown      = 1.f;
+float g_weight_btagSFUp         = 1.f;
+float g_weight_btagSFDown       = 1.f;
+float g_weight_btagEffStatUp    = 1.f;
+float g_weight_btagEffStatDown  = 1.f;
+float g_weight_zptUp            = 1.f;
+float g_weight_zptDown          = 1.f;
+
+// Theory weight variations
+float g_weight_scale0  = 1.f;
+float g_weight_scale1  = 1.f;
+float g_weight_scale3  = 1.f;
+float g_weight_scale5  = 1.f;
+float g_weight_scale7  = 1.f;
+float g_weight_scale8  = 1.f;
+
+float g_weight_pdfUp   = 1.f;
+float g_weight_pdfDown = 1.f;
+float g_weight_isrUp   = 1.f;
+float g_weight_isrDown = 1.f;
+float g_weight_fsrUp   = 1.f;
+float g_weight_fsrDown = 1.f;
+
+UInt_t    g_run   = 0;
+UInt_t    g_lumi  = 0;
+UInt_t g_fold     = 0;
+ULong64_t g_event = 0;
 
 // ------------------------
 // JERC Systematics 
@@ -732,6 +772,266 @@ struct JetSystVars {
     bool pass_vbf       = false;
     bool pass_veto_map  = true;
 };
+
+static void bookMvaBranches(TTree* tree)
+{
+    if (!tree)
+        return;
+
+    tree->Branch("z",              &g_z,             "z/F");
+    tree->Branch("pt_balance",     &g_ptBalance,     "pt_balance/F");
+
+    tree->Branch("mu1_pt_over_m",  &g_mu1_pt_over_m, "mu1_pt_over_m/F");
+    tree->Branch("mu2_pt_over_m",  &g_mu2_pt_over_m, "mu2_pt_over_m/F");
+    tree->Branch("mu1_eta",        &g_mu1_eta,       "mu1_eta/F");
+    tree->Branch("mu2_eta",        &g_mu2_eta,       "mu2_eta/F");
+
+    tree->Branch("m_mumu",         &g_m_mumu,        "m_mumu/F");
+    tree->Branch("y_mumu",         &g_y_mumu,        "y_mumu/F");
+    tree->Branch("pt_mumu",        &g_pt_mumu,       "pt_mumu/F");
+
+    tree->Branch("jet1_eta",       &g_jet1_eta,      "jet1_eta/F");
+    tree->Branch("mjj",            &g_mjj,           "mjj/F");
+    tree->Branch("deta_jj",        &g_deta_jj,       "deta_jj/F");
+    tree->Branch("dphi_jj",        &g_dphi_jj,       "dphi_jj/F");
+    tree->Branch("y_j1",           &g_y_j1,          "y_j1/F");
+    tree->Branch("y_j2",           &g_y_j2,          "y_j2/F");
+    tree->Branch("njets",          &g_njets,         "njets/I");
+    tree->Branch("pt_j1",          &g_pt_j1,         "pt_j1/F");
+    tree->Branch("pt_j2",          &g_pt_j2,         "pt_j2/F");
+    tree->Branch("dphi_mumu_jj",   &g_dphi_mumu_jj,  "dphi_mumu_jj/F");
+    tree->Branch("deta_mumu_jj",   &g_deta_mumu_jj,  "deta_mumu_jj/F");
+
+    tree->Branch("phi_CS",         &g_phi_CS,         "phi_CS/F");
+    tree->Branch("costheta_CS",    &g_costheta_CS,    "costheta_CS/F");
+
+    tree->Branch("run",            &g_run,            "run/i");
+    tree->Branch("lumi",           &g_lumi,           "lumi/i");
+    tree->Branch("event",          &g_event,          "event/l");
+    tree->Branch("fold",           &g_fold,           "fold/i");
+    tree->Branch("weight",         &g_weight,         "weight/F");
+}
+
+static void bookMvaWeightBranches(TTree* tree)
+{
+    if (!tree)
+        return;
+
+    tree->Branch(
+        "weight_puUp",
+        &g_weight_puUp,
+        "weight_puUp/F"
+    );
+
+    tree->Branch(
+        "weight_puDown",
+        &g_weight_puDown,
+        "weight_puDown/F"
+    );
+
+    tree->Branch(
+        "weight_muSFUp",
+        &g_weight_muSFUp,
+        "weight_muSFUp/F"
+    );
+
+    tree->Branch(
+        "weight_muSFDown",
+        &g_weight_muSFDown,
+        "weight_muSFDown/F"
+    );
+
+    tree->Branch(
+        "weight_triggerUp",
+        &g_weight_triggerUp,
+        "weight_triggerUp/F"
+    );
+
+    tree->Branch(
+        "weight_triggerDown",
+        &g_weight_triggerDown,
+        "weight_triggerDown/F"
+    );
+
+    tree->Branch(
+        "weight_btagSFUp",
+        &g_weight_btagSFUp,
+        "weight_btagSFUp/F"
+    );
+
+    tree->Branch(
+        "weight_btagSFDown",
+        &g_weight_btagSFDown,
+        "weight_btagSFDown/F"
+    );
+
+    tree->Branch(
+        "weight_btagEffStatUp",
+        &g_weight_btagEffStatUp,
+        "weight_btagEffStatUp/F"
+    );
+
+    tree->Branch(
+        "weight_btagEffStatDown",
+        &g_weight_btagEffStatDown,
+        "weight_btagEffStatDown/F"
+    );
+
+    tree->Branch(
+        "weight_zptUp",
+        &g_weight_zptUp,
+        "weight_zptUp/F"
+    );
+
+    tree->Branch(
+        "weight_zptDown",
+        &g_weight_zptDown,
+        "weight_zptDown/F"
+    );
+
+    tree->Branch(
+        "weight_scale0",
+        &g_weight_scale0,
+        "weight_scale0/F"
+    );
+
+    tree->Branch(
+        "weight_scale1",
+        &g_weight_scale1,
+        "weight_scale1/F"
+    );
+
+    tree->Branch(
+        "weight_scale3",
+        &g_weight_scale3,
+        "weight_scale3/F"
+    );
+
+    tree->Branch(
+        "weight_scale5",
+        &g_weight_scale5,
+        "weight_scale5/F"
+    );
+
+    tree->Branch(
+        "weight_scale7",
+        &g_weight_scale7,
+        "weight_scale7/F"
+    );
+
+    tree->Branch(
+        "weight_scale8",
+        &g_weight_scale8,
+        "weight_scale8/F"
+    );
+
+    tree->Branch(
+        "weight_pdfUp",
+        &g_weight_pdfUp,
+        "weight_pdfUp/F"
+    );
+
+    tree->Branch(
+        "weight_pdfDown",
+        &g_weight_pdfDown,
+        "weight_pdfDown/F"
+    );
+
+    tree->Branch(
+        "weight_isrUp",
+        &g_weight_isrUp,
+        "weight_isrUp/F"
+    );
+
+    tree->Branch(
+        "weight_isrDown",
+        &g_weight_isrDown,
+        "weight_isrDown/F"
+    );
+
+    tree->Branch(
+        "weight_fsrUp",
+        &g_weight_fsrUp,
+        "weight_fsrUp/F"
+    );
+
+    tree->Branch(
+        "weight_fsrDown",
+        &g_weight_fsrDown,
+        "weight_fsrDown/F"
+    );
+}
+
+static void fillShiftedMvaTree(
+    TTree* tree,
+    const JetSystVars& vars,
+    UInt_t run,
+    UInt_t lumi,
+    ULong64_t eventNumber,
+    float weight)
+{
+    if (!tree)
+        return;
+
+    // Save the nominal jet-dependent values.
+    const float nominal_z             = g_z;
+    const float nominal_ptBalance     = g_ptBalance;
+    const float nominal_jet1_eta      = g_jet1_eta;
+    const float nominal_mjj           = g_mjj;
+    const float nominal_deta_jj       = g_deta_jj;
+    const float nominal_dphi_jj       = g_dphi_jj;
+    const float nominal_y_j1          = g_y_j1;
+    const float nominal_y_j2          = g_y_j2;
+    const int   nominal_njets         = g_njets;
+    const float nominal_pt_j1         = g_pt_j1;
+    const float nominal_pt_j2         = g_pt_j2;
+    const float nominal_dphi_mumu_jj  = g_dphi_mumu_jj;
+    const float nominal_deta_mumu_jj  = g_deta_mumu_jj;
+
+    // Replace only the jet-dependent BDT inputs.
+    g_z             = vars.z;
+    g_ptBalance     = vars.ptBalance;
+    g_jet1_eta      = vars.eta_j1;
+    g_mjj           = vars.mjj;
+    g_deta_jj       = vars.deta_jj;
+    g_dphi_jj       = vars.dphi_jj;
+    g_y_j1          = vars.y_j1;
+    g_y_j2          = vars.y_j2;
+    g_njets         = vars.njets;
+    g_pt_j1         = vars.pt_j1;
+    g_pt_j2         = vars.pt_j2;
+    g_dphi_mumu_jj  = vars.dphi_mumu_jj;
+    g_deta_mumu_jj  = vars.deta_mumu_jj;
+
+    g_run   = run;
+    g_lumi  = lumi;
+    g_event = eventNumber;
+
+    g_fold = static_cast<UInt_t>(
+        (g_event ^
+         (static_cast<ULong64_t>(g_run) << 32) ^
+         g_lumi) % 5ULL
+    );
+
+    g_weight = weight;
+
+    tree->Fill();
+
+    // Restore nominal values for the ordinary analyzer flow.
+    g_z             = nominal_z;
+    g_ptBalance     = nominal_ptBalance;
+    g_jet1_eta      = nominal_jet1_eta;
+    g_mjj           = nominal_mjj;
+    g_deta_jj       = nominal_deta_jj;
+    g_dphi_jj       = nominal_dphi_jj;
+    g_y_j1          = nominal_y_j1;
+    g_y_j2          = nominal_y_j2;
+    g_njets         = nominal_njets;
+    g_pt_j1         = nominal_pt_j1;
+    g_pt_j2         = nominal_pt_j2;
+    g_dphi_mumu_jj  = nominal_dphi_mumu_jj;
+    g_deta_mumu_jj  = nominal_deta_mumu_jj;
+}
 
 // ------------------------
 // Weights Config
@@ -1854,7 +2154,7 @@ makeJetCorrectionArguments(
         } else if (name == "Rho") {
             args.emplace_back(in.rho);
         } else if (name == "run") {
-            args.emplace_back(in.run);
+            args.emplace_back(static_cast<double>(in.run));
         } else {
             throw std::runtime_error(
                 "Unsupported compound JEC input '" +
@@ -1888,7 +2188,7 @@ makeJetCorrectionArguments(
         } else if (name == "Rho") {
             args.emplace_back(in.rho);
         } else if (name == "run") {
-            args.emplace_back(in.run);
+            args.emplace_back(static_cast<double>(in.run)); 
         } else {
             throw std::runtime_error(
                 "Unsupported JEC input '" +
@@ -4886,6 +5186,11 @@ std::cout << "[SF DBG]"
     if (inHiggsMassRange &&
         nominalPassVBF) {
 
+        g_mjj =
+            static_cast<float>(
+                dijetmass
+        );
+
         g_jet1_eta =
             static_cast<float>(
                 p4lead.Eta()
@@ -5037,6 +5342,61 @@ std::cout << "[SF DBG]"
             jerDownVars.pass_veto_map &&
             jerDownVars.pass_vbf;
 
+    const UInt_t mvaRun =
+        static_cast<UInt_t>(event._run);
+
+    const UInt_t mvaLumi =
+        static_cast<UInt_t>(event._lumi);
+
+    const ULong64_t mvaEvent =
+        static_cast<ULong64_t>(event._event);
+
+
+    // Each shifted tree contains precisely the events passing that
+    // variation, including events that migrate in from nominal failure.
+    if (jecUpPassVBF) {
+        fillShiftedMvaTree(
+            gMvaTreeJecUp,
+            jecUpVars,
+            mvaRun,
+            mvaLumi,
+            mvaEvent,
+            static_cast<float>(totalWeight)
+        );
+    }
+
+    if (jecDownPassVBF) {
+        fillShiftedMvaTree(
+            gMvaTreeJecDown,
+            jecDownVars,
+            mvaRun,
+            mvaLumi,
+            mvaEvent,
+            static_cast<float>(totalWeight)
+        );
+    }
+
+    if (jerUpPassVBF) {
+        fillShiftedMvaTree(
+            gMvaTreeJerUp,
+            jerUpVars,
+            mvaRun,
+            mvaLumi,
+            mvaEvent,
+            static_cast<float>(totalWeight)
+        );
+    }
+
+    if (jerDownPassVBF) {
+        fillShiftedMvaTree(
+            gMvaTreeJerDown,
+            jerDownVars,
+            mvaRun,
+            mvaLumi,
+            mvaEvent,
+            static_cast<float>(totalWeight)
+        );
+    }
 
         // -----------------------------------------------------
         // Nominal-category weights
@@ -5192,43 +5552,36 @@ std::cout << "[SF DBG]"
 if (nominalPassVBF)
     ++nNominalPass;
 
-if (jecUpVars.pass_vbf) {
+if (jecUpPassVBF) {
     ++nJecUpPass;
     if (!nominalPassVBF)
         ++nJecUpIn;
 }
-
-if (nominalPassVBF && !jecUpVars.pass_vbf)
+if (nominalPassVBF && !jecUpPassVBF)
     ++nJecUpOut;
 
-
-if (jecDownVars.pass_vbf) {
+if (jecDownPassVBF) {
     ++nJecDownPass;
     if (!nominalPassVBF)
         ++nJecDownIn;
 }
-
-if (nominalPassVBF && !jecDownVars.pass_vbf)
+if (nominalPassVBF && !jecDownPassVBF)
     ++nJecDownOut;
 
-
-if (jerUpVars.pass_vbf) {
+if (jerUpPassVBF) {
     ++nJerUpPass;
     if (!nominalPassVBF)
         ++nJerUpIn;
 }
-
-if (nominalPassVBF && !jerUpVars.pass_vbf)
+if (nominalPassVBF && !jerUpPassVBF)
     ++nJerUpOut;
 
-
-if (jerDownVars.pass_vbf) {
+if (jerDownPassVBF) {
     ++nJerDownPass;
     if (!nominalPassVBF)
         ++nJerDownIn;
 }
-
-if (nominalPassVBF && !jerDownVars.pass_vbf)
+if (nominalPassVBF && !jerDownPassVBF)
     ++nJerDownOut;
 
         FILL_BDT_EXP_SYST_HIST(
@@ -5293,20 +5646,155 @@ if (nominalPassVBF && !jerDownVars.pass_vbf)
         return;
 
 
-    // ---------------------------------------------------------
-    // Theory templates and nominal MVA tree
-    //
-    // Theory variations are evaluated for the nominal VBF category.
-    // ---------------------------------------------------------
-    if (__isMC &&
-        inHiggsMassRange) {
+// ---------------------------------------------------------
+// Nominal MVA tree
+//
+// Store DATA and MC in the Higgs analysis mass range.
+// DATA receives unit weight.
+// ---------------------------------------------------------
+if (inHiggsMassRange) {
 
-        g_weight =
-            totalWeight;
+    g_run =
+        static_cast<UInt_t>(
+            event._run
+        );
+
+    g_lumi =
+        static_cast<UInt_t>(
+            event._lumi
+        );
+
+    g_event =
+        static_cast<ULong64_t>(
+            event._event
+        );
+
+    g_fold =
+        static_cast<UInt_t>(
+            (
+                g_event ^
+                (static_cast<ULong64_t>(g_run) << 32) ^
+                g_lumi
+            ) % 5ULL
+        );
+
+    if (!__isMC) {
+
+        // DATA has unit nominal and variation weights.
+        g_weight = 1.0f;
+
+        g_weight_puUp            = 1.0f;
+        g_weight_puDown          = 1.0f;
+        g_weight_muSFUp          = 1.0f;
+        g_weight_muSFDown        = 1.0f;
+        g_weight_triggerUp       = 1.0f;
+        g_weight_triggerDown     = 1.0f;
+        g_weight_btagSFUp        = 1.0f;
+        g_weight_btagSFDown      = 1.0f;
+        g_weight_btagEffStatUp   = 1.0f;
+        g_weight_btagEffStatDown = 1.0f;
+        g_weight_zptUp           = 1.0f;
+        g_weight_zptDown         = 1.0f;
+
+        g_weight_scale0  = 1.0f;
+        g_weight_scale1  = 1.0f;
+        g_weight_scale3  = 1.0f;
+        g_weight_scale5  = 1.0f;
+        g_weight_scale7  = 1.0f;
+        g_weight_scale8  = 1.0f;
+        g_weight_pdfUp   = 1.0f;
+        g_weight_pdfDown = 1.0f;
+        g_weight_isrUp   = 1.0f;
+        g_weight_isrDown = 1.0f;
+        g_weight_fsrUp   = 1.0f;
+        g_weight_fsrDown = 1.0f;
 
         if (gMvaTree) {
             gMvaTree->Fill();
         }
+    }
+    else {
+
+        // Store the nominal and experimental MC weights now.
+        // The theory weights are calculated in the following block.
+        g_weight =
+            static_cast<float>(
+                totalWeight
+            );
+
+        g_weight_puUp =
+            static_cast<float>(
+                totalWeight_puUp
+            );
+
+        g_weight_puDown =
+            static_cast<float>(
+                totalWeight_puDown
+            );
+
+        g_weight_muSFUp =
+            static_cast<float>(
+                totalWeight_muSFUp
+            );
+
+        g_weight_muSFDown =
+            static_cast<float>(
+                totalWeight_muSFDown
+            );
+
+        g_weight_triggerUp =
+            static_cast<float>(
+                totalWeight_trigUp
+            );
+
+        g_weight_triggerDown =
+            static_cast<float>(
+                totalWeight_trigDown
+            );
+
+        g_weight_btagSFUp =
+            static_cast<float>(
+                totalWeight_btagSFUp
+            );
+
+        g_weight_btagSFDown =
+            static_cast<float>(
+                totalWeight_btagSFDown
+            );
+
+        g_weight_btagEffStatUp =
+            static_cast<float>(
+                totalWeight_btagEffStatUp
+            );
+
+        g_weight_btagEffStatDown =
+            static_cast<float>(
+                totalWeight_btagEffStatDown
+            );
+
+        g_weight_zptUp =
+            static_cast<float>(
+                totalWeight_zptUp
+            );
+
+        g_weight_zptDown =
+            static_cast<float>(
+                totalWeight_zptDown
+            );
+
+        // Do not fill the MC tree here.
+        // It will be filled after calculating scale/PDF/PS weights.
+    }
+}
+
+// ---------------------------------------------------------
+// Theory templates
+//
+// Theory variations apply only to MC in the nominal VBF
+// category.
+// ---------------------------------------------------------
+if (__isMC &&
+    inHiggsMassRange) {
 
         double w_pdfUp =
             totalWeight;
@@ -5458,6 +5946,50 @@ if (nominalPassVBF && !jerDownVars.pass_vbf)
             w_fsrDown =
                 totalWeight *
                 event._PSWeight[3];
+        }
+
+        // Copy the completed theory weights into the nominal MVA tree.
+        g_weight_scale0 =
+            static_cast<float>(w_scale0);
+
+        g_weight_scale1 =
+            static_cast<float>(w_scale1);
+
+        g_weight_scale3 =
+            static_cast<float>(w_scale3);
+
+        g_weight_scale5 =
+            static_cast<float>(w_scale5);
+
+        g_weight_scale7 =
+            static_cast<float>(w_scale7);
+
+        g_weight_scale8 =
+            static_cast<float>(w_scale8);
+
+        g_weight_pdfUp =
+            static_cast<float>(w_pdfUp);
+
+        g_weight_pdfDown =
+            static_cast<float>(w_pdfDown);
+
+        g_weight_isrUp =
+            static_cast<float>(w_isrUp);
+
+        g_weight_isrDown =
+            static_cast<float>(w_isrDown);
+
+        g_weight_fsrUp =
+            static_cast<float>(w_fsrUp);
+
+        g_weight_fsrDown =
+            static_cast<float>(w_fsrDown);
+
+
+        // Fill the nominal MC event exactly once, now that all
+        // experimental and theory weights have been assigned.
+        if (gMvaTree) {
+            gMvaTree->Fill();
         }
 
         FILL_BDT_SYST_HIST(
@@ -6000,32 +6532,45 @@ void process()
 	Streamer streamer(__inputfilename, "Events");
 	streamer.chainup();
    
-    //MVA Branch outputs 
-    gMvaTree = new TTree("mva", "Training features for VBF discriminator");
-    gMvaTree->Branch("z",               &g_z);
-    gMvaTree->Branch("pt_balance",      &g_ptBalance);
-    gMvaTree->Branch("mu1_pt_over_m",   &g_mu1_pt_over_m);
-    gMvaTree->Branch("mu2_pt_over_m",   &g_mu2_pt_over_m);
-    gMvaTree->Branch("mu1_eta",         &g_mu1_eta);
-    gMvaTree->Branch("mu2_eta",         &g_mu2_eta);
-    gMvaTree->Branch("m_mumu",          &g_m_mumu);
-    gMvaTree->Branch("y_mumu",          &g_y_mumu);
-    gMvaTree->Branch("pt_mumu",         &g_pt_mumu);
-    
-    gMvaTree->Branch("jet1_eta",        &g_jet1_eta);
-    gMvaTree->Branch("deta_jj",         &g_deta_jj);
-    gMvaTree->Branch("dphi_jj",         &g_dphi_jj);
-    gMvaTree->Branch("y_j1",            &g_y_j1);
-    gMvaTree->Branch("y_j2",            &g_y_j2);
-    gMvaTree->Branch("njets",           &g_njets);
-    gMvaTree->Branch("pt_j1",           &g_pt_j1);
-    gMvaTree->Branch("pt_j2",           &g_pt_j2);
-    gMvaTree->Branch("dphi_mumu_jj",    &g_dphi_mumu_jj, "dphi_mumu_jj/F");
-    gMvaTree->Branch("deta_mumu_jj",    &g_deta_mumu_jj, "deta_mumu_jj/F");
-    gMvaTree->Branch("phi_CS",          &g_phi_CS,      "phi_CS/F");
-    gMvaTree->Branch("costheta_CS",     &g_costheta_CS, "costheta_CS/F");
-    
-    gMvaTree->Branch("weight",          &g_weight);
+    gMvaTree =
+        new TTree(
+            "mva",
+            "Nominal training features for VBF discriminator"
+        );
+
+    bookMvaBranches(gMvaTree);
+    bookMvaWeightBranches(gMvaTree);
+
+    if (__isMC) {
+        gMvaTreeJecUp =
+            new TTree(
+                "mva_jecUp",
+                "JEC-up features for VBF discriminator"
+            );
+
+        gMvaTreeJecDown =
+            new TTree(
+                "mva_jecDown",
+                "JEC-down features for VBF discriminator"
+            );
+
+        gMvaTreeJerUp =
+            new TTree(
+                "mva_jerUp",
+                "JER-up features for VBF discriminator"
+            );
+
+        gMvaTreeJerDown =
+            new TTree(
+                "mva_jerDown",
+                "JER-down features for VBF discriminator"
+            );
+
+        bookMvaBranches(gMvaTreeJecUp);
+        bookMvaBranches(gMvaTreeJecDown);
+        bookMvaBranches(gMvaTreeJerUp);
+        bookMvaBranches(gMvaTreeJerDown);
+    }
 
     Muons *muons=NULL;
 	Muons muons1;
@@ -6682,10 +7227,24 @@ std::cout
 
     std::cout << std::endl; // Move to the next line after the progress bar is complete
 
-	outroot->Write();
-	outroot->Close();
+    std::cerr
+        << "[OUTPUT DEBUG] before Write"
+        << std::endl;
 
-	return;
+    outroot->Write();
+
+    std::cerr
+        << "[OUTPUT DEBUG] after Write, before Close"
+        << std::endl;
+
+    outroot->Close();
+
+    std::cerr
+        << "[OUTPUT DEBUG] after Close"
+        << std::endl;
+
+    return;
+
 }
 
 void sigHandler(int sig)
@@ -6927,6 +7486,7 @@ std::cout << std::fixed
         loadGoldenJsonCorrections();
         std::cout << "[GoldenJSON] runs loaded = " << g_lumiMask.size() << std::endl;
     }
+
     process();
 
     std::cout << "[MuonCorr] Mode=" << mode
@@ -6934,5 +7494,22 @@ std::cout << std::fixed
               << "  era=" << g_era
               << "\n";
 
-	return 0;
+
+    // ROOT keeps its own global list of open TFiles. Explicitly destroy
+    // our unique_ptr-owned input files before ROOT's shutdown handlers run.
+    if (g_btagEffFileHandle) {
+        g_btagEffFileHandle->Close();
+        g_btagEffFileHandle.reset();
+    }
+
+    if (g_zptRW.f) {
+        g_zptRW.f->Close();
+        g_zptRW.f.reset();
+    }
+
+    std::cerr
+        << "[CLEANUP] Input ROOT files released"
+        << std::endl;
+
+    return 0;
 }

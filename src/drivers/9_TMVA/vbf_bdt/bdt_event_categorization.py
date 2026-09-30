@@ -275,8 +275,19 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--sb2-max", type=float, default=150.0)
     p.add_argument("--blind-min", type=float, default=115.0)
     p.add_argument("--blind-max", type=float, default=135.0)
-    p.add_argument("--abs-weights", dest="abs_weights", action="store_true", default=True)
-    p.add_argument("--signed-weights", dest="abs_weights", action="store_false")
+    p.add_argument(
+        "--abs-weights",
+        dest="abs_weights",
+        action="store_true",
+        default=False,
+        help="Use absolute MC weights for diagnostics only",
+    )
+    p.add_argument(
+        "--signed-weights",
+        dest="abs_weights",
+        action="store_false",
+        help="Use signed MC weights for yields (default)",
+    )
     p.add_argument("--score-logy", action="store_true")
     p.add_argument("--mc-normalization", choices=["none", "sidebands"], default="none")
     p.add_argument("--category-edges", default="")
@@ -482,11 +493,20 @@ def load_era_payload(era, data_files, mc_entries, args, logger):
     data_full_mass = np.array([], dtype=np.float64)
     if data_files:
         try:
-            arr_side = load_arrays(data_files, args.treename, [args.bdt_branch], sel_sb)
+            # Real DATA is loaded from sidebands only. No blinded events
+            # enter any downstream array, fit, count or plot.
+            arr_side = load_arrays(
+                data_files,
+                args.treename,
+                [args.bdt_branch, mass_branch],
+                sel_sb,
+            )
             data_side_scores = arr_side[args.bdt_branch]
-            arr_full = load_arrays(data_files, args.treename, [args.bdt_branch, mass_branch], sel_full)
-            data_full_scores = arr_full[args.bdt_branch]
-            data_full_mass = arr_full[mass_branch]
+
+            # Keep existing payload keys for compatibility, but their
+            # contents are now strictly sideband-only.
+            data_full_scores = arr_side[args.bdt_branch]
+            data_full_mass = arr_side[mass_branch]
         except Exception as exc:
             logger.warning("%s: failed loading data arrays: %s", era, exc)
     mc_side_groups: List[Tuple[str, np.ndarray, np.ndarray]] = []
@@ -2856,7 +2876,11 @@ def main() -> None:
     else:
         logger.info("MC normalization: lumi-weighted (scale = 1.0, following AN2019_090_UCSD)")
 
-    edges = trim_degenerate_top_categories(edges, era_payloads, args, mc_scale, logger)
+    # Category boundaries must be determined from MC expectations only.
+    # Do not alter them using observed DATA.
+    logger.info(
+        "Skipping DATA-dependent category trimming; "
+        "using MC-optimized category edges.")
     interior = np.asarray(edges[1:-1], dtype=np.float64)
     category_band = (float(np.min(interior)), float(np.max(interior))) if interior.size >= 1 else None
 
@@ -2884,7 +2908,7 @@ def main() -> None:
     # ── Page 2: BDT score ───────────────────────────────────────────────────
     score_bins = np.linspace(args.score_min, args.score_max, args.score_nbins + 1)
     fig_score, data_hist, _dv, _sh, _sv, mc_total, mc_total_var = make_stacked_ratio_figure(
-        title="BDT score in full 110–150 GeV window: Data vs. stacked MC",
+        title="BDT score in mass sidebands: Data vs. stacked MC",
         xlabel="BDT score",
         bins=score_bins,
         data_values=run3_data_full_scores,
@@ -2897,7 +2921,10 @@ def main() -> None:
         era_label=era_label,
         annotation_lines=[
             f"Eras: {era_label}",
-            f"Full mass window: {args.mass_min:.0f}–{args.mass_max:.0f} GeV",
+            (
+                f"Sidebands: {args.sb1_min:.0f}–{args.sb1_max:.0f} and "
+                f"{args.sb2_min:.0f}–{args.sb2_max:.0f} GeV"
+            ),
             f"Boundary range: {category_band[0]:.3f} to {category_band[1]:.3f}"
             if category_band else "Boundary range: N/A",
         ],

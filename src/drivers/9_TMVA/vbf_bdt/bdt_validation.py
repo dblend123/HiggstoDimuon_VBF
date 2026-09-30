@@ -216,7 +216,7 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--sr-min", type=float, default=110.0)
     p.add_argument("--sr-max", type=float, default=150.0)
-    p.add_argument("--sb1-min", type=float, default=100.0)
+    p.add_argument("--sb1-min", type=float, default=110.0)
     p.add_argument("--sb1-max", type=float, default=115.0)
     p.add_argument("--sb2-min", type=float, default=135.0)
     p.add_argument("--sb2-max", type=float, default=150.0)
@@ -356,6 +356,19 @@ def discover_auto_inputs(outputs_dir: str, era: str, logger: logging.Logger) -> 
                 logger.warning("Skipping tiny file (<1KB), likely corrupt/incomplete: %s", path)
 
     logger.info("Auto-discovery: data files=%d, MC groups=%d", len(data_files), len(mc_map))
+    
+    component_keys = {
+    key for key in mc_map
+    if key.upper() not in {"BACKGROUND", "SIGNAL"}
+    }
+
+    if "BACKGROUND" in mc_map and component_keys:
+        logger.info(
+            "Individual background files found; excluding aggregate "
+            "scored_background file to prevent double-counting."
+        )
+        mc_map.pop("BACKGROUND", None)
+
     return data_files, mc_map
 
 
@@ -902,7 +915,38 @@ def main() -> None:
     # Load samples
     data_sample = None
     if data_files:
-        data_sample = load_sample("DATA", data_files, args.treename, branch_map, args.selection, model, logger, is_data=True)
+        mass_name = branch_map["mass"]
+        data_sideband_selection = (
+            f"(({mass_name}>={args.sb1_min} && "
+            f"{mass_name}<{args.sb1_max}) || "
+            f"({mass_name}>={args.sb2_min} && "
+            f"{mass_name}<{args.sb2_max}))"
+        )
+
+        if args.selection:
+            data_sideband_selection = (
+                f"({data_sideband_selection}) && ({args.selection})"
+            )
+
+        logger.info(
+            "Loading real DATA from sidebands only: "
+            "[%.1f, %.1f) and [%.1f, %.1f)",
+            args.sb1_min,
+            args.sb1_max,
+            args.sb2_min,
+            args.sb2_max,
+        )
+
+        data_sample = load_sample(
+            "DATA",
+            data_files,
+            args.treename,
+            branch_map,
+            data_sideband_selection,
+            model,
+            logger,
+            is_data=True,
+        )
 
     mc_samples: List[Sample] = []
     for proc, files in mc_map.items():
@@ -956,9 +1000,23 @@ def main() -> None:
                 ", ".join(sorted(available_groups)),
             )
 
-    sig_arr = combine_group_arrays(mc_groups, signal_set)
-    bkg_arr = combine_group_arrays(mc_groups, [p for p in mc_groups.keys() if p not in set(signal_set)])
-    all_arr = all_mc_arrays(mc_groups)
+    signal_keys = set(signal_set)
+
+    sig_arr = combine_group_arrays(
+        mc_groups,
+        signal_set,
+    )
+
+    bkg_arr = combine_group_arrays(
+        mc_groups,
+        [
+            proc for proc in mc_groups.keys()
+            if proc not in signal_keys
+        ],
+    )
+
+    # Any plot described as background or Data/MC must exclude signal.
+    all_arr = bkg_arr
 
     if sig_arr["score"].size == 0 or bkg_arr["score"].size == 0:
         logger.warning("Signal or background group is empty with current --signal-procs setting.")
@@ -979,7 +1037,7 @@ def main() -> None:
     summary_lines.append(f"Inputs: data_files={len(data_files)} mc_groups={len(mc_groups)}")
     summary_lines.append(f"Signal groups: {', '.join(signal_set) if signal_set else '(none)'}")
     summary_lines.append(f"VBF groups: {', '.join(vbf_set) if vbf_set else '(none)'}")
-    summary_lines.append(f"SR weighted yields: S={float(np.sum(s_w)):.3f}, B={float(np.sum(b_w)):.3f}")
+    summary_lines.append(f"Analysis-window weighted yields: S={float(np.sum(s_w)):.3f}, B={float(np.sum(b_w)):.3f}")
 
     ks_profiles = build_ks_threshold_profiles(args, logger)
     profile_desc = "; ".join([f"{name}: p>={pmin:.3g}, D<={dmax:.3g}" for name, pmin, dmax in ks_profiles])
@@ -1119,7 +1177,7 @@ def main() -> None:
             if any_curve:
                 axes[0].set_ylabel("Normalized entries")
                 safe_legend(axes[0])
-                fig.suptitle("BDT score vs jet multiplicity (SR)")
+                fig.suptitle("BDT score vs jet multiplicity (MC, 110-150 GeV)")
                 pdf.savefig(fig)
             else:
                 logger.info("Skipping jet-multiplicity page: no non-empty DY/VBF histograms.")
@@ -1151,7 +1209,7 @@ def main() -> None:
             ax.axhline(500.0, color="white", linestyle="--", linewidth=1.5)
             ax.set_xlabel("BDT score")
             ax.set_ylabel("mjj [GeV]")
-            ax.set_title("D) mjj vs BDT score (SR)")
+            ax.set_title("D) mjj vs BDT score (MC, 110-150 GeV)")
             pdf.savefig(fig)
             plt.close(fig)
         else:
@@ -1173,7 +1231,7 @@ def main() -> None:
                 mc_topo = []
                 for proc in sorted(mc_groups.keys(), key=proc_sort_key):
                     arr = mc_groups[proc]
-                    m = make_mass_masks(arr, args)["sr"]
+                    m = make_mass_masks(arr, args)["sb"]
                     m = m & (arr["mjj"] > mjj_cut) & (np.abs(arr["deta_jj"]) > deta_cut)
                     if np.count_nonzero(m) == 0:
                         continue
@@ -1181,7 +1239,7 @@ def main() -> None:
 
                 d_topo = None
                 if data_sample is not None:
-                    dm = make_mass_masks(data_sample.arrays, args)["sr"]
+                    dm = make_mass_masks(data_sample.arrays, args)["sb"]
                     dm = dm & (data_sample.arrays["mjj"] > mjj_cut) & (np.abs(data_sample.arrays["deta_jj"]) > deta_cut)
                     d_topo = data_sample.arrays["score"][dm]
 
@@ -1269,226 +1327,53 @@ def main() -> None:
         else:
             logger.info("Skipping category-optimization page: signal/background score arrays are empty.")
 
-        # Fold-based KS checks (detailed diagnostic page)
-        fold_ok = np.isfinite(sig_arr["fold"]).any() and np.isfinite(bkg_arr["fold"]).any()
-        if fold_ok:
-            s_fold = sig_arr["fold"].astype(np.int32)
-            b_fold = bkg_arr["fold"].astype(np.int32)
-            s_mask_sr = make_mass_masks(sig_arr, args)["sr"]
-            b_mask_sr = make_mass_masks(bkg_arr, args)["sr"]
+        # Every stored score is produced by the model that excluded that
+        # event's fold. The previous train/validation/test comparison is
+        # therefore no longer applicable.
+        logger.info(
+            "Legacy four-fold train/validation/test KS page disabled; "
+            "inputs contain five-fold out-of-fold scores."
+        )
 
-            tr_s = s_mask_sr & np.isin(s_fold, [0, 1])
-            va_s = s_mask_sr & np.isin(s_fold, [2])
-            te_s = s_mask_sr & np.isin(s_fold, [3])
-            tr_b = b_mask_sr & np.isin(b_fold, [0, 1])
-            va_b = b_mask_sr & np.isin(b_fold, [2])
-            te_b = b_mask_sr & np.isin(b_fold, [3])
+        # Sideband-only DATA/MC BDT response
+        fig = plt.figure(figsize=(11, 8))
+        gs = fig.add_gridspec(2, 1, height_ratios=[3, 1], hspace=0.05)
+        ax_top = fig.add_subplot(gs[0, 0])
+        ax_ratio = fig.add_subplot(gs[1, 0], sharex=ax_top)
 
-            d_sig, p_sig = ks_2samp(sig_arr["score"][tr_s], sig_arr["score"][va_s])
-            d_bkg, p_bkg = ks_2samp(bkg_arr["score"][tr_b], bkg_arr["score"][va_b])
-            summary_lines.append(f"KS(signal train-vs-valid): D={d_sig:.4f}, p={p_sig:.4g}")
-            summary_lines.append(f"KS(bkg train-vs-valid): D={d_bkg:.4f}, p={p_bkg:.4g}")
+        mc_sideband = []
 
-            m_sig_tr, _ = weighted_mean_std(sig_arr["score"][tr_s], sig_arr["weight"][tr_s])
-            m_sig_va, _ = weighted_mean_std(sig_arr["score"][va_s], sig_arr["weight"][va_s])
-            m_sig_te, _ = weighted_mean_std(sig_arr["score"][te_s], sig_arr["weight"][te_s])
-            m_bkg_tr, _ = weighted_mean_std(bkg_arr["score"][tr_b], bkg_arr["weight"][tr_b])
-            m_bkg_va, _ = weighted_mean_std(bkg_arr["score"][va_b], bkg_arr["weight"][va_b])
-            m_bkg_te, _ = weighted_mean_std(bkg_arr["score"][te_b], bkg_arr["weight"][te_b])
+        for proc in sorted(mc_groups.keys(), key=proc_sort_key):
+            if proc in signal_keys:
+                continue
 
-            fig = plt.figure(figsize=(14, 9))
-            gs = fig.add_gridspec(2, 2, height_ratios=[2.1, 1.4], hspace=0.25)
-            ax_sig = fig.add_subplot(gs[0, 0])
-            ax_bkg = fig.add_subplot(gs[0, 1], sharex=ax_sig)
-            ax_tbl = fig.add_subplot(gs[1, :])
-
-            centers = 0.5 * (score_bins[:-1] + score_bins[1:])
-
-            def _norm_hist(vals: np.ndarray, ww: np.ndarray) -> np.ndarray:
-                h = weighted_hist(vals, score_bins, ww)
-                return h / h.sum() if h.sum() > 0 else h
-
-            h_sig_tr = _norm_hist(sig_arr["score"][tr_s], sig_arr["weight"][tr_s])
-            h_sig_va = _norm_hist(sig_arr["score"][va_s], sig_arr["weight"][va_s])
-            h_sig_te = _norm_hist(sig_arr["score"][te_s], sig_arr["weight"][te_s])
-
-            h_bkg_tr = _norm_hist(bkg_arr["score"][tr_b], bkg_arr["weight"][tr_b])
-            h_bkg_va = _norm_hist(bkg_arr["score"][va_b], bkg_arr["weight"][va_b])
-            h_bkg_te = _norm_hist(bkg_arr["score"][te_b], bkg_arr["weight"][te_b])
-
-            ax_sig.step(centers, h_sig_tr, where="mid", linewidth=1.9, color="#1f77b4", label="Signal train")
-            ax_sig.step(centers, h_sig_va, where="mid", linewidth=1.9, color="#ff7f0e", label="Signal valid")
-            ax_sig.step(centers, h_sig_te, where="mid", linewidth=1.6, linestyle="--", color="#2ca02c", label="Signal test")
-            ax_sig.set_title("Signal score by fold split")
-            ax_sig.set_ylabel("Normalized entries")
-            ax_sig.grid(alpha=0.3)
-            safe_legend(ax_sig, fontsize=8)
-
-            ax_bkg.step(centers, h_bkg_tr, where="mid", linewidth=1.9, color="#1f77b4", label="Bkg train")
-            ax_bkg.step(centers, h_bkg_va, where="mid", linewidth=1.9, color="#ff7f0e", label="Bkg valid")
-            ax_bkg.step(centers, h_bkg_te, where="mid", linewidth=1.6, linestyle="--", color="#2ca02c", label="Bkg test")
-            ax_bkg.set_title("Background score by fold split")
-            ax_bkg.grid(alpha=0.3)
-            safe_legend(ax_bkg, fontsize=8)
-
-            for aa in (ax_sig, ax_bkg):
-                aa.set_xlabel("BDT score")
-
-            ax_tbl.axis("off")
-            status_col_labels = [name for name, _pmin, _dmax in ks_profiles]
-            table_cols = [
-                "Sample",
-                "N train",
-                "N valid",
-                "N test",
-                "Mean(train)",
-                "Mean(valid)",
-                "Mean(test)",
-                "KS D",
-                "KS p",
-            ] + status_col_labels
-
-            sig_statuses = [
-                ks_profile_status(d_sig, p_sig, pmin, dmax)
-                for _name, pmin, dmax in ks_profiles
-            ]
-            bkg_statuses = [
-                ks_profile_status(d_bkg, p_bkg, pmin, dmax)
-                for _name, pmin, dmax in ks_profiles
-            ]
-
-            table_rows = [
-                [
-                    "Signal",
-                    f"{np.count_nonzero(tr_s)}",
-                    f"{np.count_nonzero(va_s)}",
-                    f"{np.count_nonzero(te_s)}",
-                    f"{m_sig_tr:.4f}",
-                    f"{m_sig_va:.4f}",
-                    f"{m_sig_te:.4f}",
-                    f"{d_sig:.4f}",
-                    f"{p_sig:.4g}",
-                ] + sig_statuses,
-                [
-                    "Background",
-                    f"{np.count_nonzero(tr_b)}",
-                    f"{np.count_nonzero(va_b)}",
-                    f"{np.count_nonzero(te_b)}",
-                    f"{m_bkg_tr:.4f}",
-                    f"{m_bkg_va:.4f}",
-                    f"{m_bkg_te:.4f}",
-                    f"{d_bkg:.4f}",
-                    f"{p_bkg:.4g}",
-                ] + bkg_statuses,
-            ]
-            tbl = ax_tbl.table(cellText=table_rows, colLabels=table_cols, loc="center", cellLoc="center")
-            tbl.auto_set_font_size(False)
-            tbl.set_fontsize(8.2)
-            tbl.scale(1.0, 1.35)
-            ax_tbl.set_title("Fold-based KS checks (train vs validation)", fontsize=12, pad=10)
-
-            status_start_col = len(table_cols) - len(ks_profiles)
-            for r in range(1, 1 + len(table_rows)):
-                for c in range(status_start_col, len(table_cols)):
-                    cell = tbl[(r, c)]
-                    val = str(table_rows[r - 1][c])
-                    if val == "PASS":
-                        cell.set_facecolor("#d9f2d9")
-                    elif val == "WARN":
-                        cell.set_facecolor("#fff4cc")
-                    else:
-                        cell.set_facecolor("#f8d7da")
-                    cell.set_text_props(weight="bold")
-
-            for c in range(len(table_cols)):
-                hcell = tbl[(0, c)]
-                hcell.set_facecolor("#e9ecef")
-                hcell.set_text_props(weight="bold")
-
-            ax_tbl.text(
-                0.01,
-                0.96,
-                "KS thresholds: " + profile_desc,
-                transform=ax_tbl.transAxes,
-                fontsize=8.5,
-                ha="left",
-                va="top",
+            arr = mc_groups[proc]
+            mask = make_mass_masks(arr, args)["sb"]
+            if np.count_nonzero(mask) == 0:
+                continue
+            mc_sideband.append(
+                (proc, arr["score"][mask], arr["weight"][mask])
             )
 
-            summary_lines.append("KS profile checks (Signal): " + ", ".join([f"{nm}={st}" for (nm, _, _), st in zip(ks_profiles, sig_statuses)]))
-            summary_lines.append("KS profile checks (Background): " + ", ".join([f"{nm}={st}" for (nm, _, _), st in zip(ks_profiles, bkg_statuses)]))
+        data_sideband = None
+        if data_sample is not None:
+            mask = make_mass_masks(data_sample.arrays, args)["sb"]
+            data_sideband = data_sample.arrays["score"][mask]
 
-            if np.isfinite(sig_arr["njets"]).any() and np.isfinite(bkg_arr["njets"]).any():
-                corr_sig = weighted_corr(sig_arr["njets"][s_mask_sr], sig_arr["score"][s_mask_sr], sig_arr["weight"][s_mask_sr])
-                corr_bkg = weighted_corr(bkg_arr["njets"][b_mask_sr], bkg_arr["score"][b_mask_sr], bkg_arr["weight"][b_mask_sr])
-                summary_lines.append(f"Corr(score, njets) signal={corr_sig:.3f}, background={corr_bkg:.3f}")
-                ax_tbl.text(
-                    0.01,
-                    0.02,
-                    f"Corr(score, njets): signal={corr_sig:.3f}, background={corr_bkg:.3f}",
-                    transform=ax_tbl.transAxes,
-                    fontsize=9,
-                    ha="left",
-                    va="bottom",
-                )
+        stack_and_ratio(
+            ax_top,
+            ax_ratio,
+            score_bins,
+            (
+                f"BDT response in sidebands: "
+                f"{args.sb1_min:.0f}-{args.sb1_max:.0f} and "
+                f"{args.sb2_min:.0f}-{args.sb2_max:.0f} GeV"
+            ),
+            mc_sideband,
+            data_sideband,
+            logy=True,
+        )
 
-            pdf.savefig(fig)
-            plt.close(fig)
-        else:
-            logger.info("Skipping fold-based KS checks: fold branch not available.")
-
-        # Control-region response checks (always show zpeak/highSB/SR, annotate empty)
-        region_defs = [
-            ("zpeak", "Z-peak (70-110)"),
-            ("highsb", "High sideband (>150)"),
-            ("sr", "SR (110-150)"),
-        ]
-        fig, axes = plt.subplots(1, 3, figsize=(16, 5), sharey=False)
-        centers = 0.5 * (score_bins[:-1] + score_bins[1:])
-
-        for ax, (rname, rtitle) in zip(axes, region_defs):
-            m_mc = make_mass_masks(all_arr, args)[rname]
-            h_mc = weighted_hist(all_arr["score"][m_mc], score_bins, all_arr["weight"][m_mc])
-            mc_yield = float(np.sum(all_arr["weight"][m_mc]))
-
-            h_data: Optional[np.ndarray] = None
-            data_yield = 0.0
-            if data_sample is not None:
-                m_d = make_mass_masks(data_sample.arrays, args)[rname]
-                h_data = weighted_hist(data_sample.arrays["score"][m_d], score_bins, None)
-                data_yield = float(np.sum(h_data))
-
-            plotted = False
-            if np.sum(h_mc) > 0:
-                h_mc = h_mc / h_mc.sum()
-                ax.step(centers, h_mc, where="mid", color="tab:blue", linewidth=2, label="MC total")
-                plotted = True
-
-            if h_data is not None and np.sum(h_data) > 0:
-                h_data = h_data / h_data.sum()
-                ax.step(centers, h_data, where="mid", color="black", linewidth=1.5, label="Data")
-                plotted = True
-
-            if not plotted:
-                ax.text(0.5, 0.5, "No events", transform=ax.transAxes, ha="center", va="center", fontsize=10)
-
-            ax.text(
-                0.03,
-                0.96,
-                f"MC={mc_yield:.1f}\nData={data_yield:.0f}",
-                transform=ax.transAxes,
-                va="top",
-                ha="left",
-                fontsize=8,
-                bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8),
-            )
-            ax.set_title(rtitle)
-            ax.set_xlabel("BDT score")
-            ax.grid(alpha=0.3)
-            safe_legend(ax, fontsize=8)
-
-        axes[0].set_ylabel("Normalized entries")
-        fig.suptitle("Control-region BDT response")
         pdf.savefig(fig)
         plt.close(fig)
 

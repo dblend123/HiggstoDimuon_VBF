@@ -51,15 +51,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--mass-nbins", type=int, default=40)
 
     p.add_argument("--sb1-min", type=float, default=110.0)
-    p.add_argument("--sb1-max", type=float, default=115.0)
-    p.add_argument("--sb2-min", type=float, default=135.0)
+    p.add_argument("--sb1-max", type=float, default=120.0)
+    p.add_argument("--sb2-min", type=float, default=130.0)
     p.add_argument("--sb2-max", type=float, default=150.0)
 
-    p.add_argument("--blind-min", type=float, default=115.0)
-    p.add_argument("--blind-max", type=float, default=135.0)
+    p.add_argument("--blind-min", type=float, default=120.0)
+    p.add_argument("--blind-max", type=float, default=130.0)
 
-    p.add_argument("--abs-weights", dest="abs_weights", action="store_true", default=True)
-    p.add_argument("--signed-weights", dest="abs_weights", action="store_false")
+    p.add_argument(
+        "--abs-weights",
+        dest="abs_weights",
+        action="store_true",
+        default=False,
+    )
+    p.add_argument(
+        "--signed-weights",
+        dest="abs_weights",
+        action="store_false",
+    )
 
     p.add_argument("--score-logy", action="store_true")
     p.add_argument("--mc-normalization", choices=["none", "sidebands"], default="sidebands")

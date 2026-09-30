@@ -5,7 +5,9 @@ tmva101_Training.py
 Train one XGBoost BDT per (era, background-category) against the VBF H->mumu
 signal, using the prepared snapshots from tmva100_DataPreparation.
 
-Folds: train=(0,1), valid=(2), test=(3) → ~50/25/25.
+Five-fold out-of-fold training: each model uses three folds for
+training, one for validation, and one held-out fold for testing.
+
 Weights: |w| with negative-MC-weight annihilation, then sqrt(SwS * SwB)
 class re-balancing so logloss is unbiased on weighted MC.
 Model is saved both as XGBoost JSON and as a TMVA RBDT ROOT file.
@@ -28,22 +30,11 @@ WEIGHT_BRANCH = "weight"
 # ----------------------------------------------------------------------
 # Weight helpers
 # ----------------------------------------------------------------------
-def _sanitize(w):
-    w = np.asarray(w, dtype=np.float64)
+def _training_weights(w):
+    """XGBoost requires nonnegative sample weights."""
+    w = np.asarray(w, dtype=np.float64).copy()
     w[~np.isfinite(w)] = 0.0
-    return np.clip(np.abs(w), 1e-9, None)
-
-
-def _annihilate(w_signed):
-    """Cancel equal sums of +/- MC weights; keep the surplus on the majority sign."""
-    w = np.asarray(w_signed, dtype=np.float64)
-    pos = np.clip(w, 0.0, None)
-    neg = -np.clip(w, None, 0.0)
-    sp, sn = pos.sum(), neg.sum()
-    if sp <= 0 or sn <= 0:
-        return np.clip(w, 0.0, None)
-    return pos * (1.0 - min(sp, sn) / sp)
-
+    return np.abs(w)
 
 def _balance(wS, wB):
     sS, sB = wS.sum(), wB.sum()
@@ -69,35 +60,66 @@ def _load_numpy(files, vars_list):
     f = np.asarray(arr["fold"], dtype=np.int32) if "fold" in arr else np.zeros(x.shape[0], np.int32)
     return x, w, f
 
-
 def _prep(xS, wS, xB, wB):
-    wS = _sanitize(_annihilate(_sanitize(wS) * np.sign(wS)))
-    wB = _sanitize(_annihilate(_sanitize(wB) * np.sign(wB)))
+    wS = _training_weights(wS)
+    wB = _training_weights(wB)
     wS, wB = _balance(wS, wB)
-    y = np.hstack([np.ones(xS.shape[0]), np.zeros(xB.shape[0])])
+
+    y = np.hstack([
+        np.ones(xS.shape[0], dtype=np.int32),
+        np.zeros(xB.shape[0], dtype=np.int32),
+    ])
     x = np.vstack([xS, xB])
     w = np.hstack([wS, wB])
-    return x, y, w
 
+    finite = np.all(np.isfinite(x), axis=1)
+    finite &= np.isfinite(w)
+    finite &= w >= 0.0
 
-def load_folds(sig_files, bkg_files,
-               folds_train=(0, 1), folds_valid=(2,), folds_test=(3,)):
+    return x[finite], y[finite], w[finite]
+
+def load_folds(
+    sig_files,
+    bkg_files,
+    folds_train,
+    folds_valid,
+    folds_test,
+):
     xS, wS, fS = _load_numpy(sig_files, VARIABLES)
     xB, wB, fB = _load_numpy(bkg_files, VARIABLES)
 
     def slc(x, w, f, allowed):
-        m = np.isin(f, np.asarray(allowed, dtype=np.int32))
-        return x[m], w[m]
+        allowed = np.asarray(allowed, dtype=np.int32)
+        mask = np.isin(f, allowed)
+        return x[mask], w[mask]
 
-    tr = _prep(*slc(xS, wS, fS, folds_train),  *slc(xB, wB, fB, folds_train))
-    va = _prep(*slc(xS, wS, fS, folds_valid),  *slc(xB, wB, fB, folds_valid))
-    te = _prep(*slc(xS, wS, fS, folds_test),   *slc(xB, wB, fB, folds_test))
+    tr = _prep(
+        *slc(xS, wS, fS, folds_train),
+        *slc(xB, wB, fB, folds_train),
+    )
+    va = _prep(
+        *slc(xS, wS, fS, folds_valid),
+        *slc(xB, wB, fB, folds_valid),
+    )
+    te = _prep(
+        *slc(xS, wS, fS, folds_test),
+        *slc(xB, wB, fB, folds_test),
+    )
 
-    print(f"[info] train: S={int((tr[1]==1).sum())} B={int((tr[1]==0).sum())}  "
-          f"valid: S={int((va[1]==1).sum())} B={int((va[1]==0).sum())}  "
-          f"test:  S={int((te[1]==1).sum())} B={int((te[1]==0).sum())}")
+    print(
+        f"[info] folds: train={tuple(folds_train)} "
+        f"valid={tuple(folds_valid)} test={tuple(folds_test)}"
+    )
+    print(
+        f"[info] train: S={np.count_nonzero(tr[1] == 1)} "
+        f"B={np.count_nonzero(tr[1] == 0)} | "
+        f"valid: S={np.count_nonzero(va[1] == 1)} "
+        f"B={np.count_nonzero(va[1] == 0)} | "
+        f"test: S={np.count_nonzero(te[1] == 1)} "
+        f"B={np.count_nonzero(te[1] == 0)}"
+    )
+
     return tr, va, te
-
 
 def find_prep_files(base_dir, era, kind):
     allf = os.path.join(base_dir, f"{era}_all_{kind}.root")
@@ -152,26 +174,86 @@ def _save_tmva(bdt, out_path, n_inputs):
 def train_one(era, base_dir, bkg_cat, outdir_root="Outputs/Training"):
     sig_files = find_prep_files(base_dir, era, "signal")
     bkg_files = find_prep_files(base_dir, era, bkg_cat)
-    for p in sig_files + bkg_files:
-        if not os.path.exists(p):
-            raise FileNotFoundError(p)
-    print(f"[debug] category={bkg_cat}\n        sig={sig_files}\n        bkg={bkg_files}")
 
-    (x_tr, y_tr, w_tr), (x_va, y_va, w_va), _ = load_folds(sig_files, bkg_files)
-    if x_va.shape[0] == 0:
-        print("[WARN] empty validation set — check that 'fold' is present in the inputs")
+    for path in sig_files + bkg_files:
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
 
-    bdt = _xgb_classifier()
-    bdt.fit(x_tr, y_tr, sample_weight=w_tr,
-            eval_set=[(x_va, y_va)], sample_weight_eval_set=[w_va],
-            verbose=False)
+    print(
+        f"[debug] category={bkg_cat}\n"
+        f"        signal={sig_files}\n"
+        f"        background={bkg_files}"
+    )
 
     outdir = os.path.join(outdir_root, str(era))
     os.makedirs(outdir, exist_ok=True)
-    bdt.save_model(os.path.join(outdir, f"{era}_xgb_{bkg_cat}.json"))
-    _save_feature_importance(bdt, os.path.join(outdir, f"{era}_featureimportance_{bkg_cat}.txt"), bkg_cat)
-    _save_tmva(bdt, os.path.join(outdir, f"{era}_tmva101_{bkg_cat}.root"), x_tr.shape[1])
 
+    all_folds = set(range(5))
+
+    for test_fold in range(5):
+        valid_fold = (test_fold + 1) % 5
+        train_folds = tuple(sorted(all_folds - {test_fold, valid_fold}))
+
+        (x_tr, y_tr, w_tr), (x_va, y_va, w_va), (x_te, y_te, w_te) = load_folds(
+            sig_files,
+            bkg_files,
+            folds_train=train_folds,
+            folds_valid=(valid_fold,),
+            folds_test=(test_fold,),
+        )
+
+        if x_tr.shape[0] == 0:
+            raise RuntimeError(
+                f"Empty training sample for held-out fold {test_fold}"
+            )
+        if x_va.shape[0] == 0:
+            raise RuntimeError(
+                f"Empty validation sample for held-out fold {test_fold}"
+            )
+        if x_te.shape[0] == 0:
+            raise RuntimeError(
+                f"Empty test sample for held-out fold {test_fold}"
+            )
+
+        print(
+            f"[train] model fold={test_fold}: "
+            f"train={train_folds}, validation={valid_fold}, "
+            f"test={test_fold}"
+        )
+
+        bdt = _xgb_classifier()
+        bdt.fit(
+            x_tr,
+            y_tr,
+            sample_weight=w_tr,
+            eval_set=[(x_va, y_va)],
+            sample_weight_eval_set=[w_va],
+            verbose=False,
+        )
+
+        stem = f"{era}_tmva101_{bkg_cat}_fold{test_fold}"
+
+        bdt.save_model(
+            os.path.join(
+                outdir,
+                f"{era}_xgb_{bkg_cat}_fold{test_fold}.json",
+            )
+        )
+
+        _save_feature_importance(
+            bdt,
+            os.path.join(
+                outdir,
+                f"{era}_featureimportance_{bkg_cat}_fold{test_fold}.txt",
+            ),
+            f"{bkg_cat}_fold{test_fold}",
+        )
+
+        _save_tmva(
+            bdt,
+            os.path.join(outdir, f"{stem}.root"),
+            x_tr.shape[1],
+        )
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)

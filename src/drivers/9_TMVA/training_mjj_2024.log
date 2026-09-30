@@ -1,0 +1,139 @@
+[setup] era=2024  base_dir=DataPreparation_Files/2024  cats=['background']
+[debug] category=background
+        signal=['DataPreparation_Files/2024/2024_all_signal.root']
+        background=['DataPreparation_Files/2024/2024_all_background.root']
+[info] folds: train=(2, 3, 4) valid=(1,) test=(0,)
+[info] train: S=790748 B=126857 | valid: S=263352 B=42321 | test: S=264278 B=42200
+[train] model fold=0: train=(2, 3, 4), validation=1, test=0
+
+[info][background_fold0] Feature importance (gain, % of total):
+  pt_balance           :  23.80%
+  mjj                  :  13.57%
+  z                    :  13.33%
+  njets                :  11.99%
+  deta_jj              :   4.70%
+  pt_j2                :   3.81%
+  dphi_mumu_jj         :   3.80%
+  pt_mumu              :   3.42%
+  deta_mumu_jj         :   3.07%
+  pt_j1                :   3.00%
+  jet1_eta             :   2.66%
+  dphi_jj              :   2.00%
+  mu1_pt_over_m        :   1.86%
+  mu2_pt_over_m        :   1.61%
+  y_mumu               :   1.56%
+  mu2_eta              :   1.51%
+  mu1_eta              :   1.48%
+  phi_CS               :   1.43%
+  costheta_CS          :   1.39%
+[info] Wrote Outputs/Training_mjj/2024/2024_featureimportance_background_fold0.txt
+[info] Saving TMVA model to Outputs/Training_mjj/2024/2024_tmva101_background_fold0.root
+[info] Model saved (112109 bytes)
+[info] folds: train=(0, 3, 4) valid=(2,) test=(1,)
+[info] train: S=790809 B=126908 | valid: S=264217 B=42149 | test: S=263352 B=42321
+[train] model fold=1: train=(0, 3, 4), validation=2, test=1
+
+[info][background_fold1] Feature importance (gain, % of total):
+  pt_balance           :  23.70%
+  mjj                  :  13.37%
+  z                    :  13.04%
+  njets                :  12.65%
+  deta_jj              :   4.24%
+  dphi_mumu_jj         :   3.68%
+  pt_j2                :   3.65%
+  pt_mumu              :   3.49%
+  pt_j1                :   3.35%
+  deta_mumu_jj         :   3.12%
+  jet1_eta             :   2.70%
+  dphi_jj              :   2.08%
+  mu1_pt_over_m        :   1.79%
+  mu2_pt_over_m        :   1.62%
+  y_mumu               :   1.60%
+  mu2_eta              :   1.56%
+  mu1_eta              :   1.47%
+  costheta_CS          :   1.47%
+  phi_CS               :   1.43%
+[info] Wrote Outputs/Training_mjj/2024/2024_featureimportance_background_fold1.txt
+[info] Saving TMVA model to Outputs/Training_mjj/2024/2024_tmva101_background_fold1.root
+[info] Model saved (112139 bytes)
+[info] folds: train=(0, 1, 4) valid=(3,) test=(2,)
+[info] train: S=791127 B=126710 | valid: S=263034 B=42519 | test: S=264217 B=42149
+[train] model fold=2: train=(0, 1, 4), validation=3, test=2
+
+[info][background_fold2] Feature importance (gain, % of total):
+  pt_balance           :  23.02%
+  mjj                  :  13.56%
+  z                    :  13.21%
+  njets                :  12.39%
+  deta_jj              :   4.84%
+  pt_mumu              :   3.75%
+  pt_j2                :   3.71%
+  dphi_mumu_jj         :   3.63%
+  deta_mumu_jj         :   3.26%
+  pt_j1                :   3.02%
+  jet1_eta             :   2.57%
+  dphi_jj              :   2.08%
+  mu1_pt_over_m        :   1.81%
+  y_mumu               :   1.69%
+  mu2_eta              :   1.60%
+  mu2_pt_over_m        :   1.56%
+  costheta_CS          :   1.46%
+  mu1_eta              :   1.44%
+  phi_CS               :   1.39%
+[info] Wrote Outputs/Training_mjj/2024/2024_featureimportance_background_fold2.txt
+[info] Saving TMVA model to Outputs/Training_mjj/2024/2024_tmva101_background_fold2.root
+[info] Model saved (112069 bytes)
+[info] folds: train=(0, 1, 2) valid=(4,) test=(3,)
+[info] train: S=791847 B=126670 | valid: S=263497 B=42189 | test: S=263034 B=42519
+[train] model fold=3: train=(0, 1, 2), validation=4, test=3
+
+[info][background_fold3] Feature importance (gain, % of total):
+  pt_balance           :  23.22%
+  mjj                  :  14.18%
+  z                    :  13.15%
+  njets                :  11.98%
+  deta_jj              :   4.64%
+  dphi_mumu_jj         :   4.30%
+  pt_j2                :   3.64%
+  pt_mumu              :   3.37%
+  deta_mumu_jj         :   3.28%
+  pt_j1                :   3.16%
+  jet1_eta             :   2.55%
+  dphi_jj              :   1.94%
+  mu1_pt_over_m        :   1.83%
+  y_mumu               :   1.62%
+  mu2_pt_over_m        :   1.49%
+  mu2_eta              :   1.45%
+  costheta_CS          :   1.44%
+  phi_CS               :   1.41%
+  mu1_eta              :   1.35%
+[info] Wrote Outputs/Training_mjj/2024/2024_featureimportance_background_fold3.txt
+[info] Saving TMVA model to Outputs/Training_mjj/2024/2024_tmva101_background_fold3.root
+[info] Model saved (112051 bytes)
+[info] folds: train=(1, 2, 3) valid=(0,) test=(4,)
+[info] train: S=790603 B=126989 | valid: S=264278 B=42200 | test: S=263497 B=42189
+[train] model fold=4: train=(1, 2, 3), validation=0, test=4
+
+[info][background_fold4] Feature importance (gain, % of total):
+  pt_balance           :  23.28%
+  mjj                  :  13.99%
+  z                    :  13.33%
+  njets                :  12.30%
+  deta_jj              :   4.27%
+  dphi_mumu_jj         :   4.20%
+  pt_j2                :   3.74%
+  deta_mumu_jj         :   3.40%
+  pt_mumu              :   3.24%
+  pt_j1                :   3.12%
+  jet1_eta             :   2.72%
+  dphi_jj              :   1.94%
+  mu1_pt_over_m        :   1.77%
+  mu2_pt_over_m        :   1.56%
+  mu1_eta              :   1.50%
+  mu2_eta              :   1.45%
+  y_mumu               :   1.45%
+  phi_CS               :   1.39%
+  costheta_CS          :   1.35%
+[info] Wrote Outputs/Training_mjj/2024/2024_featureimportance_background_fold4.txt
+[info] Saving TMVA model to Outputs/Training_mjj/2024/2024_tmva101_background_fold4.root
+[info] Model saved (112284 bytes)

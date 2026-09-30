@@ -7,9 +7,11 @@
 # Defaults:
 #   --base = /eos/user/d/dblend/Analyzed_SkimmedFiles/<era>/Rochester/noScaleSmear_noBtagSF
 
-set -e
+set -euo pipefail
 source /cvmfs/sft.cern.ch/lcg/views/LCG_105/x86_64-el9-gcc13-opt/setup.sh
-voms-proxy-init -voms cms || true
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 ERA=""; BASE_PATH=""
 SKIP_TRAINING=false; SKIP_TESTING=false; SKIP_SCORING=false
@@ -28,7 +30,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 [[ -z "$ERA" ]] && { echo "ERROR: --era is required"; usage; }
-[[ -z "$BASE_PATH" ]] && BASE_PATH="/eos/user/d/dblend/Analyzed_SkimmedFiles/${ERA}/Rochester/noScaleSmear_noBtagSF"
+[[ -z "$BASE_PATH" ]] && \
+    BASE_PATH="/eos/user/d/dblend/Analyzed_SkimmedFiles/${ERA}/KIT/noScaleSmear_BTagRW_ZPtRW"
 
 DPREP="DataPreparation_Files/${ERA}"
 MODELDIR="Outputs/Training/${ERA}"
@@ -42,9 +45,12 @@ echo "========================================="
 
 # Step 0: Build the per-era snapshots used by everything downstream
 python3 tmva100_DataPreparation.py \
-    --era "${ERA}" --base "${BASE_PATH}" \
-    --signal-subdir VBF --treename-in mva --make-all \
-    --keep-branches "m_mumu,Muon_pt,Muon_eta,Muon_phi,Muon_charge,Muon_tightId,Jet_btagDeepFlavB,Pileup_nTrueInt,run,luminosityBlock,event"
+    --era "${ERA}" \
+    --base "${BASE_PATH}" \
+    --signal-subdir VBF \
+    --treename-in mva \
+    --make-all \
+    --keep-branches "m_mumu,run,lumi,event,weight_puUp,weight_puDown,weight_muSFUp,weight_muSFDown,weight_triggerUp,weight_triggerDown,weight_btagSFUp,weight_btagSFDown,weight_btagEffStatUp,weight_btagEffStatDown,weight_zptUp,weight_zptDown,weight_scale0,weight_scale1,weight_scale3,weight_scale5,weight_scale7,weight_scale8,weight_pdfUp,weight_pdfDown,weight_isrUp,weight_isrDown,weight_fsrUp,weight_fsrDown"
 
 # Step 1: Train one BDT against the merged background
 if [[ "$SKIP_TRAINING" = false ]]; then
@@ -55,7 +61,7 @@ else
     echo ">>> [1/3] training skipped"
 fi
 
-MODEL="${MODELDIR}/${ERA}_tmva101_background.root"
+MODEL_PATTERN="${MODELDIR}/${ERA}_tmva101_background_fold{fold}.root"
 
 # Step 2: ROC / AUC on held-out fold==3
 if [[ "$SKIP_TESTING" = false ]]; then
@@ -71,8 +77,12 @@ if [[ "$SKIP_SCORING" = false ]]; then
     echo ">>> [3/3] Scoring all samples"
     score() {
         local in="$1" out="$2"
-        python3 tmva103_Application.py --input "$in" --output "$out" \
-            --treename mva --model-file "${MODEL}" --model-name myBDT
+        python3 tmva103_Application.py \
+            --input "$in" \
+            --output "$out" \
+            --treename mva \
+            --model-pattern "${MODEL_PATTERN}" \
+            --model-name myBDT
     }
     score "${DPREP}/${ERA}_all_signal.root"     "${SCOREDIR}/${ERA}_scored_signal.root"
     score "${DPREP}/${ERA}_all_background.root" "${SCOREDIR}/${ERA}_scored_background.root"
@@ -84,6 +94,21 @@ if [[ "$SKIP_SCORING" = false ]]; then
     echo "✓ scoring done"
 else
     echo ">>> [3/3] scoring skipped"
+fi
+
+if [[ "$SKIP_TESTING" = false ]]; then
+    echo ">>> Testing combined out-of-fold scores"
+
+    python3 tmva102_Testing.py \
+        --era "${ERA}" \
+        --signal "${SCOREDIR}/${ERA}_scored_signal.root" \
+        --background "${SCOREDIR}/${ERA}_scored_background.root" \
+        --treename mva \
+        --output-dir "Outputs/Testing/${ERA}"
+
+    echo "✓ testing done"
+else
+    echo ">>> testing skipped"
 fi
 
 echo "========================================="
