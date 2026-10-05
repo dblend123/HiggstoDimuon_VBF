@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import csv
 import glob
 import os
 import sys
@@ -50,6 +51,8 @@ def parse_args():
                    help="Minimum number of BDT categories for multi-bin optimization")
     p.add_argument("--multibin-max-n", type=int, default=6,
                    help="Maximum number of BDT categories for multi-bin optimization")
+    p.add_argument("--fixed-bdt-edges", default=None,
+                   help="Comma-separated fixed BDT edges (for example 0.60,0.85,0.95,1.00); disables boundary optimization")
     p.add_argument("--multibin-candidates", type=int, default=16,
                    help="Number of interior candidate boundary points for scanning")
     p.add_argument("--multibin-min-sig", type=float, default=1.0,
@@ -107,11 +110,17 @@ def parse_args():
     p.add_argument("--shape-bias-mu-true", type=float, default=1.0,
                    help="Injected signal strength for bias tests (mu_true)")
     p.add_argument("--shape-bias-threshold", type=float, default=0.20,
-                   help="Bias pass threshold on |(mu_fit-mu_true)/mu_true|")
+                   help="Bias pass threshold on |<mu_hat>-mu_true|/sigma(mu_hat)")
     p.add_argument("--shape-bias-toys", type=int, default=30,
                    help="Number of pseudo-datasets per generation/fit model pair for bias tests")
     p.add_argument("--shape-bias-param-grid", type=int, default=21,
                    help="Grid points used for internal parameter scan in background-model fits")
+    p.add_argument("--shape-bias-closure-tolerance", type=float, default=0.05,
+                   help="Maximum allowed |mu_hat-mu_true| for deterministic same-family closure before toys run")
+    p.add_argument("--shape-bias-blind-min", type=float, default=115.0,
+                   help="Lower edge of the mass window excluded when fitting bias-toy truth PDFs")
+    p.add_argument("--shape-bias-blind-max", type=float, default=135.0,
+                   help="Upper edge of the mass window excluded when fitting bias-toy truth PDFs")
 
     # Optional Data/MC summary (same format as tmva_DataMC_BDT.py)
     p.add_argument("--data-era", action="append", default=[],
@@ -256,11 +265,13 @@ def find_scored_files(outputs_dir, era):
         os.path.join(outputs_dir, f"{era}_scored_signal.root"),
         os.path.join(outputs_dir, f"{era}_scored_background.root"),
         os.path.join(outputs_dir, f"{era}_scored_all.root"),
+        os.path.join(outputs_dir, f"{era}_data_scored.root"),
         os.path.join(outputs_dir, era, f"{era}_scored_signal.root"),
         os.path.join(outputs_dir, era, f"{era}_scored_background.root"),
         os.path.join(outputs_dir, era, f"{era}_scored_all.root"),
+        os.path.join(outputs_dir, era, f"{era}_data_scored.root"),
     ]
-    out = {"signal": None, "background": None, "all": None}
+    out = {"signal": None, "background": None, "all": None, "data": None}
     for p in candidates:
         if _ok(p):
             if p.endswith("_scored_signal.root"):
@@ -269,6 +280,8 @@ def find_scored_files(outputs_dir, era):
                 out["background"] = p
             elif p.endswith("_scored_all.root"):
                 out["all"] = p
+            elif p.endswith("_data_scored.root"):
+                out["data"] = p
     return out
 
 
@@ -1445,8 +1458,8 @@ def combined_era_fit(outputs_dir, combined_eras, treename, bdt_branch, weight_br
                     ])
             plot_table(
                 pdf,
-                f"Combined ({'+'.join(combined_eras)}): Bias matrix (mu_true={shape_bias_mu_true:.2f}, threshold={shape_bias_threshold:.2f})",
-                ["Gen model", "Fit model", "<mu_hat>", "sigma(mu_hat)", "Bias", "Status"],
+                f"Combined ({'+'.join(combined_eras)}): Bias matrix (mu_true={shape_bias_mu_true:.2f}, threshold={shape_bias_threshold:.2f} sigma)",
+                ["Gen model", "Fit model", "<mu_hat>", "sigma(mu_hat)", "Bias/sigma", "Status"],
                 rows_bias,
                 col_align=["left", "left", "right", "right", "right", "center"],
             )
@@ -1509,6 +1522,7 @@ def main():
         args.shape_bias_toys,
         args.shape_bias_param_grid,
     )
+    logger.info("Bias deterministic closure tolerance: %.4f", args.shape_bias_closure_tolerance)
     if args.no_lumi_scaling:
         logger.info("Luminosity scaling: disabled")
     else:
@@ -1611,34 +1625,59 @@ def main():
                 # Multi-bin BDT categorization (no hard cut)
                 sig_mass_for_opt = sig[mass_branch] if mass_branch else None
                 bkg_mass_for_opt = bkg[mass_branch] if mass_branch else None
-                scan = optimize_multibin_boundaries(
-                    sig_scores,
-                    sig_w,
-                    bkg_scores,
-                    bkg_w,
-                    min_n=args.multibin_min_n,
-                    max_n=args.multibin_max_n,
-                    n_candidates=args.multibin_candidates,
-                    min_sig=args.multibin_min_sig,
-                    min_bkg=args.multibin_min_bkg,
-                    enforce_monotonic=(not args.multibin_no_monotonic),
-                    objective=args.multibin_objective,
-                    sig_mass=sig_mass_for_opt,
-                    bkg_mass=bkg_mass_for_opt,
-                    mass_min=args.mass_min,
-                    mass_max=args.mass_max,
-                    mass_nbins=args.shape_mass_nbins,
-                    poly_order=int(np.clip(args.shape_poly_order, 0, 2)),
-                    bkg_norm_unc=float(args.shape_bkg_norm_unc),
-                    poly_unc=float(args.shape_poly_unc),
-                    sig_norm_unc=float(args.shape_sig_norm_unc),
-                    sig_mass_shift_unc=float(args.shape_sig_mass_shift_unc),
-                    sig_resolution_unc=float(args.shape_sig_resolution_unc),
-                    mu_max=float(args.shape_mu_max),
-                    mu_points=int(args.shape_mu_points),
-                    likelihood_topk=int(args.multibin_likelihood_topk),
-                    shape_data_source=args.shape_data_source,
-                )
+                fixed_edges = parse_float_csv(args.fixed_bdt_edges) if args.fixed_bdt_edges else []
+                if fixed_edges:
+                    if len(fixed_edges) < 2 or any(b <= a for a, b in zip(fixed_edges[:-1], fixed_edges[1:])):
+                        raise SystemExit("--fixed-bdt-edges must contain at least two strictly increasing values")
+                    best_fixed = evaluate_multibin_config(
+                        sig_scores, sig_w, bkg_scores, bkg_w, fixed_edges,
+                        min_sig=args.multibin_min_sig,
+                        min_bkg=args.multibin_min_bkg,
+                        enforce_monotonic=(not args.multibin_no_monotonic),
+                    )
+                    if best_fixed is None:
+                        raise SystemExit("Fixed BDT edges fail the configured minimum-yield or monotonic-S/B requirements")
+                    best_fixed["metric_key"] = "za_total"
+                    best_fixed["metric_label"] = "ZA(total), fixed edges"
+                    best_fixed["opt_metric"] = float(best_fixed["za_total"])
+                    scan = {
+                        "best": best_fixed,
+                        "best_by_n": {best_fixed["n_bins"]: best_fixed},
+                        "scan_stats": {best_fixed["n_bins"]: {"scanned": 1, "valid": 1}},
+                        "objective_requested": "fixed",
+                        "objective_used": "fixed",
+                        "metric_label": best_fixed["metric_label"],
+                    }
+                    logger.info("%s: Using fixed BDT edges: %s", era, fixed_edges)
+                else:
+                    scan = optimize_multibin_boundaries(
+                        sig_scores,
+                        sig_w,
+                        bkg_scores,
+                        bkg_w,
+                        min_n=args.multibin_min_n,
+                        max_n=args.multibin_max_n,
+                        n_candidates=args.multibin_candidates,
+                        min_sig=args.multibin_min_sig,
+                        min_bkg=args.multibin_min_bkg,
+                        enforce_monotonic=(not args.multibin_no_monotonic),
+                        objective=args.multibin_objective,
+                        sig_mass=sig_mass_for_opt,
+                        bkg_mass=bkg_mass_for_opt,
+                        mass_min=args.mass_min,
+                        mass_max=args.mass_max,
+                        mass_nbins=args.shape_mass_nbins,
+                        poly_order=int(np.clip(args.shape_poly_order, 0, 2)),
+                        bkg_norm_unc=float(args.shape_bkg_norm_unc),
+                        poly_unc=float(args.shape_poly_unc),
+                        sig_norm_unc=float(args.shape_sig_norm_unc),
+                        sig_mass_shift_unc=float(args.shape_sig_mass_shift_unc),
+                        sig_resolution_unc=float(args.shape_sig_resolution_unc),
+                        mu_max=float(args.shape_mu_max),
+                        mu_points=int(args.shape_mu_points),
+                        likelihood_topk=int(args.multibin_likelihood_topk),
+                        shape_data_source=args.shape_data_source,
+                    )
                 best_multi = scan["best"]
                 multibin_results_by_era[era] = {
                     "best": best_multi,
@@ -1665,7 +1704,8 @@ def main():
                         metric_value,
                         edges_txt,
                     )
-                    for n_bins in range(args.multibin_min_n, args.multibin_max_n + 1):
+                    scan_ns = sorted(scan["scan_stats"]) if fixed_edges else range(args.multibin_min_n, args.multibin_max_n + 1)
+                    for n_bins in scan_ns:
                         st = scan["scan_stats"].get(n_bins, {"scanned": 0, "valid": 0})
                         if n_bins in scan["best_by_n"]:
                             n_best = scan["best_by_n"][n_bins]
@@ -1810,6 +1850,15 @@ def main():
                                 shape_fit["q0"],
                                 shape_fit["mu_hat"],
                             )
+                            if (
+                                str(args.shape_data_source).lower() == "asimov"
+                                and abs(float(shape_fit["mu_hat"]) - 1.0) > float(args.shape_bias_closure_tolerance)
+                            ):
+                                raise RuntimeError(
+                                    f"Shape-likelihood Asimov closure failed for {era}: "
+                                    f"mu_hat={shape_fit['mu_hat']:.6g}, expected 1 within "
+                                    f"{args.shape_bias_closure_tolerance:.6g}. Bias toys were not run."
+                                )
 
                             rows_shape = [
                                 ["Expected Z", f"{shape_fit['zexp']:.4f}"],
@@ -1884,7 +1933,7 @@ def main():
                                 f"{era}: Asimov mass templates by BDT bin (simultaneous fit)",
                                 shape_inputs["mass_edges"],
                                 best_multi["edges"],
-                                shape_inputs["asimov"],
+                                shape_fit["data"],
                                 shape_fit["model_b"],
                                 shape_fit["model_sb"],
                             )
@@ -1927,6 +1976,30 @@ def main():
                                     )
 
                             if bool(args.shape_bias_tests):
+                                data_hist = None
+                                data_file = files.get("data")
+                                if data_file:
+                                    data_arr = load_arrays(
+                                        data_file, args.treename,
+                                        [args.bdt_branch, mass_branch], selection,
+                                    )
+                                    data_hist = np.zeros_like(shape_inputs["b_hist"], dtype=np.float64)
+                                    mass_edges = shape_inputs["mass_edges"]
+                                    for icat, (lo, hi) in enumerate(zip(best_multi["edges"][:-1], best_multi["edges"][1:])):
+                                        if icat == len(best_multi["edges"]) - 2:
+                                            keep = (data_arr[args.bdt_branch] >= lo) & (data_arr[args.bdt_branch] <= hi)
+                                        else:
+                                            keep = (data_arr[args.bdt_branch] >= lo) & (data_arr[args.bdt_branch] < hi)
+                                        data_hist[icat], _ = np.histogram(data_arr[mass_branch][keep], bins=mass_edges)
+                                    logger.info(
+                                        "%s: Bias truth PDFs fitted to DATA sidebands; blinded window [%.1f, %.1f) GeV",
+                                        era, args.shape_bias_blind_min, args.shape_bias_blind_max,
+                                    )
+                                else:
+                                    logger.warning(
+                                        "%s: No *_data_scored.root found; bias truth fits use MC background sidebands",
+                                        era,
+                                    )
                                 bias = run_bias_test_matrix(
                                     shape_inputs,
                                     mu_true=float(args.shape_bias_mu_true),
@@ -1934,27 +2007,90 @@ def main():
                                     threshold=float(args.shape_bias_threshold),
                                     seed=int(args.shape_toy_seed),
                                     param_grid=int(args.shape_bias_param_grid),
+                                    per_category=True,
+                                    data_hist=data_hist,
+                                    blind_min=float(args.shape_bias_blind_min),
+                                    blind_max=float(args.shape_bias_blind_max),
+                                    closure_tolerance=float(args.shape_bias_closure_tolerance),
                                 )
                                 models = bias["models"]
-                                rows_bias = []
-                                for g in models:
-                                    for f in models:
-                                        item = bias["matrix"][g][f]
-                                        rows_bias.append([
-                                            g,
-                                            f,
-                                            f"{item['mu_hat_mean']:.4f}",
-                                            f"{item['mu_hat_std']:.4f}",
-                                            f"{item['bias']:.4f}",
-                                            "PASS" if item["pass"] else "FAIL",
+                                csv_rows = []
+                                gof_rows = []
+                                for category, category_result in bias["categories"].items():
+                                    rows_bias = []
+                                    for model_name in models:
+                                        gof = category_result["truth_fits"][model_name]
+                                        gof_rows.append([
+                                            era, int(category) + 1, model_name,
+                                            gof["sideband_events"], gof["sideband_chi2"],
+                                            gof["sideband_ndf"], gof["sideband_chi2_ndf"],
+                                            gof["sideband_pvalue"],
                                         ])
-                                plot_table(
-                                    pdf,
-                                    f"{era}: Bias matrix (mu_true={args.shape_bias_mu_true:.2f}, threshold={args.shape_bias_threshold:.2f})",
-                                    ["Gen model", "Fit model", "<mu_hat>", "sigma(mu_hat)", "Bias", "Status"],
-                                    rows_bias,
-                                    col_align=["left", "left", "right", "right", "right", "center"],
-                                )
+                                        logger.info(
+                                            "%s: [SIDEBAND GOF] cat=%d model=%s events=%.0f chi2/ndf=%.3f/%d=%.3f p=%.6g",
+                                            era, int(category) + 1, model_name,
+                                            gof["sideband_events"], gof["sideband_chi2"],
+                                            gof["sideband_ndf"], gof["sideband_chi2_ndf"],
+                                            gof["sideband_pvalue"],
+                                        )
+                                    for g in models:
+                                        for f in models:
+                                            item = category_result["matrix"][g][f]
+                                            csv_rows.append([
+                                                era, int(category) + 1, g, f,
+                                                item["mu_hat_mean"], item["mu_hat_std"],
+                                                item["relative_bias"], item["bias_sigma"],
+                                                int(item["pass"]), item["n_toys"],
+                                            ])
+                                            logger.info(
+                                                "%s: [BIAS] cat=%d gen=%s fit=%s mean_mu=%.4f sigma_mu=%.4f relative_bias=%+.4f bias_sigma=%+.4f pass=%s",
+                                                era, int(category) + 1, g, f,
+                                                item["mu_hat_mean"], item["mu_hat_std"],
+                                                item["relative_bias"], item["bias_sigma"],
+                                                "PASS" if item["pass"] else "FAIL",
+                                            )
+                                            rows_bias.append([
+                                                g,
+                                                f,
+                                                f"{item['mu_hat_mean']:.4f}",
+                                                f"{item['mu_hat_std']:.4f}",
+                                                f"{item['bias']:.4f}",
+                                                "PASS" if item["pass"] else "FAIL",
+                                            ])
+                                    rows_per_page = 16
+                                    for first in range(0, len(rows_bias), rows_per_page):
+                                        page_rows = rows_bias[first:first + rows_per_page]
+                                        page_no = first // rows_per_page + 1
+                                        n_pages = int(math.ceil(len(rows_bias) / rows_per_page))
+                                        plot_table(
+                                            pdf,
+                                            f"{era}: Category {int(category) + 1} bias matrix ({page_no}/{n_pages}); sidebands exclude "
+                                            f"[{args.shape_bias_blind_min:.0f},{args.shape_bias_blind_max:.0f}) GeV\n"
+                                            f"mu_true={args.shape_bias_mu_true:.2f}, threshold={args.shape_bias_threshold:.2f} sigma",
+                                            ["Gen model", "Fit model", "<mu_hat>", "sigma(mu_hat)", "Bias/sigma", "Status"],
+                                            page_rows,
+                                            col_align=["left", "left", "right", "right", "right", "center"],
+                                        )
+                                csv_path = os.path.splitext(os.path.abspath(args.output))[0] + "_bias.csv"
+                                os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+                                with open(csv_path, "w", newline="") as handle:
+                                    writer = csv.writer(handle)
+                                    writer.writerow([
+                                        "era", "category", "generation_model", "fit_model",
+                                        "mean_mu_hat", "sigma_mu_hat", "relative_bias", "bias_sigma",
+                                        "pass", "n_toys",
+                                    ])
+                                    writer.writerows(csv_rows)
+                                logger.info("%s: Wrote complete bias matrix CSV: %s", era, csv_path)
+                                gof_path = os.path.splitext(os.path.abspath(args.output))[0] + "_gof.csv"
+                                with open(gof_path, "w", newline="") as handle:
+                                    writer = csv.writer(handle)
+                                    writer.writerow([
+                                        "era", "category", "model", "sideband_events",
+                                        "baker_cousins_chi2", "ndf", "chi2_ndf", "p_value",
+                                    ])
+                                    writer.writerows(gof_rows)
+                                logger.info("%s: Wrote sideband GOF CSV: %s", era, gof_path)
                 else:
                     logger.warning(
                         "%s: Multi-bin optimization found no valid configuration (check min yields / candidates / monotonicity)",
