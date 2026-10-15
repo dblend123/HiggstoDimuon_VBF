@@ -6,11 +6,14 @@ from typing import List, Tuple
 import numpy as np
 import ROOT
 
+import csv
+from pathlib import Path
+
+
 try:
     from scipy.optimize import minimize as scipy_minimize
 except ImportError:
     scipy_minimize = None
-
 
 def weighted_mean_std(values, weights):
     values = np.asarray(values, dtype=np.float64)
@@ -768,6 +771,16 @@ def _bg_model_shape(name, mass_centers, params, mass_min, mass_max):
         mpv, scale, b1 = p
         landau = np.array([ROOT.TMath.Landau(float(mi), float(mpv), max(0.5, np.exp(scale)), False) for mi in m], dtype=np.float64)
         y = landau * np.exp(b1 * x)
+    elif name == "LandaUxBernsteinFixed10":
+        mpv, b1 = p
+        landau = np.array(
+            [
+                ROOT.TMath.Landau(float(mi), float(mpv), 10.0, False)
+                for mi in m
+            ],
+            dtype=np.float64,
+        )
+        y = (landau + 1e-12) * np.exp(b1 * x)
     elif name == "BWZxBernstein":
         g, b1, b2 = p
         gamma = max(0.5, np.exp(g))
@@ -808,6 +821,13 @@ def _bg_model_specs(mass_min, mass_max):
         "LandaUxBernstein": {
             "init": np.array([center, np.log(2.0), 0.0], dtype=np.float64),
             "bounds": [(float(mass_min), float(mass_max)), (np.log(0.4), np.log(10.0)), (-6.0, 6.0)],
+        },
+        "LandaUxBernsteinFixed10": {
+            "init": np.array([center, 0.0], dtype=np.float64),
+            "bounds": [
+                (90.0, float(mass_max)),
+                (-6.0, 6.0),
+            ],
         },
         "BWZxBernstein": {
             "init": np.array([np.log(2.0), 0.0, 0.0], dtype=np.float64),
@@ -862,29 +882,60 @@ def _fit_mu_with_bg_model(obs_hist, s_shape, s_y, b_y, mass_centers, mass_min, m
             np.concatenate(([float(mu_start), 0.0], midpoint)),
             np.concatenate(([0.0, 0.0], pars)),
         ]
+        
         best_result = None
+        failures = []
+
         for start in starts:
             start = np.asarray([
-                np.clip(v, lo, hi) for v, (lo, hi) in zip(start, full_bounds)
+                np.clip(v, lo, hi)
+                for v, (lo, hi) in zip(start, full_bounds)
             ], dtype=np.float64)
+
+            # Run both methods: success alone does not establish
+            # that the first method found the best minimum.
             for method in ("L-BFGS-B", "Powell"):
                 result = scipy_minimize(
                     objective,
-                    start,
+                    start.copy(),
                     method=method,
                     bounds=full_bounds,
                     options={"maxiter": 4000, "ftol": 1e-12},
                 )
-                if np.isfinite(result.fun) and (
-                    best_result is None or float(result.fun) < float(best_result.fun)
+
+                usable = (
+                    result.success
+                    and np.all(np.isfinite(result.x))
+                    and np.isfinite(result.fun)
+                    and float(result.fun) < 1e99
+                )
+
+                if not usable:
+                    failures.append(
+                        f"{method}: status={result.status}, "
+                        f"message={result.message}"
+                    )
+                    continue
+
+                if (
+                    best_result is None
+                    or float(result.fun) < float(best_result.fun)
                 ):
                     best_result = result
-                if result.success:
-                    break
-        if best_result is not None:
-            vec = np.asarray(best_result.x, dtype=np.float64)
-            return float(vec[0]), float(vec[1]), vec[2:].copy(), float(best_result.fun)
 
+        if best_result is None:
+            raise RuntimeError(
+                f"No successful minimization for {model_name}. "
+                + " | ".join(failures)
+            )
+
+        vec = np.asarray(best_result.x, dtype=np.float64)
+        return (
+            float(vec[0]),
+            float(vec[1]),
+            vec[2:].copy(),
+            float(best_result.fun),
+        )
     # Fallback for environments without SciPy.
     best = nll_val(mu_hat, ln_b, pars)
     step_schedule = [1.0, 0.5, 0.25, 0.1, 0.05]
@@ -976,7 +1027,13 @@ def _fit_bg_model_to_sidebands(obs_hist, mass_centers, mass_min, mass_max,
 def run_bias_test_matrix(shape_inputs, mu_true=1.0, n_toys=30, threshold=0.20,
                          seed=12345, param_grid=21, per_category=False,
                          data_hist=None, blind_min=115.0, blind_max=135.0,
-                         closure_tolerance=0.05):
+                         closure_tolerance=0.05, diagnostics_dir=None):                         
+    
+    diagnostic_path = None
+    if diagnostics_dir is not None:
+        diagnostic_path = Path(diagnostics_dir)
+        diagnostic_path.mkdir(parents=True, exist_ok=True)
+
     n_toys = max(1, int(n_toys))
     mu_true = float(mu_true)
     threshold = float(abs(threshold))
@@ -1059,14 +1116,57 @@ def run_bias_test_matrix(shape_inputs, mu_true=1.0, n_toys=30, threshold=0.20,
 
             for fit_name in model_names:
                 mu_hats = []
-                for _ in range(n_toys):
+                toy_rows = []
+                fit_bounds = (
+                    [(-20.0, 20.0), (-6.0, 6.0)]
+                    + list(_bg_model_specs(mass_min, mass_max)[fit_name]["bounds"])
+                )
+                parameter_names = (
+                    ["mu", "log_bkg"]
+                    + [f"p{i}" for i in range(len(fit_bounds) - 2)]
+                )
+
+                for toy_index in range(n_toys):
                     obs = rng.poisson(lam_truth).astype(np.float64)
-                    mu_hat, _, _, _ = _fit_mu_with_bg_model(
+                    mu_hat, log_bkg, fit_pars, fit_nll = _fit_mu_with_bg_model(
                         obs, s_shape, s_y, b_y, mass_centers, mass_min, mass_max,
-                        fit_name, mu_start=max(mu_true, 0.0), param_grid=param_grid,
+                        fit_name, mu_start=max(mu_true, 0.0),
+                        param_grid=param_grid,
                         initial_params=gen_pars if fit_name == gen_name else None,
                     )
                     mu_hats.append(mu_hat)
+
+                    values = np.concatenate(([mu_hat, log_bkg], fit_pars))
+                    boundary_hits = []
+                    for name, value, (lo, hi) in zip(
+                        parameter_names, values, fit_bounds
+                    ):
+                        tolerance = 1e-4 * max(1.0, hi - lo)
+                        if value <= lo + tolerance:
+                            boundary_hits.append(f"{name}:low")
+                        if value >= hi - tolerance:
+                            boundary_hits.append(f"{name}:high")
+
+                    row = {
+                        "toy": toy_index,
+                        "seed": int(seed),
+                        "mu_true": mu_true,
+                        "nll": float(fit_nll),
+                        "boundary_hits": ";".join(boundary_hits),
+                    }
+                    row.update(dict(zip(parameter_names, values.tolist())))
+                    toy_rows.append(row)
+
+                if diagnostic_path is not None:
+                    csv_file = diagnostic_path / (
+                        f"category{category}_{gen_name}_to_{fit_name}.csv"
+                    )
+                    with csv_file.open("w", newline="") as handle:
+                        writer = csv.DictWriter(
+                            handle, fieldnames=list(toy_rows[0])
+                        )
+                        writer.writeheader()
+                        writer.writerows(toy_rows)
 
                 mu_arr = np.asarray(mu_hats, dtype=np.float64)
                 mean_mu = float(np.mean(mu_arr)) if mu_arr.size else np.nan

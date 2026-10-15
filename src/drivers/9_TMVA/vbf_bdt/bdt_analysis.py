@@ -2012,6 +2012,7 @@ def main():
                                     blind_min=float(args.shape_bias_blind_min),
                                     blind_max=float(args.shape_bias_blind_max),
                                     closure_tolerance=float(args.shape_bias_closure_tolerance),
+                                    diagnostics_dir=os.path.join(os.path.dirname(os.path.abspath(args.output)),"toy_diagnostics",),
                                 )
                                 models = bias["models"]
                                 csv_rows = []

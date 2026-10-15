@@ -4,9 +4,10 @@
 # ./run_muon_and_jet_overlays_all_eras.sh KIT noScaleSmear_noBtagSF_ZPtRW
 
 CORR_MODE="${1:-KIT}"
-CONFIG_DIR="${2:-noScaleSmear_noBTagRW_noZPtRW}"
+CONFIG_DIR="${2:-noScaleSmear_BTagRW_ZPtRW}"
 
-ERAS=(12022 22022 12023 22023 2024 2025)
+#ERAS=(12022 22022 12023 22023 2024 2025)
+ERAS=(2024)
 
 for ERA in "${ERAS[@]}"; do
 
