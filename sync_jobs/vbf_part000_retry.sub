@@ -1,0 +1,24 @@
+universe = vanilla
+executable = sync_jobs/run_sync_v6.sh
+
+arguments = VBF $(CHUNK)
+
+output = sync_jobs/logs/vbf_retry_v6.$(CHUNK).$(ClusterId).out
+error  = sync_jobs/logs/vbf_retry_v6.$(CHUNK).$(ClusterId).err
+log    = sync_jobs/logs/vbf_retry_v6.$(ClusterId).log
+
+getenv = True
+should_transfer_files = NO
+
+use_x509userproxy = True
+x509userproxy = /afs/cern.ch/user/d/dblend/test-analysis/build/x509up.cert
+
+request_cpus = 1
+request_memory = 3000
+request_disk = 4000
+
++JobFlavour = "workday"
+
+queue CHUNK from (
+VBF_2024_022_part000
+)

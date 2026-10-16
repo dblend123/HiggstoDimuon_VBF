@@ -628,6 +628,7 @@ bool g_disableFSRRecovery    = false;  // if true, skip FSR photon recovery
 bool g_disablePUWeights      = false;  // if true, PU weight = 1
 bool g_disableFlagFilters    = false;  // if true, skip event Flag (MET) filters
 bool g_disableZPtRW          = false;
+static bool g_syncMode = false; // inclusive 2024 H->mumu synchronization ntuples
 
 std::string g_zptRWFile      = "None";
 static ZPtReweighter g_zptRW;
@@ -3972,6 +3973,19 @@ float getMuonSF(const Muon& mu, bool isMC, bool applyTriggerSF = false, const st
     return id_sf * iso_sf * trig_sf;
 }
 
+// Keep the two efficiency factors independently visible in synchronization output.
+static float syncMuonEfficiencySF(const Muon& mu, bool isMC, const std::string& key) {
+    if (!isMC || g_disableMuonSF || !corrections) return 1.f;
+    const float eta = std::clamp(mu._eta, -2.39f, 2.39f);
+    const float pt = std::max(mu._pt, 15.01f);
+    try { return corrections->at(key)->evaluate({eta, pt, std::string("nominal")}); }
+    catch (const std::exception& e) {
+        static int n = 0;
+        if (n++ < 5) std::cerr << "[SYNC SF] " << key << ": " << e.what() << "\n";
+        return 1.f;
+    }
+}
+
 float getMuonTriggerOnlySF(const Muon& mu, bool isMC, const std::string& syst = "nominal") {
     if (g_disableMuonSF) return 1.0f;
     if (!isMC) return 1.0f;
@@ -4011,7 +4025,7 @@ void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, co
 const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons, 
 analysis::core::Vertices* vertices, const analysis::core::MET& met, const analysis::core::Event& event, 
 analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight, uint32_t evt, uint32_t lumi, 
-float w_nom, float w_pu, float w_puUp, float w_puDown) {
+float w_nom, float w_pu, float w_puUp, float w_puDown, int muonIndex1, int muonIndex2) {
 
     // -------------------------------------
     //             VERTICES 
@@ -4120,8 +4134,8 @@ std::cerr << "[KIT SEED DBG] "
 
     // Apply to mu1 (index 0) and mu2 (index 1)
     if (!g_disableFSRRecovery && fsrphotons && !fsrphotons->empty()) {
-    applyFSR(mu1, p4m1, corr_p4m1, fsrphotons, 0);
-    applyFSR(mu2, p4m2, corr_p4m2, fsrphotons, 1);
+    applyFSR(mu1, p4m1, corr_p4m1, fsrphotons, muonIndex1);
+    applyFSR(mu2, p4m2, corr_p4m2, fsrphotons, muonIndex2);
     }
 
     // With applied FSR corrections 
@@ -6398,6 +6412,110 @@ void process()
     TNamed kj("muCorrKITJSON", g_kitJSON.empty()  ? "none" : g_kitJSON.c_str());
     kj.Write();
 
+    // Record correction and candidate conventions for cross-group comparisons.
+    if (g_syncMode) {
+        TNamed schema("syncSchemaVersion", "hmumu-run3-v5"); schema.Write();
+        TNamed pairRule("syncPairRule", "first NanoAOD-index pair satisfying raw muon pT>20 and 50<raw mumu mass<200; charge independent"); pairRule.Write();
+        TNamed analysisPairRule("syncAnalysisPairRule", "first NanoAOD-index pair satisfying passMuons; original full analysis also applies Golden JSON, event filters, vertex and additional-lepton veto beforehand; not a ranked pair"); analysisPairRule.Write();
+        TNamed categoryStatus("syncVBFCategoryStatus", "passVBFCategory is an approximate sync flag; NOT the validated standard analysis category"); categoryStatus.Write();
+        TNamed kitMode("syncKITMode", (__useKIT ? "KIT scale-only; threshold=0; no KIT resolution smearing" : "KIT disabled")); kitMode.Write();
+        TNamed beamMode("syncBeamConstraint", g_disableBeamConstraint ? "disabled" : "use bsConstrainedPt if finite, positive and bsConstrainedChi2<30"); beamMode.Write();
+        TNamed triggerMode("syncTriggerDefinitions", "passHLTEvent=HLT_IsoMu24; object match=corrected muon pT>=26 and any TrigObj muon abs(id)=13 within deltaR<0.1; no filterBits required"); triggerMode.Write();
+        TNamed jetPairRule("syncJetPairRule", "maximum invariant-mass pair among nominal selected corrected jets; paired jets ordered by corrected pT; original NanoAOD indices"); jetPairRule.Write();
+        TNamed vetoRule("syncBTagVeto", "UParTAK4: selected corrected jets with pT>20 and abs(eta)<2.5; no medium tags and at most one loose tag; no efficiency maps needed"); vetoRule.Write();
+        TNamed jetVetoRule("syncJetVetoMap", "event fails if any valid nominal corrected jet is vetoed, unless --noJetVeto; retained in inclusive SyncEvents"); jetVetoRule.Write();
+        TNamed metCollection("syncMETCollection", "PuppiMET_pt/PuppiMET_phi preferred; MET_pt/MET_phi fallback");
+        TNamed weightPolicy("syncMCWeightPolicy", "generator=NanoAOD genWeight; pileup and muon factors independent; sampleBase=1; no DY/dimuon-pT reweighting"); weightPolicy.Write();
+    }
+
+    // Inclusive synchronization tree: independent of downstream analysis cuts.
+    TTree* syncTree = nullptr;
+    ULong64_t sy_event = 0;
+    UInt_t sy_run = 0, sy_lumi = 0;
+    std::string sy_sample;
+    Float_t sy_metPt = 0, sy_metPhi = 0;
+    Int_t sy_muIdx1 = -1, sy_muIdx2 = -1, sy_njet = 0;
+    Bool_t sy_os = false, sy_medium = false, sy_iso = false, sy_hltEvent = false;
+    Bool_t sy_hltMatch = false, sy_hltAndMatch = false, sy_golden = false, sy_filters = false, sy_vertex = false, sy_leptonVeto = false;
+    Bool_t sy_electronVeto = false, sy_exactlyTwoMuons = false, sy_analysisMuonSelection = false;
+    Bool_t sy_passVBFCategory = false, sy_muonBeamConstraintUsed[2] = {false, false};
+    Int_t sy_muonRegion[2] = {-1, -1}; // 0=barrel, 1=overlap, 2=endcap, -1=out of acceptance
+    Int_t sy_nExtraElectronVeto = 0, sy_nAnalysisMuons20 = 0;
+    Int_t sy_fsrPhotonIndex[2] = {-1,-1}; // original NanoAOD FsrPhoton index
+    Float_t sy_fsrPhotonPt[2] = {0.f,0.f};
+    Int_t sy_nQualifiedRawPairs = 0;
+    Int_t sy_analysisMuonIdx1 = -1, sy_analysisMuonIdx2 = -1;
+    Bool_t sy_hasAnalysisMuonPair = false, sy_syncPairMatchesAnalysisPair = false;
+    Bool_t sy_analysisPairPassesRawWindow = false;
+    Float_t sy_massRaw = 0, sy_ptRaw = 0, sy_massCorrected = 0, sy_ptCorrected = 0;
+    Float_t sy_massFSR = 0, sy_ptFSR = 0, sy_muRaw[2] = {}, sy_muBase[2] = {}, sy_muCorrected[2] = {};
+    Float_t sy_muEta[2] = {}, sy_muPhi[2] = {}, sy_muIso[2] = {}, sy_muBsPt[2] = {};
+    Int_t sy_muCharge[2] = {};
+    Float_t sy_weightGen = 1, sy_weightPU = 1, sy_weightPUUp = 1, sy_weightPUDown = 1;
+    Float_t sy_weightMuIDISO = 1, sy_weightMuonID = 1, sy_weightMuonISO = 1, sy_weightTrigger = 1, sy_weightBase = 1;
+    std::vector<float> sy_jetPt, sy_jetRawPt, sy_jetCorrectedPt, sy_jetEta, sy_jetPhi, sy_jetBtag, sy_jetBtagUParT;
+    std::vector<unsigned char> sy_jetQuality, sy_jetVetoMap;
+    Int_t sy_jetPairIndex1 = -1, sy_jetPairIndex2 = -1, sy_nSelectedJets = 0;
+    Float_t sy_dijetMass = -1.f, sy_dijetDEta = -1.f, sy_dijetPt = -1.f;
+    Bool_t sy_passVBFJetKinematics = false, sy_passBJetVeto = false, sy_passJetVetoMap = true;
+    Int_t sy_nBJetsMedium = 0, sy_nBJetsLoose = 0;
+    std::vector<int> sy_jetId;
+    if (g_syncMode) {
+        syncTree = new TTree("SyncEvents", "Inclusive Hmumu synchronization (one entry per event)");
+#define SY_BRANCH(n, a) syncTree->Branch(n, &a)
+        SY_BRANCH("sample", sy_sample); SY_BRANCH("metPt", sy_metPt); SY_BRANCH("metPhi", sy_metPhi);
+        SY_BRANCH("run", sy_run); SY_BRANCH("luminosityBlock", sy_lumi); SY_BRANCH("event", sy_event);
+        SY_BRANCH("muonIndex1", sy_muIdx1); SY_BRANCH("muonIndex2", sy_muIdx2);
+        SY_BRANCH("oppositeSign", sy_os); SY_BRANCH("mediumIdBoth", sy_medium); SY_BRANCH("isoBoth", sy_iso);
+        SY_BRANCH("passHLTEvent", sy_hltEvent); SY_BRANCH("passHLTObjectMatch", sy_hltMatch);
+        SY_BRANCH("passHLTAndObjectMatch", sy_hltAndMatch);
+        SY_BRANCH("passElectronVeto", sy_electronVeto); SY_BRANCH("passExactlyTwoAnalysisMuons", sy_exactlyTwoMuons);
+        SY_BRANCH("passAnalysisMuonSelection", sy_analysisMuonSelection);
+        SY_BRANCH("nVetoElectrons", sy_nExtraElectronVeto); SY_BRANCH("nAnalysisMuons20", sy_nAnalysisMuons20);
+        SY_BRANCH("nQualifiedRawPairs", sy_nQualifiedRawPairs);
+        SY_BRANCH("analysisMuonIndex1", sy_analysisMuonIdx1);
+        SY_BRANCH("analysisMuonIndex2", sy_analysisMuonIdx2);
+        SY_BRANCH("hasAnalysisMuonPair", sy_hasAnalysisMuonPair);
+        SY_BRANCH("syncPairMatchesAnalysisPair", sy_syncPairMatchesAnalysisPair);
+        SY_BRANCH("analysisPairPassesRawWindow", sy_analysisPairPassesRawWindow);
+        SY_BRANCH("passGolden", sy_golden); SY_BRANCH("passFilters", sy_filters);
+        SY_BRANCH("passVertex", sy_vertex); SY_BRANCH("passAdditionalLeptonVeto", sy_leptonVeto);
+        SY_BRANCH("massRaw", sy_massRaw); SY_BRANCH("ptRaw", sy_ptRaw);
+        SY_BRANCH("massCorrectedPreFSR", sy_massCorrected); SY_BRANCH("ptCorrectedPreFSR", sy_ptCorrected);
+        SY_BRANCH("massCorrectedPostFSR", sy_massFSR); SY_BRANCH("ptCorrectedPostFSR", sy_ptFSR);
+        syncTree->Branch("muonRawPt", sy_muRaw, "muonRawPt[2]/F");
+        syncTree->Branch("muonBasePt", sy_muBase, "muonBasePt[2]/F");
+        syncTree->Branch("muonCorrectedPt", sy_muCorrected, "muonCorrectedPt[2]/F");
+        syncTree->Branch("muonBsConstrainedPt", sy_muBsPt, "muonBsConstrainedPt[2]/F");
+        syncTree->Branch("muonEta", sy_muEta, "muonEta[2]/F");
+        syncTree->Branch("muonPhi", sy_muPhi, "muonPhi[2]/F");
+        syncTree->Branch("muonCharge", sy_muCharge, "muonCharge[2]/I");
+        syncTree->Branch("muonIso", sy_muIso, "muonIso[2]/F");
+        syncTree->Branch("muonBeamConstraintUsed", sy_muonBeamConstraintUsed, "muonBeamConstraintUsed[2]/O");
+        syncTree->Branch("muonRegion", sy_muonRegion, "muonRegion[2]/I");
+        syncTree->Branch("fsrPhotonIndex", sy_fsrPhotonIndex, "fsrPhotonIndex[2]/I");
+        syncTree->Branch("fsrPhotonPt", sy_fsrPhotonPt, "fsrPhotonPt[2]/F");
+        SY_BRANCH("nJet", sy_njet); SY_BRANCH("jetPtInput", sy_jetPt);
+        SY_BRANCH("jetRawPt", sy_jetRawPt); SY_BRANCH("jetCorrectedPt", sy_jetCorrectedPt);
+        SY_BRANCH("jetPassQuality", sy_jetQuality); SY_BRANCH("jetVetoMap", sy_jetVetoMap);
+        SY_BRANCH("jetBtagUParTAK4B", sy_jetBtagUParT);
+        SY_BRANCH("nSelectedJets", sy_nSelectedJets); SY_BRANCH("jetPairIndex1", sy_jetPairIndex1);
+        SY_BRANCH("jetPairIndex2", sy_jetPairIndex2); SY_BRANCH("dijetMass", sy_dijetMass);
+        SY_BRANCH("dijetDEta", sy_dijetDEta); SY_BRANCH("dijetPt", sy_dijetPt);
+        SY_BRANCH("passVBFJetKinematics", sy_passVBFJetKinematics);
+        SY_BRANCH("passJetVetoMap", sy_passJetVetoMap);
+        SY_BRANCH("passVBFCategoryApprox", sy_passVBFCategory);
+        SY_BRANCH("passBJetVeto", sy_passBJetVeto); SY_BRANCH("nBJetsMedium", sy_nBJetsMedium);
+        SY_BRANCH("nBJetsLoose", sy_nBJetsLoose);
+        SY_BRANCH("jetEta", sy_jetEta);
+        SY_BRANCH("jetPhi", sy_jetPhi); SY_BRANCH("jetId", sy_jetId); SY_BRANCH("jetBtagDeepFlavB", sy_jetBtag);
+        SY_BRANCH("weightGenerator", sy_weightGen); SY_BRANCH("weightPileup", sy_weightPU);
+        SY_BRANCH("weightPileupUp", sy_weightPUUp); SY_BRANCH("weightPileupDown", sy_weightPUDown);
+        SY_BRANCH("weightMuonIDISO", sy_weightMuIDISO); SY_BRANCH("weightMuonID", sy_weightMuonID); SY_BRANCH("weightMuonISO", sy_weightMuonISO); SY_BRANCH("weightTrigger", sy_weightTrigger);
+        SY_BRANCH("weightSampleBase", sy_weightBase);
+#undef SY_BRANCH
+    }
+
     // Pileup Block
     VtxSet      PileupReweighting_PreSelection(outroot, "PileupReweighting_Pre-Selection");
     VtxSet      PileupReweighting_VBF(outroot, "PileupReweighting_VBF");
@@ -6641,8 +6759,41 @@ void process()
     SET_BRANCH_FLOAT(PV_y);
     SET_BRANCH_FLOAT(PV_x);
 
-    //Setting Branch Array for Missing Transverse Energy Properties
-    SET_BRANCH_FLOAT(MET_pt);
+    // Synchronization MET: prefer Run 3 PuppiMET.
+    Float_t MET_pt = std::numeric_limits<float>::quiet_NaN();
+    Float_t MET_phi = std::numeric_limits<float>::quiet_NaN();
+
+    const bool hasPuppiMET =
+        ROOT_CHAIN->GetBranch("PuppiMET_pt") &&
+        ROOT_CHAIN->GetBranch("PuppiMET_phi");
+
+    const bool hasLegacyMET =
+        ROOT_CHAIN->GetBranch("MET_pt") &&
+        ROOT_CHAIN->GetBranch("MET_phi");
+
+    const char* metPtBranch = nullptr;
+    const char* metPhiBranch = nullptr;
+
+    if (hasPuppiMET) {
+        metPtBranch = "PuppiMET_pt";
+        metPhiBranch = "PuppiMET_phi";
+    } else if (hasLegacyMET) {
+        metPtBranch = "MET_pt";
+        metPhiBranch = "MET_phi";
+    } else {
+        throw std::runtime_error(
+            "Neither PuppiMET nor MET pt/phi branches were found"
+        );
+    }
+
+    if (ROOT_CHAIN->SetBranchAddress(metPtBranch, &MET_pt) < 0 ||
+        ROOT_CHAIN->SetBranchAddress(metPhiBranch, &MET_phi) < 0) {
+        throw std::runtime_error("Failed to bind MET branches");
+    }
+
+    std::cout << "[MET] Using "
+              << metPtBranch << " / " << metPhiBranch
+              << std::endl;
 
     //Setting Branch Array for Jet Properties
     SET_BRANCH_UINT(nJet);
@@ -6680,6 +6831,9 @@ void process()
     SET_BRANCH_FLOAT_ARRAY(FsrPhoton_eta);
     SET_BRANCH_INT_ARRAY(FsrPhoton_muonIdx);
     SET_BRANCH_FLOAT_ARRAY(FsrPhoton_dROverEt2);
+    Float_t FsrPhoton_relIso03[512] = {};
+    const bool hasFsrRelIso = ROOT_CHAIN->GetBranch("FsrPhoton_relIso03") != nullptr;
+    if (hasFsrRelIso) ROOT_CHAIN->SetBranchAddress("FsrPhoton_relIso03", FsrPhoton_relIso03);
     SET_BRANCH_USHORT_ARRAY(FsrPhoton_electronIdx);
 
     //Setting Branch Array for Photon Properties
@@ -6859,6 +7013,7 @@ long long n_afterFlags  = 0;
 long long n_afterVtx    = 0;
 long long n_afterVeto   = 0;
 long long n_afterPair   = 0;
+uint32_t lastEntryAttempted = 0;
 
     for (uint32_t i=0; i<numEntries && __continueRunning; i++)
 	{   
@@ -6871,6 +7026,7 @@ long long n_afterPair   = 0;
         muons1.clear(); 
         muons2.clear();
 		streamer._chain->GetEntry(i);
+        lastEntryAttempted = i + 1;
         l1s->clear();
         hlts->clear();
         trigobjs->clear();
@@ -6961,7 +7117,8 @@ long long n_afterPair   = 0;
             fsrphoton._phi = FsrPhoton_phi[i];
             fsrphoton._muonIdx = FsrPhoton_muonIdx[i];
             fsrphoton._dROverEt2 = FsrPhoton_dROverEt2[i];
-            fsrphoton._electronIdx = FsrPhoton_electronIdx[i];
+            fsrphoton._relIso03 = hasFsrRelIso ? FsrPhoton_relIso03[i] : 0.f;
+            fsrphoton._electronIdx = (FsrPhoton_electronIdx[i] == std::numeric_limits<UShort_t>::max()) ? -1.f : static_cast<float>(FsrPhoton_electronIdx[i]);
 
             fsrphotons->push_back(std::move(fsrphoton));
         }
@@ -7071,7 +7228,9 @@ std::cout << "[STEP2 - STORED] vertices->_npvsGood="
         }
 
         float genWeight = __isMC ? pickGenW() : 1.0f;
-        double base = (__isMC ? sampleBaseWeight(g_sampleName) : 1.0);
+        // Synchronization records raw generator/efficiency factors without requiring
+        // a luminosity or cross-section normalization. Preserve normal analysis behavior.
+        double base = (g_syncMode ? 1.0 : (__isMC ? sampleBaseWeight(g_sampleName) : 1.0));
         float Dataweight = static_cast<float>(base) * pileupWeight * genWeight;
 
         const double w_nom    = base * genWeight;
@@ -7096,7 +7255,7 @@ std::cout << std::setprecision(10)
 << " total=" << Dataweight << "\n";
 }*/
 
-       if (!__isMC && !g_lumiMask.empty()) {
+       if (!g_syncMode && !__isMC && !g_lumiMask.empty()) {
             const unsigned run  = static_cast<unsigned>(event->_run);               // adapt to your names
             const unsigned lumi = static_cast<unsigned>(event->_lumi);              // e.g. event._lumi
             if (!passGolden(run, lumi)) {
@@ -7132,6 +7291,229 @@ std::cout
 ++flagDbg;
 }*/
 
+        // Synchronization preselection is strictly on the NanoAOD raw muon pT and
+        // raw dimuon mass. No charge, ID, isolation, HLT, quality or veto cuts.
+        if (g_syncMode) {
+            sy_muIdx1 = sy_muIdx2 = -1;
+            sy_nQualifiedRawPairs = 0;
+            for (size_t aa=0; aa<muons->size(); ++aa) {
+                if (muons->at(aa)._pt <= 20.f) continue;
+                for (size_t bb=aa+1; bb<muons->size(); ++bb) {
+                    if (muons->at(bb)._pt <= 20.f) continue;
+                    TLorentzVector p, q;
+                    p.SetPtEtaPhiM(muons->at(aa)._pt,muons->at(aa)._eta,muons->at(aa)._phi,PDG_MASS_Mu);
+                    q.SetPtEtaPhiM(muons->at(bb)._pt,muons->at(bb)._eta,muons->at(bb)._phi,PDG_MASS_Mu);
+                    const double m=(p+q).M();
+                    if(m>50. && m<200.) ++sy_nQualifiedRawPairs;
+                }
+            }
+            for (size_t a = 0; a < muons->size() && sy_muIdx1 < 0; ++a) {
+                if (muons->at(a)._pt <= 20.f) continue;
+                for (size_t b = a + 1; b < muons->size(); ++b) {
+                    if (muons->at(b)._pt <= 20.f) continue;
+                    TLorentzVector u, v;
+                    u.SetPtEtaPhiM(muons->at(a)._pt, muons->at(a)._eta, muons->at(a)._phi, PDG_MASS_Mu);
+                    v.SetPtEtaPhiM(muons->at(b)._pt, muons->at(b)._eta, muons->at(b)._phi, PDG_MASS_Mu);
+                    if ((u+v).M() > 50. && (u+v).M() < 200.) {
+                        sy_muIdx1 = static_cast<int>(a); sy_muIdx2 = static_cast<int>(b);
+                        break;
+                    }
+                }
+            }
+            if (sy_muIdx1 >= 0) {
+                // Mirror the standard analysis' first-passMuons pair enumeration
+                // without requiring it for inclusive SyncEvents acceptance.
+                // This records the pair-finding result only; the normal event
+                // filters / Golden JSON / lepton veto are separate flags.
+                sy_analysisMuonIdx1 = sy_analysisMuonIdx2 = -1;
+                sy_hasAnalysisMuonPair = false;
+                sy_syncPairMatchesAnalysisPair = false;
+                sy_analysisPairPassesRawWindow = false;
+                for (size_t ai = 0; ai < muons->size() && !sy_hasAnalysisMuonPair; ++ai) {
+                    for (size_t bi = ai + 1; bi < muons->size(); ++bi) {
+                        if (!passMuons(muons->at(ai), muons->at(bi), trigobjs, evt, lumi)) continue;
+                        sy_analysisMuonIdx1 = static_cast<int>(ai);
+                        sy_analysisMuonIdx2 = static_cast<int>(bi);
+                        sy_hasAnalysisMuonPair = true;
+                        const Muon& ma = muons->at(ai);
+                        const Muon& mb = muons->at(bi);
+                        if (ma._pt > 20.f && mb._pt > 20.f) {
+                            TLorentzVector pa, pb;
+                            pa.SetPtEtaPhiM(ma._pt, ma._eta, ma._phi, PDG_MASS_Mu);
+                            pb.SetPtEtaPhiM(mb._pt, mb._eta, mb._phi, PDG_MASS_Mu);
+                            const double rawMass = (pa + pb).M();
+                            sy_analysisPairPassesRawWindow = (rawMass > 50. && rawMass < 200.);
+                        }
+                        break;
+                    }
+                }
+                sy_syncPairMatchesAnalysisPair = sy_hasAnalysisMuonPair &&
+                    sy_analysisMuonIdx1 == sy_muIdx1 && sy_analysisMuonIdx2 == sy_muIdx2;
+                const Muon& a = muons->at(sy_muIdx1);
+                const Muon& b = muons->at(sy_muIdx2);
+                sy_sample = g_sampleName;
+                sy_metPt = MET_pt;
+                sy_metPhi = MET_phi;
+                sy_run = static_cast<UInt_t>(event->_run);
+                sy_lumi = static_cast<UInt_t>(event->_lumi);
+                sy_event = static_cast<ULong64_t>(event->_event);
+                sy_os = a._charge != b._charge;
+                sy_medium = a._mediumId && b._mediumId;
+                sy_iso = a._pfRelIso04_all <= _leadmuonIso && b._pfRelIso04_all <= _subleadmuonIso;
+                sy_hltEvent = HLT_IsoMu24[0];
+                sy_hltMatch = passMuonHLT(trigobjs,a,__isMC,evt,lumi) || passMuonHLT(trigobjs,b,__isMC,evt,lumi);
+                sy_hltAndMatch = sy_hltEvent && sy_hltMatch;
+                sy_nAnalysisMuons20=0; sy_nExtraElectronVeto=0;
+                for (const auto& mu : *muons) {
+                    const float ptCorr=baseMuonPtForCorrections(mu)*muCorrScale(mu,__isMC,evt,lumi);
+                    if (ptCorr>20.f && std::abs(mu._eta)<2.4f && (mu._isGlobal || mu._isTracker)) ++sy_nAnalysisMuons20;
+                }
+                for (const auto& el : *electrons) {
+                    const float ae=std::abs(el._eta);
+                    if (el._pt>20.f && ae<2.5f && !(ae>1.44f && ae<1.57f) && el._mvaIso_WP90) ++sy_nExtraElectronVeto;
+                }
+                sy_exactlyTwoMuons = (sy_nAnalysisMuons20==2);
+                sy_electronVeto = (sy_nExtraElectronVeto==0);
+                // This is a standalone candidate decision; it does not filter SyncEvents.
+                sy_analysisMuonSelection = sy_os && passMuons(a,b,trigobjs,evt,lumi);
+                sy_golden = __isMC || g_lumiMask.empty() || passGolden(sy_run,sy_lumi);
+                sy_filters = passFlagFilters(flags,!__isMC);
+                sy_vertex = passVertex(vertices);
+                sy_leptonVeto = vetoAdditionalLeptons(muons,electrons,__isMC);
+                TLorentzVector raw[2], corrected[2], correctedFSR[2];
+                const Muon* pair[2] = {&a,&b};
+                const int idx[2] = {sy_muIdx1,sy_muIdx2};
+                for (int k=0;k<2;++k) {
+                    const Muon& m=*pair[k];
+                    sy_muRaw[k]=m._pt; sy_muBase[k]=baseMuonPtForCorrections(m);
+                    sy_muCorrected[k]=correctedBsPt(m,__isMC,evt,lumi);
+                    sy_muBsPt[k]=m._bsConstrainedPt; sy_muEta[k]=m._eta; sy_muPhi[k]=m._phi;
+                    sy_muCharge[k]=m._charge; sy_muIso[k]=m._pfRelIso04_all;
+                    sy_muonBeamConstraintUsed[k]=useBeamConstraintPt(m);
+                    sy_muonRegion[k]=isBarrel(m)?0:(isOverlap(m)?1:(isEndcap(m)?2:-1));
+                    sy_fsrPhotonIndex[k]=-1; sy_fsrPhotonPt[k]=0.f;
+                    raw[k].SetPtEtaPhiM(m._pt,m._eta,m._phi,PDG_MASS_Mu);
+                    corrected[k].SetPtEtaPhiM(sy_muCorrected[k],m._eta,m._phi,PDG_MASS_Mu);
+                    correctedFSR[k]=corrected[k];
+                    if (!g_disableFSRRecovery) {
+                        const FsrPhoton* best=nullptr;
+                        int bestIdx=-1;
+                        for (size_t fidx=0; fidx<fsrphotons->size(); ++fidx) {
+                            const auto& fsr=fsrphotons->at(fidx);
+                            if (fsr._muonIdx != idx[k] || fsr._electronIdx >= 0 ||
+                                fsr._pt <= 2. || std::abs(fsr._eta)>=2.5 ||
+                                fsr._relIso03/fsr._pt>=1.8 || fsr._dROverEt2>=0.012 ||
+                                fsr._pt/m._pt>=0.4) continue;
+                            if (!best || fsr._dROverEt2<best->_dROverEt2) { best=&fsr; bestIdx=static_cast<int>(fidx); }
+                        }
+                        if (best) {
+                            sy_fsrPhotonIndex[k]=bestIdx;
+                            sy_fsrPhotonPt[k]=best->_pt;
+                            TLorentzVector photon;
+                            photon.SetPtEtaPhiM(best->_pt,best->_eta,best->_phi,0.);
+                            correctedFSR[k]+=photon;
+                        }
+                    }
+                }
+                sy_massRaw=(raw[0]+raw[1]).M(); sy_ptRaw=(raw[0]+raw[1]).Pt();
+                sy_massCorrected=(corrected[0]+corrected[1]).M();
+                sy_ptCorrected=(corrected[0]+corrected[1]).Pt();
+                sy_massFSR=(correctedFSR[0]+correctedFSR[1]).M();
+                sy_ptFSR=(correctedFSR[0]+correctedFSR[1]).Pt();
+                sy_jetPt.clear(); sy_jetRawPt.clear(); sy_jetCorrectedPt.clear();
+                sy_jetEta.clear(); sy_jetPhi.clear(); sy_jetId.clear();
+                sy_jetBtag.clear(); sy_jetBtagUParT.clear();
+                sy_jetQuality.clear(); sy_jetVetoMap.clear();
+                sy_jetPairIndex1 = sy_jetPairIndex2 = -1;
+                sy_dijetMass = sy_dijetDEta = sy_dijetPt = -1.f;
+                sy_nSelectedJets = sy_nBJetsMedium = sy_nBJetsLoose = 0;
+                sy_passJetVetoMap = true;
+                sy_passVBFJetKinematics = sy_passBJetVeto = false;
+                std::vector<std::pair<int, TLorentzVector>> syncSelectedJets;
+                for (size_t ji=0; ji<jets->size(); ++ji) {
+                    const auto& j=jets->at(ji);
+                    const auto cj=buildCorrectedJet(j, static_cast<int>(ji), rho,
+                        __isMC, genjets, __isMC ? 0 : static_cast<int>(sy_run), sy_lumi, sy_event);
+                    // Normal analysis tests the veto map on ALL valid jets before
+                    // selecting jets. Keep failing events in this inclusive tree.
+                    if (cj.valid && cj.vetoedByMap && !g_disableJetVeto)
+                        sy_passJetVetoMap = false;
+                    const float absEta = std::abs(j._eta);
+                    const bool quality = cj.valid && (g_disableJetCriteria || (
+                        cj.passesJetID && cj.correctedPt > 25.f && absEta < 4.7f &&
+                        !(isHFHorn(absEta) && eraNeedsHF50(g_era) && cj.correctedPt <= 50.f) &&
+                        !(isHEHorn(absEta) && eraNeedsHE50(g_era) && cj.correctedPt <= 50.f) &&
+                        jetMuondR(j._eta,j._phi,a._eta,a._phi) > 0.4f &&
+                        jetMuondR(j._eta,j._phi,b._eta,b._phi) > 0.4f));
+                    sy_jetPt.push_back(j._pt);
+                    sy_jetRawPt.push_back(cj.rawPt);
+                    sy_jetCorrectedPt.push_back(cj.valid ? cj.correctedPt : -1.f);
+                    sy_jetEta.push_back(j._eta); sy_jetPhi.push_back(j._phi);
+                    sy_jetId.push_back(j._jetId); sy_jetBtag.push_back(j._btagDeepFlavB);
+                    sy_jetBtagUParT.push_back(j._btagUParTAK4B);
+                    sy_jetQuality.push_back(quality ? 1 : 0);
+                    sy_jetVetoMap.push_back(cj.valid && cj.vetoedByMap ? 1 : 0);
+                    if (!quality) continue;
+                    // The production analysis counts b-tags only among its
+                    // selected jets, using their corrected pT and eta.
+                    syncSelectedJets.emplace_back(static_cast<int>(ji),cj.p4);
+                    const float disc = jetBTagScore(j);
+                    if (cj.correctedPt > 20.f && absEta < 2.5f &&
+                        std::isfinite(disc) && disc >= 0.f) {
+                        if (disc >= btagWPThreshold("L")) ++sy_nBJetsLoose;
+                        if (disc >= btagWPThreshold("M")) ++sy_nBJetsMedium;
+                    }
+                }
+                sy_njet=static_cast<int>(jets->size());
+                sy_nSelectedJets=static_cast<int>(syncSelectedJets.size());
+                sy_passBJetVeto=(sy_nBJetsMedium==0 && sy_nBJetsLoose<=1);
+                // Production chooses the maximum-mjj pair, not the two
+                // highest-pT jets. Preserve first encountered pair on ties.
+                double bestMjj = -1.0;
+                int firstBest = -1, secondBest = -1;
+                for (size_t i=0; i<syncSelectedJets.size(); ++i) {
+                    for (size_t j=i+1; j<syncSelectedJets.size(); ++j) {
+                        const double mass = (syncSelectedJets[i].second +
+                                             syncSelectedJets[j].second).M();
+                        if (mass > bestMjj) {
+                            bestMjj = mass;
+                            firstBest = static_cast<int>(i);
+                            secondBest = static_cast<int>(j);
+                        }
+                    }
+                }
+                if (firstBest>=0 && secondBest>=0) {
+                    const auto* first = &syncSelectedJets[firstBest];
+                    const auto* second = &syncSelectedJets[secondBest];
+                    if (second->second.Pt() > first->second.Pt()) std::swap(first,second);
+                    sy_jetPairIndex1 = first->first;
+                    sy_jetPairIndex2 = second->first;
+                    const auto& j1=first->second;
+                    const auto& j2=second->second;
+                    sy_dijetMass=(j1+j2).M();
+                    sy_dijetPt=(j1+j2).Pt();
+                    sy_dijetDEta=std::abs(j1.Eta()-j2.Eta());
+                    sy_passVBFJetKinematics=j1.Pt()>=_leadJetPt && j2.Pt()>=_subleadJetPt &&
+                        sy_dijetMass>_dijetMass_VBF && sy_dijetDEta>_dijetdEta_VBF;
+                }
+                sy_passVBFCategory=sy_passJetVetoMap && sy_passVBFJetKinematics &&
+                    sy_passBJetVeto && sy_os && sy_medium && sy_iso &&
+                    sy_hltAndMatch && sy_filters && sy_vertex &&
+                    sy_leptonVeto && sy_golden;
+                sy_weightGen=__isMC?genWeight:1.f;
+                sy_weightPU=__isMC?pileupWeight:1.f;
+                sy_weightPUUp=__isMC?pileupWeightUp:1.f;
+                sy_weightPUDown=__isMC?pileupWeightDown:1.f;
+                sy_weightBase=static_cast<float>(base);
+                sy_weightMuonID=syncMuonEfficiencySF(a,__isMC,g_muSFKeyID)*syncMuonEfficiencySF(b,__isMC,g_muSFKeyID);
+                sy_weightMuonISO=syncMuonEfficiencySF(a,__isMC,g_muSFKeyISO)*syncMuonEfficiencySF(b,__isMC,g_muSFKeyISO);
+                sy_weightMuIDISO=sy_weightMuonID*sy_weightMuonISO;
+                sy_weightTrigger=__isMC?getMuonTriggerOnlySF(sy_muRaw[0]>=sy_muRaw[1]?a:b,true):1.f;
+                syncTree->Fill();
+            }
+            continue; // synchronization output is not subject to subsequent analysis cuts
+        }
+
         //	Selections
         if (!passFlagFilters(flags, !__isMC)) continue;
         ++n_afterFlags;
@@ -7148,7 +7530,7 @@ std::cout
             if (!passMuons(*it, *jt, trigobjs, evt, lumi)) continue;
             anyPair = true;
 
-            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight, evt, lumi, w_nom, w_pu, w_puUp, w_puDown);
+            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight, evt, lumi, w_nom, w_pu, w_puUp, w_puDown, static_cast<int>(it-muons->begin()), static_cast<int>(jt-muons->begin()));
             break;
         }
         if (anyPair) break;
@@ -7161,6 +7543,12 @@ std::cout
             showProgressBar(i + 1, numEntries);
         }
     }
+
+std::cout << "[LOOP CHECK] Expected=" << numEntries
+          << " Attempted=" << lastEntryAttempted
+          << " Counted=" << n_events
+          << " ContinueRunning=" << __continueRunning
+          << std::endl;
 
 std::cout << "\n[CUTFLOW] Total Events = "      << n_events          << " | "
 << " afterGolden = "                     << n_afterGolden     << " | "
@@ -7316,6 +7704,7 @@ int main(int argc, char** argv)
         ("noFlags",         po::bool_switch(&g_disableFlagFilters)->default_value(false),       "Disable event Flag (MET filter) requirements")
         ("noPU",            po::bool_switch(&g_disablePUWeights)->default_value(false),         "Disable pileup reweighting (Pileup_nTrueInt -> weight = 1)")
         ("noFSR",           po::bool_switch(&g_disableFSRRecovery)->default_value(false),       "Disable FSR photon recovery (use pre-FSR muon four-vectors)")
+        ("sync",            po::bool_switch(&g_syncMode)->default_value(false),                 "Inclusive Hmumu synchronization ntuple (no analysis cuts)")
         ("noZPtRW",         po::bool_switch(&g_disableZPtRW)->default_value(false),             "Disable DY Z-pT reweighting")
         ("noBeamConstraint", po::bool_switch(&g_disableBeamConstraint)->default_value(false),   "Disable beam-constrained muon pT usage (bsConstrainedPt)")
         ("leadmuonPt",      po::value<double>(&_leadmuonPt)->default_value(_leadmuonPt),        "Muon Pt Cut")
@@ -7375,6 +7764,7 @@ int main(int argc, char** argv)
 	__inputfilename     = vm["input"].as<std::string>();
 	__isMC              = vm["isMC"].as<bool>();
     __outputfilename    = vm["output"].as<std::string>();
+    if (g_syncMode) g_disableZPtRW = true;
     _leadmuonPt         = vm["leadmuonPt"].as<double>();
     _subleadmuonPt      = vm["subleadmuonPt"].as<double>();
     _leadmuonEta        = vm["leadmuonEta"].as<double>();
