@@ -1380,6 +1380,8 @@ static void initZPtRW() {
 
 // Global Pointers
 std::shared_ptr<correction::CorrectionSet> jetCorrections   = nullptr;
+std::shared_ptr<correction::CorrectionSet> jetSmearCorrections = nullptr;
+
 std::shared_ptr<correction::CorrectionSet> jetVetoMaps      = nullptr;
 std::shared_ptr<correction::CorrectionSet> btagCorrections  = nullptr;
 std::unique_ptr<TFile> g_btagEffFileHandle                  = nullptr;
@@ -1523,14 +1525,14 @@ static JecEraConfig jecConfigForEra(
 
     if (era == "2024") {
         return {
-            "Summer24Prompt24_V3_MC",
-            "Summer24Prompt24_V3_DATA",
+            "Summer24Prompt24_V5_MC",
+            "Summer24Prompt24_V5_DATA",
 
-            "Summer24Prompt24_JRV1_MC_ScaleFactor_AK4PFPuppi",
-            "Summer24Prompt24_JRV1_MC_PtResolution_AK4PFPuppi",
-            "Summer24Prompt24_JRV1_MC_SFUncertainty_AK4PFPuppi",
+            "Summer24Prompt24_JRV2_MC_ScaleFactor_AK4PFPuppi",
+            "Summer24Prompt24_JRV2_MC_PtResolution_AK4PFPuppi",
+            "Summer24Prompt24_JRV2_MC_SFUncertainty_AK4PFPuppi",
 
-            "Summer24Prompt24_V3_MC_Regrouped_Total_AK4PFPuppi",
+            "Summer24Prompt24_V5_MC_Regrouped_Total_AK4PFPuppi",
             "Summer24Prompt24_RunBCDEFGHI_V1"
         };
     }
@@ -1647,6 +1649,23 @@ void loadJetCorrections() {
         try {
             if (!jetCorrections)
                 jetCorrections = correction::CorrectionSet::from_file(jercFileForEra(g_era));
+
+            // Official JERSmear payload for Run 3 2024.
+            // Keep legacy smearing for other eras until validated.
+            if (g_era == "2024" && !g_disableJER && !jetSmearCorrections) {
+                const std::string smearPath =
+                    "/cvmfs/cms-griddata.cern.ch/cat/metadata/JME/"
+                    "JER-Smearing/latest/jer_smear.json.gz";
+
+                jetSmearCorrections =
+                    correction::CorrectionSet::from_file(smearPath);
+
+                // Require the expected correction to exist.
+                jetSmearCorrections->at("JERSmear");
+
+                std::cerr << "[JER] Loaded official JERSmear: "
+                          << smearPath << "\\n";
+            }
 
             if (g_disableJER) {
                 std::cerr << "[Jet] JER disabled via --noJER; applying JEC only (no smearing).\n";
@@ -2521,7 +2540,7 @@ static double tryEvalJetCorr(
     }
 }
 
-float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float genJetPt, bool hasGenJet, int run, unsigned int lumi = 0, unsigned long long eventNumber = 0, int jetIndex = 0, JetSyst syst = JetSyst::Nominal) {
+float getCorrectedJetPt(const Jet& jet, float rho, bool isMC, float& genJetPt, bool& hasGenJet, const GenJets* genjets, int run, int jerEventSeed, unsigned int lumi = 0, unsigned long long eventNumber = 0, int jetIndex = 0, JetSyst syst = JetSyst::Nominal) {
     if (!jetCorrections) {
         return jet._pt;
     }
@@ -2842,6 +2861,59 @@ std::cerr
             jerRes = 0.0;
         }
 
+
+        // Validate generator association using JEC-corrected pT and
+        // JER resolution. Match the TAMU hybrid JER prescription.
+        hasGenJet = false;
+        genJetPt = 0.f;
+
+        if (genjets && corrPt > 0.f) {
+            const double maxDPt = 3.0 * jerRes * corrPt;
+
+            auto acceptable = [&](size_t idx, double& dr2) -> bool {
+                if (idx >= genjets->size()) return false;
+
+                const auto& gen = genjets->at(idx);
+                if (!std::isfinite(gen._pt) ||
+                    !std::isfinite(gen._eta) ||
+                    !std::isfinite(gen._phi) ||
+                    gen._pt <= 0.f) return false;
+
+                const double dEta = eta - gen._eta;
+                const double dPhi =
+                    TVector2::Phi_mpi_pi(phi - gen._phi);
+
+                dr2 = dEta*dEta + dPhi*dPhi;
+
+                return dr2 < 0.2*0.2 &&
+                       std::abs(corrPt - gen._pt) < maxDPt;
+            };
+
+            int best = -1;
+            double dr2 = 0.0;
+
+            // First try the original NanoAOD association.
+            if (jet._genJetIdx >= 0 &&
+                acceptable(static_cast<size_t>(jet._genJetIdx), dr2)) {
+                best = jet._genJetIdx;
+            } else {
+                // Otherwise find the closest acceptable gen jet.
+                double bestDR2 = 0.2*0.2;
+
+                for (size_t ig = 0; ig < genjets->size(); ++ig) {
+                    if (acceptable(ig, dr2) && dr2 < bestDR2) {
+                        bestDR2 = dr2;
+                        best = static_cast<int>(ig);
+                    }
+                }
+            }
+
+            if (best >= 0) {
+                hasGenJet = true;
+                genJetPt = genjets->at(best)._pt;
+            }
+        }
+
         double jerSF = jerSFNom;
 
         if (syst == JetSyst::JERUp) {
@@ -2893,6 +2965,27 @@ syst == JetSyst::JERDown ? "down" :
 }
 
     // existing smearing logic continues here
+        if (g_era == "2024" && jetSmearCorrections) {
+            const double smearFactor =
+                jetSmearCorrections->at("JERSmear")->evaluate({
+                    static_cast<double>(corrPt),
+                    static_cast<double>(eta),
+                    static_cast<double>(hasGenJet ? genJetPt : -1.f),
+                    static_cast<double>(rho),
+                    jerEventSeed,
+                    static_cast<double>(jerRes),
+                    static_cast<double>(jerSF)
+                });
+
+            if (std::isfinite(smearFactor) && smearFactor > 0.0) {
+                if (!(he_genmatched_only && !hasGenJet)) {
+                    corrPt = static_cast<float>(corrPt * smearFactor);
+                }
+            } else {
+                throw std::runtime_error("Invalid JERSmear factor");
+            }
+        } else {
+            // Legacy JER implementation for other eras.
         if (hasGenJet && genJetPt > 0.f) {
             const double smearedPt = genJetPt + jerSF * (corrPt - genJetPt);
             corrPt = (float)std::max(0.0, smearedPt);
@@ -2910,6 +3003,8 @@ syst == JetSyst::JERDown ? "down" :
 
             corrPt = (float)std::max(0.0, corrPt * factor);
         }
+        }
+
     }
     return corrPt;
 }
@@ -3088,6 +3183,7 @@ static CorrectedJet buildCorrectedJet(
     int run,
     unsigned int lumi,
     unsigned long long eventNumber,
+    int jerEventSeed,
     JetSyst variation = JetSyst::Nominal)
 {
     CorrectedJet out;
@@ -3141,7 +3237,9 @@ static CorrectedJet buildCorrectedJet(
             isMC,
             out.genJetPt,
             out.hasGenJet,
+            genjets,
             run,
+            jerEventSeed,
             lumi,
             eventNumber,
             sourceIndex,
@@ -4235,6 +4333,20 @@ std::cerr
     // -------------------------------------
     //   Event-level jet veto map decision
     // -------------------------------------
+    // TAMU-compatible event-level seed for correctionlib JERSmear.
+    const double firstJetEta =
+        jets->empty() ? 0.0 : static_cast<double>(jets->at(0)._eta);
+
+    // Match TAMU: add floating-point eta before converting to int.
+    const double seedValue =
+        static_cast<double>(
+            (static_cast<uint32_t>(event._run) << 20) +
+            (static_cast<uint32_t>(event._lumi) << 10) +
+            static_cast<uint32_t>(event._event)
+        ) + firstJetEta / 0.01;
+
+    const int jerEventSeed = static_cast<int>(seedValue);
+
     bool eventFailsJetVetoMap = false;
 
     if (!g_disableJetVeto) {
@@ -4262,6 +4374,7 @@ std::cerr
                     static_cast<unsigned long long>(
                         event._event
                     ),
+                    jerEventSeed,
                     JetSyst::Nominal
                 );
 
@@ -4300,6 +4413,7 @@ std::cerr
             static_cast<unsigned long long>(
                 event._event
             ),
+            jerEventSeed,
             JetSyst::Nominal
         );
 
@@ -4675,6 +4789,7 @@ btagjet_SF
                     runNumber,
                     static_cast<unsigned int>(event._lumi),
                     static_cast<unsigned long long>(event._event),
+                    jerEventSeed,
                     syst
                 );
 
@@ -7542,11 +7657,27 @@ std::cout
                 sy_nSelectedJets = sy_nBJetsMedium = sy_nBJetsLoose = 0;
                 sy_passJetVetoMap = true;
                 sy_passVBFJetKinematics = sy_passBJetVeto = false;
+                // Same TAMU event seed used by the main jet selection.
+                const double syFirstJetEta =
+                    jets->empty() ? 0.0 : static_cast<double>(jets->at(0)._eta);
+
+                // Match TAMU floating-point addition before int conversion.
+                const double sySeedValue =
+                    static_cast<double>(
+                        (static_cast<uint32_t>(sy_run) << 20) +
+                        (static_cast<uint32_t>(sy_lumi) << 10) +
+                        static_cast<uint32_t>(sy_event)
+                    ) + syFirstJetEta / 0.01;
+
+                const int syJerEventSeed =
+                    static_cast<int>(sySeedValue);
+
                 std::vector<std::pair<int, TLorentzVector>> syncSelectedJets;
                 for (size_t ji=0; ji<jets->size(); ++ji) {
                     const auto& j=jets->at(ji);
                     const auto cj=buildCorrectedJet(j, static_cast<int>(ji), rho,
-                        __isMC, genjets, __isMC ? 0 : static_cast<int>(sy_run), sy_lumi, sy_event);
+                        __isMC, genjets, __isMC ? 0 : static_cast<int>(sy_run), sy_lumi, sy_event,
+                        syJerEventSeed);
                     // Normal analysis tests the veto map on ALL valid jets before
                     // selecting jets. Keep failing events in this inclusive tree.
                     if (cj.valid && cj.vetoedByMap && !g_disableJetVeto)
@@ -7930,7 +8061,7 @@ int main(int argc, char** argv)
         ("--rochKeyDT",     po::value<std::string>(&g_rochKeyDT)->default_value(g_rochKeyDT),   "Rochester data key")
         ("--rochKeyMC",     po::value<std::string>(&g_rochKeyMC)->default_value(g_rochKeyMC),   "Rochester MC key")
         ("--jmeDir",        po::value<std::string>(&g_jmeDir)->default_value(g_jmeDir),         "Directory containing JME JSONs")
-        ("--jercJSON",      po::value<std::string>(&g_jercJSON)->default_value("auto"),         "Path to JERC JSON, or 'auto' => jet_jerc<era>.json")
+        ("jercJSON",      po::value<std::string>(&g_jercJSON)->default_value("auto"),         "Path to JERC JSON, or 'auto' => jet_jerc<era>.json")
         ("--jetVetoJSON",   po::value<std::string>(&g_jetVetoJSON)->default_value("auto"),      "Path to veto map JSON, or 'auto' => jetvetomaps<era>.json")
         ("--jetIdJSON",     po::value<std::string>(&g_jetIdJSON)->default_value("auto"),        "Path to jet ID JSON, or 'auto' => jetid<era>.json")
         ("golden",          po::value<std::string>()->default_value("auto"),                    "Golden JSON path or 'auto' for era-based default")
