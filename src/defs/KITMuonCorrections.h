@@ -133,15 +133,12 @@ inline double get_rndm(const correction::CorrectionSet& cset,
 
   CrystalBall cb(mean, sigma, alpha, nn);
 
-  const int64_t phi_seed =
-      (int64_t)((phi / M_PI) * ((1LL << 31) - 1)) & 0xFFF;
-
-  SeedSequence seq{evtNumber, lumiNumber, (uint32_t)phi_seed};
-  uint32_t seed = 0;
-  seq.generate(&seed, &seed + 1);
-
-  TRandom3 rnd(seed);
-  const double u = rnd.Rndm();
+  const double u = cset.at("RandomSmearing")->evaluate({
+    static_cast<int>(evtNumber),
+    static_cast<int>(lumiNumber),
+    phi
+    });
+  
   return cb.invcdf(u);
 }
 
