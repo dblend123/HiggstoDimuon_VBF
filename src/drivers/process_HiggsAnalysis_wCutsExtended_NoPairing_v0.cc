@@ -7178,7 +7178,17 @@ uint32_t lastEntryAttempted = 0;
         vertices->clear();
         muons1.clear();
         muons2.clear();
-		streamer._chain->GetEntry(i);
+        const Long64_t bytesRead = streamer._chain->GetEntry(i);
+        if (bytesRead <= 0) {
+            std::cerr
+                << "[ENTRY READ ERROR] i=" << i
+                << " bytesRead=" << bytesRead
+                << " tree=" << streamer._chain->GetTreeNumber()
+                << " total=" << numEntries
+                << std::endl;
+
+            continue;
+        }
         lastEntryAttempted = i + 1;
         l1s->clear();
         hlts->clear();
@@ -7678,9 +7688,21 @@ std::cout
                     const auto cj=buildCorrectedJet(j, static_cast<int>(ji), rho,
                         __isMC, genjets, __isMC ? 0 : static_cast<int>(sy_run), sy_lumi, sy_event,
                         syJerEventSeed);
-                    // Normal analysis tests the veto map on ALL valid jets before
-                    // selecting jets. Keep failing events in this inclusive tree.
-                    if (cj.valid && cj.vetoedByMap && !g_disableJetVeto)
+                    // TAMU sync veto map: remove overlaps with all PF-candidate
+                    // muons at DeltaR < 0.2, not only the analysis muon pair.
+                    bool syncVetoedByMap = cj.vetoedByMap;
+                    if (g_syncRound2 && syncVetoedByMap) {
+                        for (const auto& mu : *muons) {
+                            if (mu._isPFcand &&
+                                jetMuondR(j._eta, j._phi,
+                                           mu._eta, mu._phi) < 0.2f) {
+                                syncVetoedByMap = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (cj.valid && syncVetoedByMap && !g_disableJetVeto)
                         sy_passJetVetoMap = false;
                     const float absEta = std::abs(j._eta);
 
@@ -7694,7 +7716,7 @@ std::cout
                         passSyncJetID &&
                         cj.correctedPt > minSyncJetPt &&
                         absEta < 4.7f &&
-                        (!g_syncRound2 || !cj.vetoedByMap) &&
+                        (!g_syncRound2 || !syncVetoedByMap) &&
                         !(isHFHorn(absEta) && eraNeedsHF50(g_era) && cj.correctedPt <= 50.f) &&
                         !(isHEHorn(absEta) && eraNeedsHE50(g_era) && cj.correctedPt <= 50.f) &&
                         jetMuondR(j._eta,j._phi,a._eta,a._phi) > 0.4f &&
@@ -7707,7 +7729,7 @@ std::cout
                     sy_jetId.push_back(j._jetId); sy_jetBtag.push_back(j._btagDeepFlavB);
                     sy_jetBtagUParT.push_back(j._btagUParTAK4B);
                     sy_jetQuality.push_back(quality ? 1 : 0);
-                    sy_jetVetoMap.push_back(cj.valid && cj.vetoedByMap ? 1 : 0);
+                    sy_jetVetoMap.push_back(cj.valid && syncVetoedByMap ? 1 : 0);
                     if (!quality) continue;
                     // The production analysis counts b-tags only among its
                     // selected jets, using their corrected pT and eta.
