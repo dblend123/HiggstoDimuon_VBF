@@ -7113,7 +7113,18 @@ std::cerr
     }
 
     //	Main Event Loop
-	uint32_t numEntries         = streamer._chain->GetEntries();
+    const Long64_t numEntries = streamer._chain->GetEntries();
+
+    if (numEntries != streamer._expectedEntries) {
+        std::cerr
+            << "[FATAL ENTRY COUNT MISMATCH] Initial="
+            << streamer._expectedEntries
+            << " Current=" << numEntries
+            << std::endl;
+
+        std::exit(EXIT_FAILURE);
+    }
+
     uint32_t updateInterval     = numEntries / 100; // Update every 1% of progress
     if (updateInterval == 0) updateInterval = 1; // Handle very small numbers of entries
 
@@ -7166,9 +7177,9 @@ long long n_afterFlags  = 0;
 long long n_afterVtx    = 0;
 long long n_afterVeto   = 0;
 long long n_afterPair   = 0;
-uint32_t lastEntryAttempted = 0;
+Long64_t lastEntryAttempted = 0;
 
-    for (uint32_t i=0; i<numEntries && __continueRunning; i++)
+    for (Long64_t i=0; i<numEntries && __continueRunning; i++)
 	{
         muons->clear();
         jets->clear();
@@ -7181,13 +7192,13 @@ uint32_t lastEntryAttempted = 0;
         const Long64_t bytesRead = streamer._chain->GetEntry(i);
         if (bytesRead <= 0) {
             std::cerr
-                << "[ENTRY READ ERROR] i=" << i
+                << "[FATAL ENTRY READ ERROR] i=" << i
                 << " bytesRead=" << bytesRead
                 << " tree=" << streamer._chain->GetTreeNumber()
                 << " total=" << numEntries
                 << std::endl;
 
-            continue;
+            std::exit(EXIT_FAILURE);
         }
         lastEntryAttempted = i + 1;
         l1s->clear();
@@ -7803,10 +7814,11 @@ std::cout
                     sy_passVBFJetKinematics=j1.Pt()>=_leadJetPt && j2.Pt()>=_subleadJetPt &&
                         sy_dijetMass>_dijetMass_VBF && sy_dijetDEta>_dijetdEta_VBF;
                 }
-                sy_passVBFCategory=sy_passJetVetoMap && sy_passVBFJetKinematics &&
+                sy_passVBFCategory = sy_passVBFLeadingPair &&
                     sy_passBJetVeto && sy_os && sy_medium && sy_iso &&
                     sy_hltAndMatch && sy_filters && sy_vertex &&
-                    sy_leptonVeto && sy_golden;
+                    sy_passRound2ExactlyTwoMuons && sy_electronVeto &&
+                    sy_golden;
                 sy_weightGen=__isMC?genWeight:1.f;
                 sy_weightPU=__isMC?pileupWeight:1.f;
                 sy_weightPUUp=__isMC?pileupWeightUp:1.f;

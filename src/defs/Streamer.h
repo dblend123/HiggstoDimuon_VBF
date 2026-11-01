@@ -8,6 +8,7 @@
 #include <iostream>
 
 #include "TError.h"
+#include <cstdlib>
 
 namespace analysis
 {
@@ -33,6 +34,7 @@ namespace analysis
 				std::string			_inputname;
 				std::string			_tpathname;
 				TChain				*_chain;
+                Long64_t _expectedEntries = -1;
 		};
 	}
 }
@@ -52,16 +54,35 @@ namespace analysis
 
 		inline void Streamer::chainup()
 		{
-			gErrorIgnoreLevel = kFatal;
+			gErrorIgnoreLevel = kWarning;
             std::cout << "Chaining All The Data Files" << std::endl;
 			std::cout << "\n";
             std::ifstream input(_inputname);
 			for (std::string line; std::getline(input, line); )
 			{
-				_chain->Add(TString(line.c_str()));
-			}
-            int TotalEntries = _chain->GetEntries();
-			std::cout << "Total Entries = " << TotalEntries 
+			
+            const int added = _chain->Add(TString(line.c_str()), 0);
+
+            if (added <= 0) {
+                std::cerr
+                    << "[FATAL INPUT FILE] Failed to add: "
+                    << line << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+            
+            std::cout << "[CHAIN CHECK] Files registered = "
+                << _chain->GetListOfFiles()->GetEntries()
+                << std::endl; 
+            
+            }
+            Long64_t TotalEntries = _chain->GetEntries();
+            if (TotalEntries <= 0) {
+                std::cerr << "[FATAL] Invalid input entry count: "
+                          << TotalEntries << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+            _expectedEntries = TotalEntries;
+            std::cout << "Total Entries = " << TotalEntries 
 				<< std::endl;
 			std::cout << "\n";
 		}
