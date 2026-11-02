@@ -3119,10 +3119,10 @@ static inline bool passJetID(const Jet& j) {
         return passJetIdTightLepVeto_v12(j);
     }
 
-    // 2024/2025 NanoAODv15-style manual recipe
-    if (g_era == "2024" || g_era == "2025") {
-        return passJetIdTightLepVeto_v15Manual(j);
-    }
+    // Adopted 2024 Round-2 sync uses Tight (not TightLepVeto).
+    // Keep 2025 unchanged until its era-specific prescription is checked.
+    if (g_era == "2024") return passJetIdTight_v15Manual(j);
+    if (g_era == "2025") return passJetIdTightLepVeto_v15Manual(j);
 
     // fallback
     return ((j._jetId & (1 << 2)) != 0);
@@ -3830,25 +3830,21 @@ inline float correctedBsPt(const Muon& mu, bool isMC, uint32_t evt = 0, uint32_t
   return pt0 * muCorrScale(mu, isMC, evt, lumi);
 }
 
-bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons, bool isMC)
+bool vetoAdditionalLeptons(Muons* muons, Electrons* electrons)
 {
+    // Adopted Round-2 synchronization definition: count RAW-pT muons
+    // with Medium ID and PF relative isolation. Do not substitute
+    // corrected pT here: the sync multiplicity decision uses raw pT.
     int nMuons20 = 0;
-
-    // Count muons with pT>20, |eta|<2.4, global||tracker
     for (const auto& mu : *muons) {
-        float ptCorr = baseMuonPtForCorrections(mu) * muCorrScale(mu, isMC);
-
-        if (ptCorr <= 20.0f)       continue;
-        if (std::abs(mu._eta) >= 2.4f) continue;
-        if (!(mu._isGlobal || mu._isTracker)) continue;
-
-        ++nMuons20;
+        if (mu._pt > 20.f &&
+            mu._mediumId &&
+            mu._pfRelIso04_all < 0.25f) {
+            ++nMuons20;
+        }
     }
 
-    // Require exactly 2 muons above 20 GeV
-    if (nMuons20 != 2) {
-        return false;
-    }
+    if (nMuons20 != 2) return false;
 
     // Electron veto: pT>20, |eta|<2.5, ignoring 1.44<|eta|<1.57, passing WP90 MVA-based ID
     for (const auto& el : *electrons) {
@@ -4347,6 +4343,22 @@ std::cerr
 
     const int jerEventSeed = static_cast<int>(seedValue);
 
+    // Adopted 2024 Round-2 synchronization rule: a veto-map jet
+    // overlapping ANY PF-candidate muon within DeltaR < 0.2 is exempt.
+    // Shared by nominal event veto, nominal jet collection and JEC/JER shifts.
+    const auto isEffectiveVetoMapJet = [&](const CorrectedJet& cj,
+                                            const Jet& j) -> bool {
+        if (!cj.vetoedByMap) return false;
+        if (g_era == "2024") {
+            for (const auto& mu : *muons) {
+                if (mu._isPFcand &&
+                    jetMuondR(j._eta, j._phi, mu._eta, mu._phi) < 0.2f)
+                    return false;
+            }
+        }
+        return true;
+    };
+
     bool eventFailsJetVetoMap = false;
 
     if (!g_disableJetVeto) {
@@ -4381,7 +4393,7 @@ std::cerr
             if (!correctedJet.valid)
                 continue;
 
-            if (correctedJet.vetoedByMap) {
+            if (isEffectiveVetoMapJet(correctedJet, j)) {
                 eventFailsJetVetoMap = true;
                 break;
             }
@@ -4451,7 +4463,7 @@ correctedJet.variation
 << " passJetID="
 << correctedJet.passesJetID
 << " vetoed="
-<< correctedJet.vetoedByMap
+<< isEffectiveVetoMapJet(correctedJet, j)
 << "\n";
 } }
 
@@ -4468,7 +4480,10 @@ correctedJet.variation
 
         const float abseta = std::abs(j._eta);
 
-        if (corr_pt <= 25.f)
+        // 2024 adopted Round-2 sync threshold. Retain earlier eras
+        // until their era-specific common selections are validated.
+        const float jetPtThreshold = (g_era == "2024") ? 30.f : 25.f;
+        if (corr_pt <= jetPtThreshold)
             continue;
         ++jets_after_pt_default;
 
@@ -4683,6 +4698,12 @@ btagjet_SF
 }
 }
 
+    // Corrected-pT ordering is required for leading-pT dijet selection.
+    std::stable_sort(p4jets.begin(), p4jets.end(),
+        [](const TLorentzVector& a, const TLorentzVector& b) {
+            return a.Pt() > b.Pt();
+        });
+
     const bool is0jet = (p4jets.size() == 0);
     const bool is1jet = (p4jets.size() == 1);
     const bool is2jet = (p4jets.size() >= 2);
@@ -4707,6 +4728,25 @@ btagjet_SF
         jet1pt  = p4lead.Pt();
     }
 
+    // ------------------------------------------------------------
+    // Adopted Round-2 baseline: leading two corrected-pT jets.
+    // ------------------------------------------------------------
+    if (has2jet) {
+        p4lead = p4jets[0];
+        p4sub  = p4jets[1];
+        jet1eta = p4lead.Eta();
+        jet2eta = p4sub.Eta();
+        jet1pt  = p4lead.Pt();
+        jet2pt  = p4sub.Pt();
+        dijet = p4lead + p4sub;
+        dijetpt   = dijet.Pt();
+        dijetdeta = std::abs(p4lead.Eta() - p4sub.Eta());
+        dijetmass = dijet.M();
+        dijetdphi = std::abs(TVector2::Phi_mpi_pi(p4lead.Phi() - p4sub.Phi()));
+    }
+
+    // Previous max-mjj pairing, retained as commented reference only.
+    /*
     // ------------------------------------------------------------
     // For >=2 jets, choose the pair with the largest invariant mass
     // ------------------------------------------------------------
@@ -4758,6 +4798,8 @@ btagjet_SF
         }
     }
 
+    */
+
     float PTdDM1 = corr_p4m1.Pt() / corr_p4dimuon.M();
     float PTdDM2 = corr_p4m2.Pt() / corr_p4dimuon.M();
 
@@ -4796,7 +4838,7 @@ btagjet_SF
             if (!shiftedJet.valid)
                 continue;
 
-            if (shiftedJet.vetoedByMap) {
+            if (isEffectiveVetoMapJet(shiftedJet, j)) {
                 out.pass_veto_map = false;
                 out.pass_vbf = false;
                 return out;
@@ -4809,7 +4851,7 @@ btagjet_SF
                 const float abseta =
                     std::abs(shiftedJet.eta);
 
-                if (shiftedJet.correctedPt <= 25.f)
+                if (shiftedJet.correctedPt <= ((g_era == "2024") ? 30.f : 25.f))
                     continue;
 
                 if (isHFHorn(abseta) &&
@@ -4847,6 +4889,11 @@ btagjet_SF
             shiftedJets.push_back(shiftedJet.p4);
         }
 
+            std::stable_sort(shiftedJets.begin(), shiftedJets.end(),
+                [](const TLorentzVector& a, const TLorentzVector& b) {
+                    return a.Pt() > b.Pt();
+                });
+
             out.njets = static_cast<int>(shiftedJets.size());
 
             // No shifted jets
@@ -4861,6 +4908,12 @@ btagjet_SF
                 return out;
             }
 
+            // Adopted Round-2 baseline: two highest corrected-pT shifted jets.
+            const TLorentzVector& lead = shiftedJets[0];
+            const TLorentzVector& sub  = shiftedJets[1];
+
+            // Previous max-mjj variation pairing, retained as commented reference.
+            /*
             // ------------------------------------------------------------
             // For >=2 shifted jets, choose the maximum-mjj pair
             // ------------------------------------------------------------
@@ -4897,6 +4950,8 @@ btagjet_SF
 
             const TLorentzVector& sub =
                 (jetA.Pt() >= jetB.Pt()) ? jetB : jetA;
+
+            */
 
             const TLorentzVector dijet_syst = lead + sub;
 
@@ -6555,9 +6610,9 @@ void process()
         TNamed kitMode("syncKITMode", (__useKIT ? "KIT/ScaRe scale-then-smear; threshold=20 GeV; correctionlib RandomSmearing" : "KIT disabled")); kitMode.Write();
         TNamed beamMode("syncBeamConstraint", g_disableBeamConstraint ? "disabled" : "use bsConstrainedPt if finite, positive and bsConstrainedChi2<30"); beamMode.Write();
         TNamed triggerMode("syncTriggerDefinitions", "passHLTEvent=HLT_IsoMu24; object match=corrected muon pT>=26 and any TrigObj muon abs(id)=13 within deltaR<0.1; no filterBits required"); triggerMode.Write();
-        TNamed jetPairRule("syncJetPairRule", "maximum invariant-mass pair among nominal selected corrected jets; paired jets ordered by corrected pT; original NanoAOD indices"); jetPairRule.Write();
+        TNamed jetPairRule("syncJetPairRule", "legacy maximum-mjj diagnostic pair; baseline uses two leading corrected-pT selected jets; original NanoAOD indices"); jetPairRule.Write();
         TNamed vetoRule("syncBTagVeto", "UParTAK4: selected corrected jets with pT>20 and abs(eta)<2.5; no medium tags and at most one loose tag; no efficiency maps needed"); vetoRule.Write();
-        TNamed jetVetoRule("syncJetVetoMap", "event fails if any valid nominal corrected jet is vetoed, unless --noJetVeto; retained in inclusive SyncEvents"); jetVetoRule.Write();
+        TNamed jetVetoRule("syncJetVetoMap", "2024 Round-2: veto-map jets overlapping any PF-candidate muon within DeltaR<0.2 are exempt; event-level veto decision retained in inclusive SyncEvents"); jetVetoRule.Write();
         TNamed metCollection("syncMETCollection", "PuppiMET_pt/PuppiMET_phi preferred; MET_pt/MET_phi fallback");
         TNamed weightPolicy("syncMCWeightPolicy", "generator=NanoAOD genWeight; pileup and muon factors independent; sampleBase=1; no DY/dimuon-pT reweighting"); weightPolicy.Write();
     }
@@ -7582,7 +7637,7 @@ std::cout
                 sy_golden = __isMC || g_lumiMask.empty() || passGolden(sy_run,sy_lumi);
                 sy_filters = passFlagFilters(flags,!__isMC);
                 sy_vertex = passVertex(vertices);
-                sy_leptonVeto = vetoAdditionalLeptons(muons,electrons,__isMC);
+                sy_leptonVeto = vetoAdditionalLeptons(muons,electrons);
                 TLorentzVector raw[2], corrected[2], correctedFSR[2];
                 const Muon* pair[2] = {&a,&b};
                 const int idx[2] = {sy_muIdx1,sy_muIdx2};
@@ -7785,8 +7840,8 @@ std::cout
                         sy_leadDijetDEta > 2.5f;
                 }
 
-                // Production chooses the maximum-mjj pair, not the two
-                // highest-pT jets. Preserve first encountered pair on ties.
+                // Legacy max-mjj diagnostic, NOT production baseline.
+                // Preserve first encountered pair on ties for comparison.
                 double bestMjj = -1.0;
                 int firstBest = -1, secondBest = -1;
                 for (size_t i=0; i<syncSelectedJets.size(); ++i) {
@@ -7877,7 +7932,7 @@ std::cout
         ++n_afterFlags;
         if (!passVertex(vertices)) continue;
         ++n_afterVtx;
-        if (!vetoAdditionalLeptons(muons, electrons, __isMC)) continue;
+        if (!vetoAdditionalLeptons(muons, electrons)) continue;
         ++n_afterVeto;
 
         bool anyPair = false;
