@@ -4134,11 +4134,11 @@ float getMuonTriggerOnlySF(const Muon& mu, bool isMC, const std::string& syst = 
 //                         CATEGORIZE FUNCTION
 //*******************************************************************
 
-void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, const analysis::core::Muon& mu1,
-const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, analysis::core::Photons* photons,
-analysis::core::Vertices* vertices, const analysis::core::MET& met, const analysis::core::Event& event,
-analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight, uint32_t evt, uint32_t lumi,
-float w_nom, float w_pu, float w_puUp, float w_puDown, int muonIndex1, int muonIndex2) {
+void categorize(analysis::core::Jets* jets, analysis::core::GenJets* genjets, analysis::core::Muons* muons,
+const analysis::core::Muon& mu1,const analysis::core::Muon& mu2, analysis::core::FsrPhotons* fsrphotons, 
+analysis::core::Photons* photons, analysis::core::Vertices* vertices, const analysis::core::MET& met, 
+const analysis::core::Event& event, analysis::core::Rhos* rhos, HistSetCollection& hists, float Dataweight, 
+uint32_t evt, uint32_t lumi, float w_nom, float w_pu, float w_puUp, float w_puDown, int muonIndex1, int muonIndex2) {
 
     // -------------------------------------
     //             VERTICES
@@ -7943,7 +7943,7 @@ std::cout
             if (!passMuons(*it, *jt, trigobjs, evt, lumi)) continue;
             anyPair = true;
 
-            categorize(jets, genjets, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight, evt, lumi, w_nom, w_pu, w_puUp, w_puDown, static_cast<int>(it-muons->begin()), static_cast<int>(jt-muons->begin()));
+            categorize(jets, genjets, muons, *it, *jt, fsrphotons, photons, vertices, *met, *event, rhos, hists, Dataweight, evt, lumi, w_nom, w_pu, w_puUp, w_puDown, static_cast<int>(it-muons->begin()), static_cast<int>(jt-muons->begin()));
             break;
         }
         if (anyPair) break;
