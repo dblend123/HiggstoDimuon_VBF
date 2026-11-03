@@ -6455,30 +6455,40 @@ static void loadWeightsFile(const std::string& path) {
 
 // Returns the *per-event* base MC weight independent of per-event pu/genWeight.
 // i.e. (lumi * xsec) / (sumw)
+
 static double sampleBaseWeight(const std::string& sample) {
-    // Look up the sample in the chosen era/section
     auto secIt = g_sectionSamples.find(g_era);
+
     if (secIt == g_sectionSamples.end()) {
-        std::cerr << "[weights] Unknown era '" << g_era << "'. Using 1.0.\n";
-        return 1.0;
+        throw std::runtime_error(
+            "[weights] Missing normalization section for era '" +
+            g_era + "'"
+        );
     }
+
     const auto& samples = secIt->second;
     auto it = samples.find(sample);
+
     if (it == samples.end()) {
-        std::cerr << "[weights] Unknown sample '" << sample
-                  << "' in era '" << g_era << "'. Using 1.0.\n";
-        return 1.0;
+        throw std::runtime_error(
+            "[weights] Missing normalization for sample '" +
+            sample + "' in era '" + g_era + "'"
+        );
     }
 
     const auto& s = it->second;
-    const double denom = s.sumw;
-    if (denom <= 0.0) {
-        std::cerr << "[weights] Non-positive denom for '" << sample
-                  << "' in era '" << g_era << "'. Using 1.0.\n";
-        return 1.0;
+
+    if (!std::isfinite(s.sumw) || s.sumw <= 0.0 ||
+        !std::isfinite(s.xsec) || s.xsec <= 0.0 ||
+        !std::isfinite(g_selected_lumi) ||
+        g_selected_lumi <= 0.0) {
+        throw std::runtime_error(
+            "[weights] Invalid xsec, sumw, or luminosity for " +
+            sample + " in era " + g_era
+        );
     }
 
-    return (g_selected_lumi * s.xsec) / denom;
+    return (g_selected_lumi * s.xsec) / s.sumw;
 }
 
 //*******************************************************************
@@ -6935,7 +6945,7 @@ void process()
         ROOT_CHAIN->SetBranchAddress("LHEWeight_originalXWGTUP", &LHEWeight_originalXWGTUP);
 
     //Setting Branch Array for Muon Properties
-    SET_BRANCH_UINT(nMuon);
+    SET_BRANCH_INT(nMuon);
     SET_BRANCH_FLOAT_ARRAY(Muon_pt);
     SET_BRANCH_FLOAT_ARRAY(Muon_bsConstrainedPt);
     SET_BRANCH_FLOAT_ARRAY(Muon_bsConstrainedChi2);
@@ -7004,12 +7014,22 @@ void process()
               << std::endl;
 
     //Setting Branch Array for Jet Properties
-    SET_BRANCH_UINT(nJet);
+    SET_BRANCH_INT(nJet);
     SET_BRANCH_FLOAT_ARRAY(Jet_eta);
     SET_BRANCH_FLOAT_ARRAY(Jet_mass);
     SET_BRANCH_FLOAT_ARRAY(Jet_pt);
     SET_BRANCH_FLOAT_ARRAY(Jet_phi);
-    SET_BRANCH_UCHAR_ARRAY(Jet_jetId);
+    // Jet_jetId 
+    UChar_t Jet_jetId[512] = {};
+
+    const bool hasJetIdBranch =
+        ROOT_CHAIN->GetBranch("Jet_jetId") != nullptr;
+
+    if (hasJetIdBranch) {
+        if (ROOT_CHAIN->SetBranchAddress("Jet_jetId", Jet_jetId) < 0) {
+            throw std::runtime_error("Failed to bind Jet_jetId");
+        }
+    }
     SET_BRANCH_FLOAT_ARRAY(Jet_btagDeepFlavB);
     SET_BRANCH_FLOAT_ARRAY(Jet_btagPNetB);
     SET_BRANCH_FLOAT_ARRAY(Jet_btagUParTAK4B);
@@ -7021,31 +7041,33 @@ void process()
     SET_BRANCH_FLOAT_ARRAY(Jet_chEmEF);
     SET_BRANCH_FLOAT_ARRAY(Jet_neEmEF);
     SET_BRANCH_FLOAT_ARRAY(Jet_muEF);
-    SET_BRANCH_USHORT_ARRAY(Jet_genJetIdx);
+    SET_BRANCH_SHORT_ARRAY(Jet_genJetIdx);
     SET_BRANCH_UCHAR_ARRAY(Jet_chMultiplicity);
     SET_BRANCH_UCHAR_ARRAY(Jet_neMultiplicity);
 
     //Setting Branch Array for GenJet Properties
-    SET_BRANCH_UINT(nGenJet);
+    SET_BRANCH_INT(nGenJet);
     SET_BRANCH_FLOAT_ARRAY(GenJet_eta);
     SET_BRANCH_FLOAT_ARRAY(GenJet_mass);
     SET_BRANCH_FLOAT_ARRAY(GenJet_pt);
     SET_BRANCH_FLOAT_ARRAY(GenJet_phi);
 
     //Setting Branch Array for FsrPhoton Properties
-    SET_BRANCH_UINT(nFsrPhoton);
+    SET_BRANCH_INT(nFsrPhoton);
     SET_BRANCH_FLOAT_ARRAY(FsrPhoton_pt);
     SET_BRANCH_FLOAT_ARRAY(FsrPhoton_phi);
     SET_BRANCH_FLOAT_ARRAY(FsrPhoton_eta);
-    SET_BRANCH_INT_ARRAY(FsrPhoton_muonIdx);
+    //SET_BRANCH_INT_ARRAY(FsrPhoton_muonIdx);
+    SET_BRANCH_SHORT_ARRAY(FsrPhoton_muonIdx);
     SET_BRANCH_FLOAT_ARRAY(FsrPhoton_dROverEt2);
     Float_t FsrPhoton_relIso03[512] = {};
     const bool hasFsrRelIso = ROOT_CHAIN->GetBranch("FsrPhoton_relIso03") != nullptr;
     if (hasFsrRelIso) ROOT_CHAIN->SetBranchAddress("FsrPhoton_relIso03", FsrPhoton_relIso03);
-    SET_BRANCH_USHORT_ARRAY(FsrPhoton_electronIdx);
+    SET_BRANCH_SHORT_ARRAY(FsrPhoton_electronIdx);
+    //SET_BRANCH_USHORT_ARRAY(FsrPhoton_electronIdx);
 
     //Setting Branch Array for Photon Properties
-    SET_BRANCH_UINT(nPhoton);
+    SET_BRANCH_INT(nPhoton);
     SET_BRANCH_FLOAT_ARRAY(Photon_pt);
     SET_BRANCH_FLOAT_ARRAY(Photon_eta);
     SET_BRANCH_FLOAT_ARRAY(Photon_phi);
@@ -7076,11 +7098,11 @@ void process()
     static UShort_t  TrigObj_id_arr[TO_MAX];
     static ULong64_t TrigObj_filterBits_arr[TO_MAX];
 
-    UInt_t nTrigObj = 0;
+    Int_t nTrigObj = 0;
     bool   trigobj_is_vector = false;
 
     //Setting Branch Array for Electron Properties
-    SET_BRANCH_UINT(nElectron);
+    SET_BRANCH_INT(nElectron);
     SET_BRANCH_FLOAT_ARRAY(Electron_pt);
     SET_BRANCH_FLOAT_ARRAY(Electron_eta);
     SET_BRANCH_FLOAT_ARRAY(Electron_phi);
@@ -7973,7 +7995,8 @@ std::cout << "\n[CUTFLOW] Total Events = "      << n_events          << " | "
 
 std::cout << "\n[JET CUT-FLOW] Total Jets = " << jets_in << " | "
 << "pass jetId = " << jets_after_id << " | "
-<< "pass pt(>25) = " << jets_after_pt_default << " | "
+<< "pass pt(>" << ((g_era == "2024") ? 30 : 25)
+<< ") = " << jets_after_pt_default << " | "
 << "pass HF horn (pT>50) = " << jets_after_pt_hf << " | "
 << "pass HE horn (pT>50) = " << jets_after_pt_he << " | "
 << "pass pt(final) = " << jets_after_pt << " | "

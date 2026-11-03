@@ -64,6 +64,11 @@
     (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
     static_assert(true, "")
 
+#define SET_BRANCH_SHORT_ARRAY(NAME) \
+    Short_t NAME[512] = {}; \
+    (ROOT_CHAIN)->SetBranchAddress(#NAME, NAME); \
+    static_assert(true, "")
+
 #define SET_BRANCH_UCHAR(NAME) \
     UChar_t NAME = 0; \
     (ROOT_CHAIN)->SetBranchAddress(#NAME, &NAME); \
