@@ -7952,12 +7952,19 @@ std::cout
         //	Selections
         if (!passFlagFilters(flags, !__isMC)) continue;
         ++n_afterFlags;
+
         if (!passVertex(vertices)) continue;
         ++n_afterVtx;
+
         if (!vetoAdditionalLeptons(muons, electrons)) continue;
         ++n_afterVeto;
 
+        // Round-2 baseline: require the IsoMu24 event-level trigger.
+        // passMuons() separately requires a matched trigger muon.
+        if (!HLT_IsoMu24[0]) continue;
+
         bool anyPair = false;
+
         // Prepare The Pairs Of Muons
         for (auto it = muons->begin(); it != muons->end(); ++it) {
             for (auto jt = (it + 1); jt != muons->end(); ++jt) {
